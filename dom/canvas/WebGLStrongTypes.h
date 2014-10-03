@@ -436,4 +436,152 @@ STRONG_GLENUM_BEGIN(BufferBinding)
     STRONG_GLENUM_VALUE(ELEMENT_ARRAY_BUFFER),
 STRONG_GLENUM_END(BufferBinding)
 
-#endif
+////////////////////////////////////////////////////////////////////////////////
+
+template<typename T, typename C>
+class StrongType
+{
+private:
+    T mVal;
+
+public:
+    StrongType()
+    {}
+
+    StrongType(T val)
+        : mVal(val)
+    {}
+
+    StrongType(const StrongType<T,C>& other)
+        : mVal(other.get())
+    {}
+
+    const T& get() const {
+        return mVal;
+    }
+
+
+#define MACRO_DEFINE_BINARY_SELF_OP(OP)         \
+    StrongType<T,C>&                            \
+    operator OP(const StrongType<T,C>& other) { \
+        mVal OP other.get();                    \
+        return *this;                           \
+    }
+
+    MACRO_DEFINE_BINARY_SELF_OP(+=)
+    MACRO_DEFINE_BINARY_SELF_OP(-=)
+    MACRO_DEFINE_BINARY_SELF_OP(*=)
+    MACRO_DEFINE_BINARY_SELF_OP(/=)
+    MACRO_DEFINE_BINARY_SELF_OP(%=)
+    MACRO_DEFINE_BINARY_SELF_OP(|=)
+    MACRO_DEFINE_BINARY_SELF_OP(&=)
+    MACRO_DEFINE_BINARY_SELF_OP(^=)
+
+#undef MACRO_DEFINE_BINARY_SELF_OP
+
+    // Prefix
+    StrongType<T,C>& operator ++() {
+        ++mVal;
+        return *this;
+    }
+    StrongType<T,C>& operator --() {
+        --mVal;
+        return *this;
+    }
+
+    // Postfix
+    StrongType<T,C> operator ++(int) {
+        StrongType<T,C> ret(*this);
+        ++mVal;
+        return ret;
+    }
+    StrongType<T,C> operator --(int) {
+        StrongType<T,C> ret(*this);
+        --mVal;
+        return ret;
+    }
+
+    bool operator !() const {
+        return !mVal;
+    }
+
+    T operator ~() const {
+        return ~mVal;
+    }
+
+    T operator +() const {
+        return +mVal;
+    }
+
+    T operator -() const {
+        return -mVal;
+    }
+};
+
+#define MACRO_DEFINE_BINARY_OP(OP_TYPE,OP)                          \
+    template<typename T, typename C>                                \
+    OP_TYPE                                                         \
+    operator OP(const StrongType<T,C>& a, const StrongType<T,C>& b) \
+    {                                                               \
+        return a.get() OP b.get();                                  \
+    }                                                               \
+                                                                    \
+    template<typename T, typename C>                                \
+    OP_TYPE                                                         \
+    operator OP(const T& a, const StrongType<T,C>& b)               \
+    {                                                               \
+        return StrongType<T,C>(a) OP b.get();                       \
+    }                                                               \
+                                                                    \
+    template<typename T, typename C>                                \
+    OP_TYPE                                                         \
+    operator OP(const StrongType<T,C>& a, const T& b)               \
+    {                                                               \
+        return a.get() OP StrongType<T,C>(b);                       \
+    }
+
+MACRO_DEFINE_BINARY_OP(bool, ==)
+MACRO_DEFINE_BINARY_OP(bool, !=)
+MACRO_DEFINE_BINARY_OP(bool, <)
+MACRO_DEFINE_BINARY_OP(bool, >)
+MACRO_DEFINE_BINARY_OP(bool, <=)
+MACRO_DEFINE_BINARY_OP(bool, >=)
+MACRO_DEFINE_BINARY_OP(bool, &&)
+MACRO_DEFINE_BINARY_OP(bool, ||)
+MACRO_DEFINE_BINARY_OP(T, +)
+MACRO_DEFINE_BINARY_OP(T, -)
+MACRO_DEFINE_BINARY_OP(T, *)
+MACRO_DEFINE_BINARY_OP(T, /)
+MACRO_DEFINE_BINARY_OP(T, %)
+MACRO_DEFINE_BINARY_OP(T, |)
+MACRO_DEFINE_BINARY_OP(T, ^)
+MACRO_DEFINE_BINARY_OP(T, &)
+
+#undef MACRO_DEFINE_BINARY_OP
+
+#define DEFN_STRONG_TYPE(TYPE,NAME) \
+namespace StrongTypeInternal {      \
+class NAME;                         \
+}                                   \
+typedef StrongType<TYPE, StrongTypeInternal::NAME> NAME;
+
+/*
+DEFN_STRONG_TYPE(int, FooT);
+DEFN_STRONG_TYPE(float, BarT);
+*/
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFN_STRONG_TYPE(realGLboolean, GLbooleanT)
+DEFN_STRONG_TYPE(GLenum, GLenumT)
+DEFN_STRONG_TYPE(GLfloat, GLfloatT)
+DEFN_STRONG_TYPE(GLclampf, GLclampfT)
+DEFN_STRONG_TYPE(GLbitfield, GLbitfieldT)
+DEFN_STRONG_TYPE(GLsizei, GLsizeiT)
+DEFN_STRONG_TYPE(GLuint, GLuintT)
+DEFN_STRONG_TYPE(GLint, GLintT)
+
+DEFN_STRONG_TYPE(GLenum, GLformatT)
+DEFN_STRONG_TYPE(GLenum, GLinternalFormatT)
+
+#endif // WEBGLSTRONGTYPES_H_
