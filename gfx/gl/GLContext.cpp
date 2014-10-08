@@ -1990,26 +1990,6 @@ GLContext::AssembleOffscreenFBs(const GLuint colorMSRB,
 }
 
 
-
-bool
-GLContext::PublishFrame()
-{
-    MOZ_ASSERT(mScreen);
-
-    return mScreen->PublishFrame(OffscreenSize());
-}
-
-SharedSurface*
-GLContext::RequestFrame()
-{
-    MOZ_ASSERT(mScreen);
-    MOZ_CRASH("Not anymore!");
-
-    return nullptr;
-}
-
-
-
 void
 GLContext::ClearSafely()
 {
