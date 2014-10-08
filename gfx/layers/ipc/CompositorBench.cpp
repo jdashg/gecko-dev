@@ -241,7 +241,10 @@ public:
   }
 
   TemporaryRef<Effect> CreateEffect(size_t i) {
-    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8, mTexture, Filter::POINT);
+    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8,
+                                                         mTexture,
+                                                         Filter::POINT,
+                                                         WrapMode::CLAMP);
     return effect;
   }
 };
@@ -285,7 +288,10 @@ public:
   }
 
   virtual TemporaryRef<Effect> CreateEffect(size_t i) {
-    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8, mTexture, Filter::POINT);
+    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8,
+                                                         mTexture,
+                                                         Filter::POINT,
+                                                         WrapMode::CLAMP);
     return effect;
   }
 };
@@ -328,7 +334,10 @@ public:
   }
 
   virtual TemporaryRef<Effect> CreateEffect(size_t i) {
-    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8, mTexture, Filter::POINT);
+    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8,
+                                                         mTexture,
+                                                         Filter::POINT,
+                                                         WrapMode::CLAMP);
     return effect;
   }
 };
@@ -370,7 +379,10 @@ public:
   }
 
   virtual TemporaryRef<Effect> CreateEffect(size_t i) {
-    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8, mTexture, Filter::POINT);
+    RefPtr<TexturedEffect> effect = CreateTexturedEffect(SurfaceFormat::B8G8R8A8,
+                                                         mTexture,
+                                                         Filter::POINT,
+                                                         WrapMode::CLAMP);
     return effect;
   }
 };

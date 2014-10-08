@@ -62,8 +62,10 @@ struct DeviceAttachmentsD3D11
   RefPtr<ID3D11Buffer> mPSConstantBuffer;
   RefPtr<ID3D11Buffer> mVSConstantBuffer;
   RefPtr<ID3D11RasterizerState> mRasterizerState;
-  RefPtr<ID3D11SamplerState> mLinearSamplerState;
-  RefPtr<ID3D11SamplerState> mPointSamplerState;
+  RefPtr<ID3D11SamplerState> mLinearClampSamplerState;
+  RefPtr<ID3D11SamplerState> mLinearRepeatSamplerState;
+  RefPtr<ID3D11SamplerState> mPointClampSamplerState;
+  RefPtr<ID3D11SamplerState> mPointRepeatSamplerState;
   RefPtr<ID3D11BlendState> mPremulBlendState;
   RefPtr<ID3D11BlendState> mNonPremulBlendState;
   RefPtr<ID3D11BlendState> mComponentBlendState;
@@ -209,18 +211,47 @@ CompositorD3D11::Initialize()
       return false;
     }
 
+    ////////////////
+    // Samplers
+
     CD3D11_SAMPLER_DESC samplerDesc(D3D11_DEFAULT);
-    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    hr = mDevice->CreateSamplerState(&samplerDesc, byRef(mAttachments->mLinearSamplerState));
+
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    hr = mDevice->CreateSamplerState(&samplerDesc,
+                                     byRef(mAttachments->mPointClampSamplerState));
     if (FAILED(hr)) {
       return false;
     }
 
+
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    hr = mDevice->CreateSamplerState(&samplerDesc, byRef(mAttachments->mPointSamplerState));
+    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    hr = mDevice->CreateSamplerState(&samplerDesc,
+                                     byRef(mAttachments->mPointRepeatSamplerState));
     if (FAILED(hr)) {
       return false;
     }
+
+
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    hr = mDevice->CreateSamplerState(&samplerDesc,
+                                     byRef(mAttachments->mLinearClampSamplerState));
+    if (FAILED(hr)) {
+      return false;
+    }
+
+
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    hr = mDevice->CreateSamplerState(&samplerDesc,
+                                     byRef(mAttachments->mLinearRepeatSamplerState));
+    if (FAILED(hr)) {
+      return false;
+    }
+
+    ////////////////
 
     CD3D11_BLEND_DESC blendDesc(D3D11_DEFAULT);
     D3D11_RENDER_TARGET_BLEND_DESC rtBlendPremul = {
@@ -664,14 +695,14 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
         restoreBlendMode = true;
       }
 
-      SetSamplerForFilter(texturedEffect->mFilter);
+      SetSampler(texturedEffect->mFilter, texturedEffect->mWrapMode);
     }
     break;
   case EffectTypes::YCBCR: {
       EffectYCbCr* ycbcrEffect =
         static_cast<EffectYCbCr*>(aEffectChain.mPrimaryEffect.get());
 
-      SetSamplerForFilter(Filter::LINEAR);
+      SetSampler(Filter::LINEAR, ycbcrEffect->mWrapMode);
 
       mVSConstants.textureCoords = ycbcrEffect->mTextureCoords;
 
@@ -724,7 +755,8 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 
       SetPSForEffect(aEffectChain.mPrimaryEffect, maskType, effectComponentAlpha->mOnWhite->GetFormat());
 
-      SetSamplerForFilter(effectComponentAlpha->mFilter);
+      SetSampler(effectComponentAlpha->mFilter,
+                 effectComponentAlpha->mWrapMode);
 
       mVSConstants.textureCoords = effectComponentAlpha->mTextureCoords;
       RefPtr<ID3D11ShaderResourceView> views[2];
@@ -828,7 +860,7 @@ CompositorD3D11::EndFrame()
       PaintToTarget();
     }
   }
-  
+
   mCurrentRT = nullptr;
 }
 
@@ -1031,16 +1063,34 @@ CompositorD3D11::UpdateConstantBuffers()
 }
 
 void
-CompositorD3D11::SetSamplerForFilter(Filter aFilter)
+CompositorD3D11::SetSampler(Filter aFilter, layers::WrapMode aWrapMode)
 {
   ID3D11SamplerState *sampler;
+
   switch (aFilter) {
   default:
   case Filter::LINEAR:
-    sampler = mAttachments->mLinearSamplerState;
+    switch (aWrapMode) {
+    case WrapMode::CLAMP:
+      sampler = mAttachments->mLinearClampSamplerState;
+      break;
+
+    case WrapMode::REPEAT:
+      sampler = mAttachments->mLinearRepeatSamplerState;
+      break;
+    }
     break;
+
   case Filter::POINT:
-    sampler = mAttachments->mPointSamplerState;
+    switch (aWrapMode) {
+    case WrapMode::CLAMP:
+      sampler = mAttachments->mPointClampSamplerState;
+      break;
+
+    case WrapMode::REPEAT:
+      sampler = mAttachments->mPointRepeatSamplerState;
+      break;
+    }
     break;
   }
 

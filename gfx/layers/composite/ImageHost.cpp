@@ -287,14 +287,22 @@ ImageHost::GenEffect(const gfx::Filter& aFilter)
   if (!source) {
     return nullptr;
   }
+
+  const TextureFlags& flags = mFrontBuffer->GetFlags();
+
   bool isAlphaPremultiplied = true;
-  if (mFrontBuffer->GetFlags() & TextureFlags::NON_PREMULTIPLIED)
+  if (flags & TextureFlags::NON_PREMULTIPLIED)
     isAlphaPremultiplied = false;
+
+  WrapMode wrapMode = WrapMode::CLAMP;
+  if (flags & TextureFlags::ALLOW_REPEAT)
+    wrapMode = WrapMode::REPEAT;
 
   return CreateTexturedEffect(mFrontBuffer->GetFormat(),
                               source,
                               aFilter,
-                              isAlphaPremultiplied);
+                              isAlphaPremultiplied,
+                              wrapMode);
 }
 
 #ifdef MOZ_WIDGET_GONK

@@ -213,7 +213,8 @@ ContentHostBase::GenEffect(const gfx::Filter& aFilter)
   if (!source) {
     return nullptr;
   }
-  return CreateTexturedEffect(source, sourceOnWhite, aFilter, true);
+  return CreateTexturedEffect(source, sourceOnWhite, aFilter, true,
+                              WrapMode::REPEAT);
 }
 
 void

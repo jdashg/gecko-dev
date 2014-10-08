@@ -6,6 +6,7 @@
 #ifndef MOZILLA_GFX_COMPOSITORD3D11_H
 #define MOZILLA_GFX_COMPOSITORD3D11_H
 
+#include "Effects.h"
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
 #include "mozilla/layers/Compositor.h"
@@ -96,7 +97,7 @@ public:
 
   /**
    * Start a new frame. If aClipRectIn is null, sets *aClipRectOut to the
-   * screen dimensions. 
+   * screen dimensions.
    */
   virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
                           const gfx::Rect *aClipRectIn,
@@ -149,7 +150,7 @@ private:
   void UpdateRenderTarget();
   bool CreateShaders();
   bool UpdateConstantBuffers();
-  void SetSamplerForFilter(gfx::Filter aFilter);
+  void SetSampler(gfx::Filter aFilter, layers::WrapMode aWrapMode);
   void SetPSForEffect(Effect *aEffect, MaskType aMaskType, gfx::SurfaceFormat aFormat);
   void PaintToTarget();
 

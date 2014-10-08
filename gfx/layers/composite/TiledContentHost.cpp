@@ -493,7 +493,9 @@ TiledContentHost::RenderTile(const TileHost& aTile,
     return;
   }
 
-  RefPtr<TexturedEffect> effect = CreateTexturedEffect(source, sourceOnWhite, aFilter, true);
+  RefPtr<TexturedEffect> effect = CreateTexturedEffect(source, sourceOnWhite,
+                                                       aFilter, true,
+                                                       WrapMode::REPEAT);
   if (!effect) {
     return;
   }

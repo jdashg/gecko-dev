@@ -22,6 +22,11 @@
 namespace mozilla {
 namespace layers {
 
+MOZ_BEGIN_ENUM_CLASS(WrapMode, uint8_t)
+  CLAMP,
+  REPEAT
+MOZ_END_ENUM_CLASS(WrapMode)
+
 /**
  * Effects and effect chains are used by the compositor API (see Compositor.h).
  * An effect chain represents a rendering method, for example some shader and
@@ -58,12 +63,14 @@ struct TexturedEffect : public Effect
   TexturedEffect(EffectTypes aType,
                  TextureSource *aTexture,
                  bool aPremultiplied,
-                 gfx::Filter aFilter)
+                 gfx::Filter aFilter,
+                 WrapMode wrapMode)
      : Effect(aType)
      , mTextureCoords(0, 0, 1.0f, 1.0f)
      , mTexture(aTexture)
      , mPremultiplied(aPremultiplied)
      , mFilter(aFilter)
+     , mWrapMode(wrapMode)
   {}
 
   virtual const char* Name() = 0;
@@ -73,6 +80,7 @@ struct TexturedEffect : public Effect
   TextureSource* mTexture;
   bool mPremultiplied;
   gfx::Filter mFilter;
+  WrapMode mWrapMode;
 };
 
 // Support an alpha mask.
@@ -113,7 +121,8 @@ struct EffectBlendMode : public Effect
 struct EffectRenderTarget : public TexturedEffect
 {
   explicit EffectRenderTarget(CompositingRenderTarget *aRenderTarget)
-    : TexturedEffect(EffectTypes::RENDER_TARGET, aRenderTarget, true, gfx::Filter::LINEAR)
+    : TexturedEffect(EffectTypes::RENDER_TARGET, aRenderTarget, true,
+                     gfx::Filter::LINEAR, WrapMode::CLAMP)
     , mRenderTarget(aRenderTarget)
   {}
 
@@ -124,7 +133,8 @@ struct EffectRenderTarget : public TexturedEffect
 
 protected:
   EffectRenderTarget(EffectTypes aType, CompositingRenderTarget *aRenderTarget)
-    : TexturedEffect(aType, aRenderTarget, true, gfx::Filter::LINEAR)
+    : TexturedEffect(aType, aRenderTarget, true, gfx::Filter::LINEAR,
+                     WrapMode::CLAMP)
     , mRenderTarget(aRenderTarget)
   {}
 
@@ -149,8 +159,9 @@ struct EffectRGB : public TexturedEffect
   EffectRGB(TextureSource *aTexture,
             bool aPremultiplied,
             gfx::Filter aFilter,
-            bool aFlipped = false)
-    : TexturedEffect(EffectTypes::RGB, aTexture, aPremultiplied, aFilter)
+            WrapMode aWrapMode)
+    : TexturedEffect(EffectTypes::RGB, aTexture, aPremultiplied, aFilter,
+                     aWrapMode)
   {}
 
   virtual const char* Name() { return "EffectRGB"; }
@@ -158,8 +169,8 @@ struct EffectRGB : public TexturedEffect
 
 struct EffectYCbCr : public TexturedEffect
 {
-  EffectYCbCr(TextureSource *aSource, gfx::Filter aFilter)
-    : TexturedEffect(EffectTypes::YCBCR, aSource, false, aFilter)
+  EffectYCbCr(TextureSource *aSource, gfx::Filter aFilter, WrapMode aWrapMode)
+    : TexturedEffect(EffectTypes::YCBCR, aSource, false, aFilter, aWrapMode)
   {}
 
   virtual const char* Name() { return "EffectYCbCr"; }
@@ -167,10 +178,10 @@ struct EffectYCbCr : public TexturedEffect
 
 struct EffectComponentAlpha : public TexturedEffect
 {
-  EffectComponentAlpha(TextureSource *aOnBlack,
-                       TextureSource *aOnWhite,
-                       gfx::Filter aFilter)
-    : TexturedEffect(EffectTypes::COMPONENT_ALPHA, nullptr, false, aFilter)
+  EffectComponentAlpha(TextureSource *aOnBlack, TextureSource *aOnWhite,
+                       gfx::Filter aFilter, WrapMode aWrapMode)
+    : TexturedEffect(EffectTypes::COMPONENT_ALPHA, nullptr, false, aFilter,
+                     aWrapMode)
     , mOnBlack(aOnBlack)
     , mOnWhite(aOnWhite)
   {}
@@ -217,7 +228,8 @@ inline TemporaryRef<TexturedEffect>
 CreateTexturedEffect(gfx::SurfaceFormat aFormat,
                      TextureSource* aSource,
                      const gfx::Filter& aFilter,
-                     bool isAlphaPremultiplied)
+                     bool isAlphaPremultiplied,
+                     WrapMode aWrapMode)
 {
   MOZ_ASSERT(aSource);
   RefPtr<TexturedEffect> result;
@@ -227,10 +239,10 @@ CreateTexturedEffect(gfx::SurfaceFormat aFormat,
   case gfx::SurfaceFormat::R8G8B8X8:
   case gfx::SurfaceFormat::R5G6B5:
   case gfx::SurfaceFormat::R8G8B8A8:
-    result = new EffectRGB(aSource, isAlphaPremultiplied, aFilter);
+    result = new EffectRGB(aSource, isAlphaPremultiplied, aFilter, aWrapMode);
     break;
   case gfx::SurfaceFormat::YUV:
-    result = new EffectYCbCr(aSource, aFilter);
+    result = new EffectYCbCr(aSource, aFilter, aWrapMode);
     break;
   default:
     NS_WARNING("unhandled program type");
@@ -250,19 +262,21 @@ inline TemporaryRef<TexturedEffect>
 CreateTexturedEffect(TextureSource* aSource,
                      TextureSource* aSourceOnWhite,
                      const gfx::Filter& aFilter,
-                     bool isAlphaPremultiplied)
+                     bool isAlphaPremultiplied,
+                     WrapMode aWrapMode)
 {
   MOZ_ASSERT(aSource);
   if (aSourceOnWhite) {
     MOZ_ASSERT(aSource->GetFormat() == gfx::SurfaceFormat::R8G8B8X8 ||
                aSourceOnWhite->GetFormat() == gfx::SurfaceFormat::B8G8R8X8);
-    return new EffectComponentAlpha(aSource, aSourceOnWhite, aFilter);
+    return new EffectComponentAlpha(aSource, aSourceOnWhite, aFilter, aWrapMode);
   }
 
   return CreateTexturedEffect(aSource->GetFormat(),
                               aSource,
                               aFilter,
-                              isAlphaPremultiplied);
+                              isAlphaPremultiplied,
+                              aWrapMode);
 }
 
 /**
@@ -272,9 +286,10 @@ CreateTexturedEffect(TextureSource* aSource,
  */
 inline TemporaryRef<TexturedEffect>
 CreateTexturedEffect(TextureSource *aTexture,
-                     const gfx::Filter& aFilter)
+                     const gfx::Filter& aFilter,
+                     WrapMode aWrapMode)
 {
-  return CreateTexturedEffect(aTexture, nullptr, aFilter, true);
+  return CreateTexturedEffect(aTexture, nullptr, aFilter, true, aWrapMode);
 }
 
 
