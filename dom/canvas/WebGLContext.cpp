@@ -669,6 +669,12 @@ CreateOffscreen(GLContext* gl,
     if (!baseCaps.alpha)
         baseCaps.premultAlpha = true;
 
+    if (gl->IsANGLE()) {
+        // We can't use no-alpha formats on ANGLE yet because of:
+        // https://code.google.com/p/angleproject/issues/detail?id=764
+        baseCaps.alpha = true;
+    }
+
     // we should really have this behind a
     // |gfxPlatform::GetPlatform()->GetScreenDepth() == 16| check, but
     // for now it's just behind a pref for testing/evaluation.
@@ -923,18 +929,19 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
 
     mShouldPresent = true;
 
+    if (gl->WorkAroundDriverBugs()) {
+        if (!mOptions.alpha && gl->Caps().alpha) {
+            mNeedsFakeNoAlpha = true;
+        }
+    }
+
     MOZ_ASSERT(gl->Caps().color);
-    MOZ_ASSERT(gl->Caps().alpha == mOptions.alpha);
+    MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
+    MOZ_ASSERT_IF(mNeedsFakeNoAlpha, !mOptions.alpha && gl->Caps().alpha);
     MOZ_ASSERT(gl->Caps().depth == mOptions.depth || !gl->Caps().depth);
     MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil || !gl->Caps().stencil);
     MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
-
-    if (gl->WorkAroundDriverBugs() && gl->IsANGLE()) {
-        if (!mOptions.alpha) {
-            mNeedsFakeNoAlpha = true;
-        }
-    }
 
     AssertCachedBindings();
     AssertCachedState();
@@ -1837,10 +1844,10 @@ bool WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     container->UnlockCurrentImage();
     return ok;
 }
-
+s
 ////////////////////////////////////////////////////////////////////////////////
 
-
+s
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
     : mWebGL(webgl)
     , mNeedsChange(NeedsChange(webgl))
