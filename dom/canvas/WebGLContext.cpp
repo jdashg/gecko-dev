@@ -922,18 +922,18 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     AssertCachedBindings();
     AssertCachedState();
 
+    if (gl->WorkAroundDriverBugs()) {
+        if (!mOptions.alpha && gl->Caps().alpha) {
+            mNeedsFakeNoAlpha = true;
+        }
+    }
+
     // Clear immediately, because we need to present the cleared initial
     // buffer.
     mBackbufferNeedsClear = true;
     ClearBackbufferIfNeeded();
 
     mShouldPresent = true;
-
-    if (gl->WorkAroundDriverBugs()) {
-        if (!mOptions.alpha && gl->Caps().alpha) {
-            mNeedsFakeNoAlpha = true;
-        }
-    }
 
     MOZ_ASSERT(gl->Caps().color);
     MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
