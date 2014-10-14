@@ -51,16 +51,17 @@ public:
 protected:
     bool mIsLocked;
     DebugOnly<nsIThread* const> mOwningThread;
+    RefPtr<layers::TextureClient> mTexClient;
 
     SharedSurface(SharedSurfaceType type,
                   AttachmentType attachType,
                   GLContext* gl,
                   const gfx::IntSize& size,
-                  bool hasAlpha);
+                  bool hasAlpha,
+                  layers::TextureClient* texClient);
 
 public:
-    virtual ~SharedSurface() {
-    }
+    virtual ~SharedSurface();
 
     bool IsLocked() const {
         return mIsLocked;
@@ -131,6 +132,10 @@ public:
 
     virtual bool NeedsIndirectReads() const {
         return false;
+    }
+
+    const RefPtr<layers::TextureClient>& TexClient() const {
+        return mTexClient;
     }
 };
 

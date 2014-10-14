@@ -196,12 +196,12 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
 ////////////////////////////////////////////////////////////////////////
 // SharedSurface
 
-
 SharedSurface::SharedSurface(SharedSurfaceType type,
                              AttachmentType attachType,
                              GLContext* gl,
                              const gfx::IntSize& size,
-                             bool hasAlpha)
+                             bool hasAlpha,
+                             const RefPtr<layers::TextureClient>& texClient)
     : mType(type)
     , mAttachType(attachType)
     , mGL(gl)
@@ -211,6 +211,11 @@ SharedSurface::SharedSurface(SharedSurfaceType type,
 #ifdef DEBUG
     , mOwningThread(NS_GetCurrentThread())
 #endif
+    , mTexClient(texClient)
+{
+}
+
+SharedSurface::~SharedSurface()
 {
 }
 
@@ -257,8 +262,6 @@ SharedSurface::PollSync_ContentThread()
     MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
     return PollSync_ContentThread_Impl();
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory
