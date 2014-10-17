@@ -1099,6 +1099,11 @@ protected:
         mMaxFetchedInstances = 0;
     }
 
+    nsRefPtr<gl::GLContext> gl;
+    UniquePtr<gl::GLScreenBuffer> mScreen;
+
+    void BindScreenBuffer(GLenum target);
+
     CheckedUint32 mGeneration;
 
     WebGLContextOptions mOptions;

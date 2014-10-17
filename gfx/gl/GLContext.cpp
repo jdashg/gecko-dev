@@ -290,8 +290,6 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mTopError(LOCAL_GL_NO_ERROR),
     mLocalErrorScope(nullptr),
     mSharedContext(sharedContext),
-    mCaps(caps),
-    mScreen(nullptr),
     mLockedSurface(nullptr),
     mMaxTextureSize(0),
     mMaxCubeMapTextureSize(0),
@@ -1468,12 +1466,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         // We're ready for final setup.
         fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
-        if (mCaps.any)
-            DetermineCaps();
-
-        UpdatePixelFormat();
-        UpdateGLFormats(mCaps);
-
         mTexGarbageBin = new TextureGarbageBin(this);
 
         MOZ_ASSERT(IsCurrent());
@@ -1686,143 +1678,6 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
         start = terminator;
     }
     return false;
-}
-
-void
-GLContext::DetermineCaps()
-{
-    PixelBufferFormat format = QueryPixelFormat();
-
-    SurfaceCaps caps;
-    caps.color = !!format.red && !!format.green && !!format.blue;
-    caps.bpp16 = caps.color && format.ColorBits() == 16;
-    caps.alpha = !!format.alpha;
-    caps.depth = !!format.depth;
-    caps.stencil = !!format.stencil;
-    caps.antialias = format.samples > 1;
-    caps.preserve = true;
-
-    mCaps = caps;
-}
-
-PixelBufferFormat
-GLContext::QueryPixelFormat()
-{
-    PixelBufferFormat format;
-
-    ScopedBindFramebuffer autoFB(this, 0);
-
-    fGetIntegerv(LOCAL_GL_RED_BITS  , &format.red  );
-    fGetIntegerv(LOCAL_GL_GREEN_BITS, &format.green);
-    fGetIntegerv(LOCAL_GL_BLUE_BITS , &format.blue );
-    fGetIntegerv(LOCAL_GL_ALPHA_BITS, &format.alpha);
-
-    fGetIntegerv(LOCAL_GL_DEPTH_BITS, &format.depth);
-    fGetIntegerv(LOCAL_GL_STENCIL_BITS, &format.stencil);
-
-    fGetIntegerv(LOCAL_GL_SAMPLES, &format.samples);
-
-    return format;
-}
-
-void
-GLContext::UpdatePixelFormat()
-{
-    PixelBufferFormat format = QueryPixelFormat();
-#ifdef MOZ_GL_DEBUG
-    const SurfaceCaps& caps = Caps();
-    MOZ_ASSERT(!caps.any, "Did you forget to DetermineCaps()?");
-
-    MOZ_ASSERT(caps.color == !!format.red);
-    MOZ_ASSERT(caps.color == !!format.green);
-    MOZ_ASSERT(caps.color == !!format.blue);
-
-    // These we either must have if they're requested, or
-    // we can have if they're not.
-    MOZ_ASSERT(caps.alpha == !!format.alpha || !caps.alpha);
-    MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
-    MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
-
-    MOZ_ASSERT(caps.antialias == (format.samples > 1));
-#endif
-    mPixelFormat = new PixelBufferFormat(format);
-}
-
-GLFormats
-GLContext::ChooseGLFormats(const SurfaceCaps& caps) const
-{
-    GLFormats formats;
-
-    // If we're on ES2 hardware and we have an explicit request for 16 bits of color or less
-    // OR we don't support full 8-bit color, return a 4444 or 565 format.
-    bool bpp16 = caps.bpp16;
-    if (IsGLES()) {
-        if (!IsExtensionSupported(OES_rgb8_rgba8))
-            bpp16 = true;
-    } else {
-        // RGB565 is uncommon on desktop, requiring ARB_ES2_compatibility.
-        // Since it's also vanishingly useless there, let's not support it.
-        bpp16 = false;
-    }
-
-    if (bpp16) {
-        MOZ_ASSERT(IsGLES());
-        if (caps.alpha) {
-            formats.color_texInternalFormat = LOCAL_GL_RGBA;
-            formats.color_texFormat = LOCAL_GL_RGBA;
-            formats.color_texType   = LOCAL_GL_UNSIGNED_SHORT_4_4_4_4;
-            formats.color_rbFormat  = LOCAL_GL_RGBA4;
-        } else {
-            formats.color_texInternalFormat = LOCAL_GL_RGB;
-            formats.color_texFormat = LOCAL_GL_RGB;
-            formats.color_texType   = LOCAL_GL_UNSIGNED_SHORT_5_6_5;
-            formats.color_rbFormat  = LOCAL_GL_RGB565;
-        }
-    } else {
-        formats.color_texType = LOCAL_GL_UNSIGNED_BYTE;
-
-        if (caps.alpha) {
-            formats.color_texInternalFormat = IsGLES() ? LOCAL_GL_RGBA : LOCAL_GL_RGBA8;
-            formats.color_texFormat = LOCAL_GL_RGBA;
-            formats.color_rbFormat  = LOCAL_GL_RGBA8;
-        } else {
-            formats.color_texInternalFormat = IsGLES() ? LOCAL_GL_RGB : LOCAL_GL_RGB8;
-            formats.color_texFormat = LOCAL_GL_RGB;
-            formats.color_rbFormat  = LOCAL_GL_RGB8;
-        }
-    }
-
-    uint32_t msaaLevel = gfxPrefs::MSAALevel();
-    GLsizei samples = msaaLevel * msaaLevel;
-    samples = std::min(samples, mMaxSamples);
-
-    // Bug 778765.
-    if (WorkAroundDriverBugs() && samples == 1) {
-        samples = 0;
-    }
-    formats.samples = samples;
-
-
-    // Be clear that these are 0 if unavailable.
-    formats.depthStencil = 0;
-    if (!IsGLES() || IsExtensionSupported(OES_packed_depth_stencil)) {
-        formats.depthStencil = LOCAL_GL_DEPTH24_STENCIL8;
-    }
-
-    formats.depth = 0;
-    if (IsGLES()) {
-        if (IsExtensionSupported(OES_depth24)) {
-            formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
-        } else {
-            formats.depth = LOCAL_GL_DEPTH_COMPONENT16;
-        }
-    } else {
-        formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
-    }
-
-    formats.stencil = LOCAL_GL_STENCIL_INDEX8;
-
-    return formats;
 }
 
 void

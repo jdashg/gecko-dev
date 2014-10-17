@@ -318,6 +318,8 @@ WebGLContext::DestroyResourcesAndContext()
 
     gl->MakeCurrent();
 
+    mScreen = nullptr;
+
     mBound2DTextures.Clear();
     mBoundCubeMapTextures.Clear();
     mBound3DTextures.Clear();
@@ -601,7 +603,6 @@ CreateHeadlessGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
 static bool
 CreateOffscreenWithCaps(GLContext* gl, const SurfaceCaps& caps)
 {
-    gfx::IntSize dummySize(16, 16);
     return gl->InitOffscreen(dummySize, caps);
 }
 
@@ -636,10 +637,10 @@ PopulateCapFallbackQueue(const SurfaceCaps& baseCaps,
     }
 }
 
-static bool
-CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
-                const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl,
-                layers::ISurfaceAllocator* surfAllocator)
+static UniquePtr<GLScreenBuffer>
+CreateScreen(GLContext* gl, const WebGLContextOptions& options,
+             const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl,
+             layers::ISurfaceAllocator* surfAllocator)
 {
     SurfaceCaps baseCaps;
 
@@ -683,18 +684,20 @@ CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
     std::queue<SurfaceCaps> fallbackCaps;
     PopulateCapFallbackQueue(baseCaps, &fallbackCaps);
 
-    bool created = false;
+    gfx::IntSize dummySize(16, 16);
+
+    UniquePtr<GLScreenBuffer> screen;
     while (!fallbackCaps.empty()) {
         SurfaceCaps& caps = fallbackCaps.front();
 
-        created = CreateOffscreenWithCaps(gl, caps);
-        if (created)
+        screen = GLScreenBuffer::Create(&gl, caps, dummySize);
+        if (screen)
             break;
 
         fallbackCaps.pop();
     }
 
-    return created;
+    return Move(screen);
 }
 
 bool
@@ -722,7 +725,8 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
         if (!gl)
             break;
 
-        if (!CreateOffscreen(gl, mOptions, gfxInfo, this, surfAllocator))
+        mScreen = CreateScreen(gl, mOptions, gfxInfo, this, surfAllocator);
+        if (!mScreen)
             break;
 
         if (!InitAndValidateGL())
@@ -731,11 +735,12 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
         return true;
     } while (false);
 
+    mScreen = nullptr;
     gl = nullptr;
     return false;
 }
 
-// Fallback for resizes:
+// Has fallback for too-large size requests.
 bool
 WebGLContext::ResizeBackbuffer(uint32_t requestedWidth,
                                uint32_t requestedHeight)
@@ -749,7 +754,7 @@ WebGLContext::ResizeBackbuffer(uint32_t requestedWidth,
       height = height ? height : 1;
 
       gfx::IntSize curSize(width, height);
-      if (gl->ResizeOffscreen(curSize)) {
+      if (mScreen->Resize(curSize)) {
           resized = true;
           break;
       }
@@ -761,8 +766,11 @@ WebGLContext::ResizeBackbuffer(uint32_t requestedWidth,
     if (!resized)
         return false;
 
-    mWidth = gl->OffscreenSize().width;
-    mHeight = gl->OffscreenSize().height;
+    if (!mBoundFramebuffer)
+        BindDefaultFramebuffer();
+
+    mWidth = mScreen->Size().width;
+    mHeight = mScreen->Size().height;
     MOZ_ASSERT((uint32_t)mWidth == width);
     MOZ_ASSERT((uint32_t)mHeight == height);
 
@@ -904,23 +912,11 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
 
     MakeContextCurrent();
 
+    BindDefaultFramebuffer();
+
     gl->fViewport(0, 0, mWidth, mHeight);
     mViewportWidth = mWidth;
     mViewportHeight = mHeight;
-
-    // Make sure that we clear this out, otherwise
-    // we'll end up displaying random memory
-    gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
-    AssertCachedBindings();
-    AssertCachedState();
-
-    // Clear immediately, because we need to present the cleared initial
-    // buffer.
-    mBackbufferNeedsClear = true;
-    ClearBackbufferIfNeeded();
-
-    mShouldPresent = true;
 
     MOZ_ASSERT(gl->Caps().color);
     MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
@@ -930,11 +926,33 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
+    // Clear immediately, because we need to present the cleared initial
+    // buffer.
+    mBackbufferNeedsClear = true;
+    ClearBackbufferIfNeeded();
+
     AssertCachedBindings();
     AssertCachedState();
 
+    mShouldPresent = true;
+
     reporter.SetSuccessful();
     return NS_OK;
+}
+
+void
+WebGLContext::BindDefaultFramebuffer()
+{
+    GLuint drawFB = mScreen->DrawFB();
+    GLuint readFB = mScreen->ReadFB();
+
+    if (drawFB == readFB) {
+        gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, drawFB);
+    } else {
+        MOZ_ASSERT(gl->IsSupported(GLFeature::FramebufferBlit));
+        gl->fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER, drawFB);
+        gl->fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER, readFB);
+    }
 }
 
 void
@@ -1279,7 +1297,8 @@ WebGLContext::ClearScreen()
     bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = {false};
 
     MakeContextCurrent();
-    ScopedBindFramebuffer autoFB(gl, 0);
+    ScopedBindFramebuffer autoFB(gl);
+    BindDefaultFramebuffer();
 
     GLbitfield clearMask = LOCAL_GL_COLOR_BUFFER_BIT;
     if (mOptions.depth)
@@ -1290,6 +1309,7 @@ WebGLContext::ClearScreen()
     colorAttachmentsMask[0] = true;
 
     ForceClearFramebufferWithDefaultValues(clearMask, colorAttachmentsMask);
+    mScreen->OnAfterDraw();
 }
 
 void
@@ -1418,13 +1438,13 @@ WebGLContext::PresentScreenBuffer()
 
     gl->MakeCurrent();
 
-    GLScreenBuffer* screen = gl->Screen();
-    MOZ_ASSERT(screen);
-
-    if (!screen->PublishFrame(screen->Size())) {
+    if (!mScreen->Swap(mScreen->Size()) {
         ForceLoseContext();
         return false;
     }
+
+    if (!mBoundFramebuffer)
+        BindDefaultFramebuffer();
 
     if (!mOptions.preserveDrawingBuffer) {
         mBackbufferNeedsClear = true;
@@ -1713,8 +1733,11 @@ WebGLContext::GetSurfaceSnapshot(bool* out_premultAlpha)
 
     gl->MakeCurrent();
     {
-        ScopedBindFramebuffer autoFB(gl, 0);
+        ScopedBindFramebuffer autoFB(gl);
+        BindDefaultFramebuffer();
         ClearBackbufferIfNeeded();
+
+        mScreen->OnBeforeRead();
         ReadPixelsIntoDataSurface(gl, surf);
     }
 

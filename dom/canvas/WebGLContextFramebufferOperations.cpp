@@ -35,9 +35,9 @@ WebGLContext::Clear(GLbitfield mask)
 
         gl->fClear(mask);
         return;
-    } else {
-        ClearBackbufferIfNeeded();
     }
+
+    ClearBackbufferIfNeeded();
 
     // Ok, we're clearing the default framebuffer/screen.
     {
@@ -45,6 +45,7 @@ WebGLContext::Clear(GLbitfield mask)
         gl->fClear(mask);
     }
 
+    mScreen->OnAfterDraw();
     Invalidate();
     mShouldPresent = true;
 }

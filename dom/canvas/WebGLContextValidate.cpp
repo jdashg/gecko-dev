@@ -1698,8 +1698,8 @@ FloorPOT(int32_t x)
 bool
 WebGLContext::InitAndValidateGL()
 {
-    if (!gl)
-        return false;
+    MOZ_ASSERT(gl);
+    MOZ_ASSERT(mScreen);
 
     GLenum error = gl->fGetError();
     if (error != LOCAL_GL_NO_ERROR) {

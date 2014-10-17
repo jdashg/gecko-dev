@@ -157,7 +157,7 @@ WebGLContext::BindFramebuffer(GLenum target, WebGLFramebuffer* wfb)
     MakeContextCurrent();
 
     if (!wfb) {
-        gl->fBindFramebuffer(target, 0);
+        BindScreenBuffer(target);
     } else {
         wfb->BindTo(target);
         GLuint framebuffername = wfb->GLName();
@@ -424,6 +424,8 @@ WebGLContext::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
         // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
         // that might not always be true, say if we had a 16bpp default framebuffer.
         framebuffertype = LOCAL_GL_UNSIGNED_BYTE;
+
+        mScreen->OnBeforeRead();
     }
 
     TexInternalFormat effectiveInternalFormat =
@@ -1995,7 +1997,8 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                                          " correct color/depth/stencil type.");
         }
     } else {
-      ClearBackbufferIfNeeded();
+        ClearBackbufferIfNeeded();
+        mScreen->OnBeforeRead();
     }
 
     bool isFormatAndTypeValid = false;

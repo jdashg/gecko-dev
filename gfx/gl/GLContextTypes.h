@@ -17,6 +17,7 @@ class ISurfaceAllocator;
 }
 namespace gl {
 class GLContext;
+class SurfaceCaps;
 
 enum class GLContextType {
     Unknown,
@@ -46,6 +47,8 @@ struct GLFormats MOZ_FINAL
     GLenum stencil;
 
     GLsizei samples;
+
+    static GLFormats Choose(GLContext* gl, const SurfaceCaps& caps);
 };
 
 struct PixelBufferFormat MOZ_FINAL

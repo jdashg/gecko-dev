@@ -36,7 +36,6 @@ public:
     // Fallible.
     static UniquePtr<GLScreenBuffer> Create(GLContext& gl,
                                             const SurfaceCaps& caps,
-                                            const GLFormats& formats,
                                             const gfx::IntSize& size);
 
 private:
@@ -89,6 +88,9 @@ public:
     bool Resize(const gfx::IntSize& size);
 
     bool Swap(const gfx::IntSize& size);
+
+    GLuint DrawFB() const;
+    GLuint ReadFB() const;
 
 private:
     void AssureBlitted();

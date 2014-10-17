@@ -370,6 +370,7 @@ void WebGLContext::Draw_cleanup()
     UnbindFakeBlackTextures();
 
     if (!mBoundDrawFramebuffer) {
+        mScreen->OnAfterDraw();
         Invalidate();
         mShouldPresent = true;
         MOZ_ASSERT(!mBackbufferNeedsClear);

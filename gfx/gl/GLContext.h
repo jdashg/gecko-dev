@@ -3437,76 +3437,7 @@ public:
         return thisShared == otherShared;
     }
 
-    bool InitOffscreen(const gfx::IntSize& size, const SurfaceCaps& caps) {
-        if (!CreateScreenBuffer(size, caps))
-            return false;
-
-        MakeCurrent();
-        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-        fScissor(0, 0, size.width, size.height);
-        fViewport(0, 0, size.width, size.height);
-
-        mCaps = mScreen->mCaps;
-        if (mCaps.any)
-            DetermineCaps();
-
-        UpdateGLFormats(mCaps);
-        UpdatePixelFormat();
-
-        return true;
-    }
-
-protected:
-    // Note that it does -not- clear the resized buffers.
-    bool CreateScreenBuffer(const gfx::IntSize& size, const SurfaceCaps& caps) {
-        if (!IsOffscreenSizeAllowed(size))
-            return false;
-
-       return CreateScreenBufferImpl(size, caps);
-    }
-
-    bool CreateScreenBufferImpl(const gfx::IntSize& size,
-                                const SurfaceCaps& caps);
-
-public:
-    bool ResizeScreenBuffer(const gfx::IntSize& size);
-
-protected:
-    SurfaceCaps mCaps;
-    nsAutoPtr<GLFormats> mGLFormats;
-    nsAutoPtr<PixelBufferFormat> mPixelFormat;
-
-public:
-    void DetermineCaps();
-    const SurfaceCaps& Caps() const {
-        return mCaps;
-    }
-
-    // Only varies based on bpp16 and alpha.
-    GLFormats ChooseGLFormats(const SurfaceCaps& caps) const;
-    void UpdateGLFormats(const SurfaceCaps& caps) {
-        mGLFormats = new GLFormats(ChooseGLFormats(caps));
-    }
-
-    const GLFormats& GetGLFormats() const {
-        MOZ_ASSERT(mGLFormats);
-        return *mGLFormats;
-    }
-
-    PixelBufferFormat QueryPixelFormat();
-    void UpdatePixelFormat();
-
-    const PixelBufferFormat& GetPixelFormat() const {
-        MOZ_ASSERT(mPixelFormat);
-        return *mPixelFormat;
-    }
-
-protected:
-    friend class GLScreenBuffer;
-    UniquePtr<GLScreenBuffer> mScreen;
-
-    void DestroyScreenBuffer();
-
+private:
     SharedSurface* mLockedSurface;
 
 public:
