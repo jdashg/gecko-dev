@@ -353,7 +353,10 @@ CanvasClientSharedSurface::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     if (mFront)
       mFront->Surf()->Fence();
   } else {
-    mFront = gl->Screen()->Front();
+    WebGLContext* webgl = aLayer->mWebGL;
+    MOZ_ASSERT(webgl);
+
+    mFront = webgl->Screen()->Front();
     if (!mFront)
       return;
   }

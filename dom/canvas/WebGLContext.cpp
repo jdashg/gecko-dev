@@ -1230,6 +1230,7 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* builder,
 
     CanvasLayer::Data data;
     data.mGLContext = gl;
+    data.mWebGL = this;
     data.mSize = nsIntSize(mWidth, mHeight);
     data.mHasAlpha = gl->Caps().alpha;
     data.mIsGLAlphaPremult = IsPremultAlpha() || !data.mHasAlpha;

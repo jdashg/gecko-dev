@@ -1102,8 +1102,14 @@ protected:
     nsRefPtr<gl::GLContext> gl;
     UniquePtr<gl::GLScreenBuffer> mScreen;
 
-    void BindScreenBuffer(GLenum target);
+    void BindDefaultFramebuffer();
 
+public:
+    gl::GLScreenBuffer* Screen() const {
+        return mScreen;
+    }
+
+protected:
     CheckedUint32 mGeneration;
 
     WebGLContextOptions mOptions;
