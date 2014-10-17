@@ -510,8 +510,7 @@ GLBlitHelper::DeleteTexBlitProgram()
 void
 GLBlitHelper::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
                                            const gfx::IntSize& srcSize,
-                                           const gfx::IntSize& destSize,
-                                           bool internalFBs)
+                                           const gfx::IntSize& destSize)
 {
     MOZ_ASSERT(!srcFB || mGL->fIsFramebuffer(srcFB));
     MOZ_ASSERT(!destFB || mGL->fIsFramebuffer(destFB));
@@ -521,13 +520,8 @@ GLBlitHelper::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
     ScopedBindFramebuffer boundFB(mGL);
     ScopedGLState scissor(mGL, LOCAL_GL_SCISSOR_TEST, false);
 
-    if (internalFBs) {
-        mGL->Screen()->BindReadFB_Internal(srcFB);
-        mGL->Screen()->BindDrawFB_Internal(destFB);
-    } else {
-        mGL->BindReadFB(srcFB);
-        mGL->BindDrawFB(destFB);
-    }
+    mGL->fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER, srcFB);
+    mGL->fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER, destFB);
 
     mGL->fBlitFramebuffer(0, 0,  srcSize.width,  srcSize.height,
                           0, 0, destSize.width, destSize.height,
@@ -539,24 +533,22 @@ void
 GLBlitHelper::BlitFramebufferToFramebuffer(GLuint srcFB, GLuint destFB,
                                            const gfx::IntSize& srcSize,
                                            const gfx::IntSize& destSize,
-                                           const GLFormats& srcFormats,
-                                           bool internalFBs)
+                                           const GLFormats& srcFormats)
 {
     MOZ_ASSERT(!srcFB || mGL->fIsFramebuffer(srcFB));
     MOZ_ASSERT(!destFB || mGL->fIsFramebuffer(destFB));
 
     if (mGL->IsSupported(GLFeature::framebuffer_blit)) {
         BlitFramebufferToFramebuffer(srcFB, destFB,
-                                     srcSize, destSize,
-                                     internalFBs);
+                                     srcSize, destSize);
         return;
     }
 
     GLuint tex = CreateTextureForOffscreen(mGL, srcFormats, srcSize);
     MOZ_ASSERT(tex);
 
-    BlitFramebufferToTexture(srcFB, tex, srcSize, srcSize, internalFBs);
-    BlitTextureToFramebuffer(tex, destFB, srcSize, destSize, internalFBs);
+    BlitFramebufferToTexture(srcFB, tex, srcSize, srcSize);
+    BlitTextureToFramebuffer(tex, destFB, srcSize, destSize);
 
     mGL->fDeleteTextures(1, &tex);
 }
@@ -854,8 +846,7 @@ void
 GLBlitHelper::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
                                        const gfx::IntSize& srcSize,
                                        const gfx::IntSize& destSize,
-                                       GLenum srcTarget,
-                                       bool internalFBs)
+                                       GLenum srcTarget)
 {
     MOZ_ASSERT(mGL->fIsTexture(srcTex));
     MOZ_ASSERT(!destFB || mGL->fIsFramebuffer(destFB));
@@ -865,8 +856,7 @@ GLBlitHelper::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
         MOZ_ASSERT(srcWrapper.IsComplete());
 
         BlitFramebufferToFramebuffer(srcWrapper.FB(), destFB,
-                                     srcSize, destSize,
-                                     internalFBs);
+                                     srcSize, destSize);
         return;
     }
 
@@ -886,11 +876,7 @@ GLBlitHelper::BlitTextureToFramebuffer(GLuint srcTex, GLuint destFB,
     }
 
     ScopedGLDrawState autoStates(mGL);
-    if (internalFBs) {
-        mGL->Screen()->BindFB_Internal(destFB);
-    } else {
-        mGL->BindFB(destFB);
-    }
+    mGL->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, destFB);
 
     // Does destructive things to (only!) what we just saved above.
     bool good = UseTexQuadProgram(type, srcSize);
@@ -907,8 +893,7 @@ void
 GLBlitHelper::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
                                        const gfx::IntSize& srcSize,
                                        const gfx::IntSize& destSize,
-                                       GLenum destTarget,
-                                       bool internalFBs)
+                                       GLenum destTarget)
 {
     MOZ_ASSERT(!srcFB || mGL->fIsFramebuffer(srcFB));
     MOZ_ASSERT(mGL->fIsTexture(destTex));
@@ -917,19 +902,13 @@ GLBlitHelper::BlitFramebufferToTexture(GLuint srcFB, GLuint destTex,
         ScopedFramebufferForTexture destWrapper(mGL, destTex, destTarget);
 
         BlitFramebufferToFramebuffer(srcFB, destWrapper.FB(),
-                                     srcSize, destSize,
-                                     internalFBs);
+                                     srcSize, destSize);
         return;
     }
 
     ScopedBindTexture autoTex(mGL, destTex, destTarget);
 
-    ScopedBindFramebuffer boundFB(mGL);
-    if (internalFBs) {
-        mGL->Screen()->BindFB_Internal(srcFB);
-    } else {
-        mGL->BindFB(srcFB);
-    }
+    ScopedBindFramebuffer boundFB(mGL, srcFB);
 
     ScopedGLState scissor(mGL, LOCAL_GL_SCISSOR_TEST, false);
     mGL->fCopyTexSubImage2D(destTarget, 0,
