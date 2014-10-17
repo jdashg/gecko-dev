@@ -7,10 +7,15 @@
 #define GLCONTEXT_TYPES_H_
 
 #include "GLTypes.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
+namespace layers {
+class ISurfaceAllocator;
+}
 namespace gl {
-
 class GLContext;
 
 enum class GLContextType {
@@ -26,7 +31,7 @@ enum class OriginPos : uint8_t {
   BottomLeft
 };
 
-struct GLFormats
+struct GLFormats MOZ_FINAL
 {
     // Constructs a zeroed object:
     GLFormats();
@@ -43,7 +48,7 @@ struct GLFormats
     GLsizei samples;
 };
 
-struct PixelBufferFormat
+struct PixelBufferFormat MOZ_FINAL
 {
     // Constructs a zeroed object:
     PixelBufferFormat();
@@ -56,7 +61,56 @@ struct PixelBufferFormat
     int ColorBits() const { return red + green + blue; }
 };
 
-} /* namespace gl */
-} /* namespace mozilla */
+struct SurfaceCaps MOZ_FINAL
+{
+    bool any;
+    bool color, alpha;
+    bool bpp16;
+    bool depth, stencil;
+    bool antialias;
+    bool premultAlpha;
+    bool preserve;
 
-#endif /* GLCONTEXT_TYPES_H_ */
+    // The surface allocator that we want to create this
+    // for.  May be null.
+    RefPtr<layers::ISurfaceAllocator> surfaceAllocator;
+
+    SurfaceCaps();
+    SurfaceCaps(const SurfaceCaps& other);
+    ~SurfaceCaps();
+
+    void Clear();
+
+    SurfaceCaps& operator=(const SurfaceCaps& other);
+
+    // We can't use just 'RGB' here, since it's an ancient Windows macro.
+    static SurfaceCaps ForRGB() {
+        SurfaceCaps caps;
+
+        caps.color = true;
+
+        return caps;
+    }
+
+    static SurfaceCaps ForRGBA() {
+        SurfaceCaps caps;
+
+        caps.color = true;
+        caps.alpha = true;
+
+        return caps;
+    }
+
+    static SurfaceCaps Any() {
+        SurfaceCaps caps;
+
+        caps.any = true;
+
+        return caps;
+    }
+};
+
+} // namespace gl
+} // namespace mozilla
+
+#endif // GLCONTEXT_TYPES_H_

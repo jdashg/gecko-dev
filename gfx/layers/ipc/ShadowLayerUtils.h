@@ -10,7 +10,6 @@
 
 #include "ipc/IPCMessageUtils.h"
 #include "GLContextTypes.h"
-#include "SurfaceTypes.h"
 #include "mozilla/WidgetUtils.h"
 
 #if defined(XP_MACOSX)

@@ -43,7 +43,6 @@
 #include "nsAutoPtr.h"
 #include "GLContextTypes.h"
 #include "GLTextureImage.h"
-#include "SurfaceTypes.h"
 #include "GLScreenBuffer.h"
 #include "GLContextSymbols.h"
 #include "base/platform_thread.h"       // for PlatformThreadId

@@ -117,8 +117,7 @@
             // method in SkTypes.h
 #include "SkiaGLGlue.h"
 #ifdef USE_SKIA
-#include "SurfaceTypes.h"
-#include "GLBlitHelper.h"
+#include "GLContextTypes.h"
 #endif
 
 using mozilla::gl::GLContext;
@@ -1179,8 +1178,8 @@ bool CanvasRenderingContext2D::SwitchRenderingMode(RenderingMode aRenderingMode)
       gfxPlatform::GetPlatform()->GetSkiaGLGlue()->GetGLContext()->MakeCurrent();
       gfxPlatform::GetPlatform()->GetSkiaGLGlue()->GetGLContext()->fDeleteTextures(1, &mVideoTexture);
     }
-	  mCurrentVideoSize.width = 0;
-	  mCurrentVideoSize.height = 0;
+    mCurrentVideoSize.width = 0;
+    mCurrentVideoSize.height = 0;
   }
 #endif
 

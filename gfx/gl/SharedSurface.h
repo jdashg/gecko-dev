@@ -15,18 +15,17 @@
 #ifndef SHARED_SURFACE_H_
 #define SHARED_SURFACE_H_
 
-#include <queue>
-#include <stdint.h>
-
 #include "GLContextTypes.h"
 #include "GLDefs.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/gfx/Point.h"
+#include "mozilla/TypedEnum.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WeakPtr.h"
+#include <queue>
 #include "ScopedGLHelpers.h"
-#include "SurfaceTypes.h"
+#include <stdint.h>
 
 class nsIThread;
 
@@ -35,10 +34,35 @@ namespace gfx {
 class DrawTarget;
 }
 namespace gl {
-
 class GLContext;
 class SurfaceFactory;
 class ShSurfHandle;
+
+
+MOZ_BEGIN_ENUM_CLASS(SharedSurfaceType, uint8_t)
+    Unknown = 0,
+
+    Basic,
+    GLTextureShare,
+    EGLImageShare,
+    EGLSurfaceANGLE,
+    DXGLInterop,
+    DXGLInterop2,
+    Gralloc,
+    IOSurface,
+
+    Max
+MOZ_END_ENUM_CLASS(SharedSurfaceType)
+
+MOZ_BEGIN_ENUM_CLASS(AttachmentType, uint8_t)
+    Screen = 0,
+
+    GLTexture,
+    GLRenderbuffer,
+
+    Max
+MOZ_END_ENUM_CLASS(AttachmentType)
+
 
 class SharedSurface
 {

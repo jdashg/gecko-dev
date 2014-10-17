@@ -20,7 +20,6 @@
 #include "mozilla/gfx/Point.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
-#include "SurfaceTypes.h"
 
 namespace mozilla {
 namespace gl {

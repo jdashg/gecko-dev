@@ -56,7 +56,7 @@ using namespace mozilla::dom;
 #include "GLContextProvider.h"
 #include "GLContext.h"
 #include "TexturePoolOGL.h"
-#include "SurfaceTypes.h"
+#include "GLContextTypes.h"
 #include "EGLUtils.h"
 
 using namespace mozilla;
