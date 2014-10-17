@@ -49,26 +49,6 @@ GLuint CreateTextureForOffscreen(GLContext* aGL, const GLFormats& aFormats,
 GLuint CreateTexture(GLContext* aGL, GLenum aInternalFormat, GLenum aFormat,
                      GLenum aType, const gfx::IntSize& aSize, bool linear = true);
 
-/**
- * Helper function to create, potentially, multisample render buffers suitable
- * for offscreen rendering. Buffers of size aSize.width x aSize.height with
- * storage specified by aFormat. returns GL render buffer object id.
- */
-GLuint CreateRenderbuffer(GLContext* aGL, GLenum aFormat, GLsizei aSamples,
-                          const gfx::IntSize& aSize);
-
-/**
- * Helper function to create, potentially, multisample render buffers suitable
- * for offscreen rendering. Buffers of size aSize.width x aSize.height with
- * storage specified by aFormats. GL render buffer object ids are returned via
- * aColorMSRB, aDepthRB, and aStencilRB
- */
-void CreateRenderbuffersForOffscreen(GLContext* aGL, const GLFormats& aFormats,
-                                     const gfx::IntSize& aSize, bool aMultisample,
-                                     GLuint* aColorMSRB, GLuint* aDepthRB,
-                                     GLuint* aStencilRB);
-
-
 /** Buffer blitting helper */
 class GLBlitHelper MOZ_FINAL
 {

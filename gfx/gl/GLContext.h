@@ -3502,21 +3502,6 @@ public:
         return *mPixelFormat;
     }
 
-    bool IsFramebufferComplete(GLuint fb, GLenum* status = nullptr);
-
-    // Does not check completeness.
-    void AttachBuffersToFB(GLuint colorTex, GLuint colorRB,
-                           GLuint depthRB, GLuint stencilRB,
-                           GLuint fb, GLenum target = LOCAL_GL_TEXTURE_2D);
-
-    // Passing null is fine if the value you'd get is 0.
-    bool AssembleOffscreenFBs(const GLuint colorMSRB,
-                              const GLuint depthRB,
-                              const GLuint stencilRB,
-                              const GLuint texture,
-                              GLuint* drawFB,
-                              GLuint* readFB);
-
 protected:
     friend class GLScreenBuffer;
     UniquePtr<GLScreenBuffer> mScreen;
