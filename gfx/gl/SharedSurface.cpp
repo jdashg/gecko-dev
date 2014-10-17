@@ -405,10 +405,7 @@ ScopedReadbackFB::ScopedReadbackFB(SharedSurface* src)
                 mSurfToUnlock->LockProd();
             }
 
-            // TODO: This should just be BindFB, but we don't have
-            // the patch for this yet. (bug 1045955)
-            MOZ_ASSERT(mGL->Screen());
-            mGL->Screen()->BindReadFB_Internal(0);
+            mGL->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
             break;
         }
     default:
@@ -429,6 +426,7 @@ ScopedReadbackFB::ScopedReadbackFB(SharedSurface* src)
                                  height, 0);
         }
 
+        MOZ_ASSERT(mTempFB);
         mGL->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
                                    LOCAL_GL_COLOR_ATTACHMENT0,
                                    LOCAL_GL_TEXTURE_2D, mTempTex, 0);

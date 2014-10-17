@@ -47,8 +47,8 @@ private:
 
     RefPtr<ShSurfHandle> mFront;
 
-    UniquePtr<DrawScreenBuffer> mDraw;
-    UniquePtr<ReadScreenBuffer> mRead;
+    UniquePtr<ScreenDrawBuffer> mDraw;
+    UniquePtr<ScreenReadBuffer> mRead;
 
     bool mNeedsBlit;
 
@@ -96,9 +96,9 @@ private:
     void AssureBlitted();
 
     bool CreateDraw(const gfx::IntSize& size,
-                    UniquePtr<DrawScreenBuffer>* out_buffer);
+                    UniquePtr<ScreenDrawBuffer>* out_buffer);
 
-    UniquePtr<ReadScreenBuffer> CreateRead(const RefPtr<ShSurfHandle>& surfHandle);
+    UniquePtr<ScreenReadBuffer> CreateRead(const RefPtr<ShSurfHandle>& surfHandle);
 
     bool Attach(const RefPtr<ShSurfHandle>& surfHandle);
 };

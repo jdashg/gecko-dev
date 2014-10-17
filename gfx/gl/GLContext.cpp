@@ -1766,8 +1766,6 @@ GLContext::MarkDestroyed()
         return;
 
     if (MakeCurrent()) {
-        DestroyScreenBuffer();
-
         mBlitHelper = nullptr;
         mReadTexImageHelper = nullptr;
 
@@ -1986,79 +1984,6 @@ GLContext::ReportOutstandingNames()
 }
 
 #endif /* DEBUG */
-
-void
-GLContext::GuaranteeResolve()
-{
-    if (mScreen) {
-        mScreen->AssureBlitted();
-    }
-    fFinish();
-}
-
-const gfx::IntSize&
-GLContext::OffscreenSize() const
-{
-    MOZ_ASSERT(IsOffscreen());
-    return mScreen->Size();
-}
-
-bool
-GLContext::CreateScreenBufferImpl(const IntSize& size, const SurfaceCaps& caps)
-{
-    UniquePtr<GLScreenBuffer> newScreen = GLScreenBuffer::Create(this, size, caps);
-    if (!newScreen)
-        return false;
-
-    if (!newScreen->Resize(size)) {
-        return false;
-    }
-
-    DestroyScreenBuffer();
-
-    // This will rebind to 0 (Screen) if needed when
-    // it falls out of scope.
-    ScopedBindFramebuffer autoFB(this);
-
-    mScreen = Move(newScreen);
-
-    return true;
-}
-
-bool
-GLContext::ResizeScreenBuffer(const IntSize& size)
-{
-    if (!IsOffscreenSizeAllowed(size))
-        return false;
-
-    return mScreen->Resize(size);
-}
-
-void
-GLContext::DestroyScreenBuffer()
-{
-    mScreen = nullptr;
-}
-
-void
-GLContext::ForceDirtyScreen()
-{
-    ScopedBindFramebuffer autoFB(0);
-
-    BeforeGLDrawCall();
-    // no-op; just pretend we did something
-    AfterGLDrawCall();
-}
-
-void
-GLContext::CleanDirtyScreen()
-{
-    ScopedBindFramebuffer autoFB(0);
-
-    BeforeGLReadCall();
-    // no-op; we just want to make sure the Read FBO is updated if it needs to be
-    AfterGLReadCall();
-}
 
 void
 GLContext::EmptyTexGarbageBin()

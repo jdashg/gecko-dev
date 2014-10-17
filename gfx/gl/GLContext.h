@@ -73,6 +73,7 @@ namespace mozilla {
         class GLBlitTextureImageHelper;
         class GLReadTexImageHelper;
         struct SurfaceCaps;
+        class SharedSurface;
     }
 
     namespace layers {
@@ -804,35 +805,6 @@ private:
                 }\
             } while (0)
 
-    // Do whatever setup is necessary to draw to our offscreen FBO, if it's
-    // bound.
-    void BeforeGLDrawCall() {
-    }
-
-    // Do whatever tear-down is necessary after drawing to our offscreen FBO,
-    // if it's bound.
-    void AfterGLDrawCall()
-    {
-        if (mScreen) {
-            mScreen->AfterDrawCall();
-        }
-        mHeavyGLCallsSinceLastFlush = true;
-    }
-
-    // Do whatever setup is necessary to read from our offscreen FBO, if it's
-    // bound.
-    void BeforeGLReadCall()
-    {
-        if (mScreen)
-            mScreen->BeforeReadCall();
-    }
-
-    // Do whatever tear-down is necessary after reading from our offscreen FBO,
-    // if it's bound.
-    void AfterGLReadCall() {
-    }
-
-
 // -----------------------------------------------------------------------------
 // GL official entry points
 public:
@@ -866,33 +838,6 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fBindBuffer(target, buffer);
         AFTER_GL_CALL;
-    }
-
-    void fBindFramebuffer(GLenum target, GLuint framebuffer) {
-        if (!mScreen) {
-            raw_fBindFramebuffer(target, framebuffer);
-            return;
-        }
-
-        switch (target) {
-            case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-                mScreen->BindDrawFB(framebuffer);
-                return;
-
-            case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-                mScreen->BindReadFB(framebuffer);
-                return;
-
-            case LOCAL_GL_FRAMEBUFFER:
-                mScreen->BindFB(framebuffer);
-                return;
-
-            default:
-                // Nothing we care about, likely an error.
-                break;
-        }
-
-        raw_fBindFramebuffer(target, framebuffer);
     }
 
     void fInvalidateFramebuffer(GLenum target, GLsizei numAttachments, const GLenum* attachments) {
@@ -977,18 +922,12 @@ public:
         mHeavyGLCallsSinceLastFlush = true;
     }
 
-private:
-    void raw_fClear(GLbitfield mask) {
+    void fClear(GLbitfield mask) {
         BEFORE_GL_CALL;
         mSymbols.fClear(mask);
         AFTER_GL_CALL;
-    }
 
-public:
-    void fClear(GLbitfield mask) {
-        BeforeGLDrawCall();
-        raw_fClear(mask);
-        AfterGLDrawCall();
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fClearBufferfi(GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil) {
@@ -1147,30 +1086,20 @@ public:
         AFTER_GL_CALL;
     }
 
-private:
-    void raw_fDrawArrays(GLenum mode, GLint first, GLsizei count) {
+    void fDrawArrays(GLenum mode, GLint first, GLsizei count) {
         BEFORE_GL_CALL;
         mSymbols.fDrawArrays(mode, first, count);
         AFTER_GL_CALL;
-    }
 
-    void raw_fDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices) {
-        BEFORE_GL_CALL;
-        mSymbols.fDrawElements(mode, count, type, indices);
-        AFTER_GL_CALL;
-    }
-
-public:
-    void fDrawArrays(GLenum mode, GLint first, GLsizei count) {
-        BeforeGLDrawCall();
-        raw_fDrawArrays(mode, first, count);
-        AfterGLDrawCall();
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices) {
-        BeforeGLDrawCall();
-        raw_fDrawElements(mode, count, type, indices);
-        AfterGLDrawCall();
+        BEFORE_GL_CALL;
+        mSymbols.fDrawElements(mode, count, type, indices);
+        AFTER_GL_CALL;
+
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fEnable(GLenum capability) {
@@ -1255,25 +1184,6 @@ public:
     void fGetIntegerv(GLenum pname, GLint *params) {
         switch (pname)
         {
-            // LOCAL_GL_FRAMEBUFFER_BINDING is equal to
-            // LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT,
-            // so we don't need two cases.
-            case LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT:
-                if (mScreen) {
-                    *params = mScreen->GetDrawFB();
-                } else {
-                    raw_fGetIntegerv(pname, params);
-                }
-                break;
-
-            case LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT:
-                if (mScreen) {
-                    *params = mScreen->GetReadFB();
-                } else {
-                    raw_fGetIntegerv(pname, params);
-                }
-                break;
-
             case LOCAL_GL_MAX_TEXTURE_SIZE:
                 MOZ_ASSERT(mMaxTextureSize>0);
                 *params = mMaxTextureSize;
@@ -1595,7 +1505,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void raw_fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
+    void fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
         ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(pixels);
         BEFORE_GL_CALL;
         mSymbols.fReadPixels(x, y, width, height, format, type, pixels);
@@ -1603,22 +1513,6 @@ public:
         mHeavyGLCallsSinceLastFlush = true;
     }
 
-    void fReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels) {
-        BeforeGLReadCall();
-
-        bool didReadPixels = false;
-        if (mScreen) {
-            didReadPixels = mScreen->ReadPixels(x, y, width, height, format, type, pixels);
-        }
-
-        if (!didReadPixels) {
-            raw_fReadPixels(x, y, width, height, format, type, pixels);
-        }
-
-        AfterGLReadCall();
-    }
-
-public:
     void fSampleCoverage(GLclampf value, realGLboolean invert) {
         BEFORE_GL_CALL;
         mSymbols.fSampleCoverage(value, invert);
@@ -2020,14 +1914,12 @@ public:
         AFTER_GL_CALL;
     }
 
-private:
-    void raw_fBindFramebuffer(GLenum target, GLuint framebuffer) {
+    void fBindFramebuffer(GLenum target, GLuint framebuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindFramebuffer(target, framebuffer);
         AFTER_GL_CALL;
     }
 
-public:
     void fBindRenderbuffer(GLenum target, GLuint renderbuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindRenderbuffer(target, renderbuffer);
@@ -2284,14 +2176,6 @@ public:
     }
 
     void fDeleteFramebuffers(GLsizei n, const GLuint* names) {
-        if (mScreen) {
-            // Notify mScreen which framebuffers we're deleting.
-            // Otherwise, we will get framebuffer binding mispredictions.
-            for (int i = 0; i < n; i++) {
-                mScreen->DeletingFB(names[i]);
-            }
-        }
-
         if (n == 1 && *names == 0) {
             // Deleting framebuffer 0 causes hangs on the DROID. See bug 623228.
         } else {
@@ -2424,33 +2308,22 @@ public:
 public:
     void fDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei primcount)
     {
-        BeforeGLDrawCall();
-        raw_fDrawArraysInstanced(mode, first, count, primcount);
-        AfterGLDrawCall();
-    }
-
-    void fDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const GLvoid* indices, GLsizei primcount)
-    {
-        BeforeGLDrawCall();
-        raw_fDrawElementsInstanced(mode, count, type, indices, primcount);
-        AfterGLDrawCall();
-    }
-
-private:
-    void raw_fDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei primcount)
-    {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fDrawArraysInstanced);
         mSymbols.fDrawArraysInstanced(mode, first, count, primcount);
         AFTER_GL_CALL;
+
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
-    void raw_fDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const GLvoid* indices, GLsizei primcount)
+    void fDrawElementsInstanced(GLenum mode, GLsizei count, GLenum type, const GLvoid* indices, GLsizei primcount)
     {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fDrawElementsInstanced);
         mSymbols.fDrawElementsInstanced(mode, count, type, indices, primcount);
         AFTER_GL_CALL;
+
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
 // -----------------------------------------------------------------------------
@@ -2459,40 +2332,24 @@ public:
     void fDrawRangeElements(GLenum mode, GLuint start, GLuint end,
                             GLsizei count, GLenum type, const GLvoid* indices)
     {
-        BeforeGLDrawCall();
-        raw_fDrawRangeElements(mode, start, end, count, type, indices);
-        AfterGLDrawCall();
-    }
-
-private:
-    void raw_fDrawRangeElements(GLenum mode, GLuint start, GLuint end,
-                                GLsizei count, GLenum type, const GLvoid* indices)
-    {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fDrawRangeElements);
         mSymbols.fDrawRangeElements(mode, start, end, count, type, indices);
         AFTER_GL_CALL;
+
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
 // -----------------------------------------------------------------------------
 // Package XXX_framebuffer_blit
 public:
-    // Draw/Read
     void fBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) {
-        BeforeGLDrawCall();
-        BeforeGLReadCall();
-        raw_fBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
-        AfterGLReadCall();
-        AfterGLDrawCall();
-    }
-
-
-private:
-    void raw_fBlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter) {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fBlitFramebuffer);
         mSymbols.fBlitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
         AFTER_GL_CALL;
+
+        mHeavyGLCallsSinceLastFlush = true;
     }
 
 
@@ -3269,76 +3126,6 @@ public:
      */
     virtual bool ReleaseTexImage() { return false; }
 
-    // Before reads from offscreen texture
-    void GuaranteeResolve();
-
-    /*
-     * Resize the current offscreen buffer.  Returns true on success.
-     * If it returns false, the context should be treated as unusable
-     * and should be recreated.  After the resize, the viewport is not
-     * changed; glViewport should be called as appropriate.
-     *
-     * Only valid if IsOffscreen() returns true.
-     */
-    bool ResizeOffscreen(const gfx::IntSize& size) {
-        return ResizeScreenBuffer(size);
-    }
-
-    /*
-     * Return size of this offscreen context.
-     *
-     * Only valid if IsOffscreen() returns true.
-     */
-    const gfx::IntSize& OffscreenSize() const;
-
-    void BindFB(GLuint fb) {
-        fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fb);
-        MOZ_ASSERT(!fb || fIsFramebuffer(fb));
-    }
-
-    void BindDrawFB(GLuint fb) {
-        fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, fb);
-    }
-
-    void BindReadFB(GLuint fb) {
-        fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, fb);
-    }
-
-    GLuint GetDrawFB() {
-        if (mScreen)
-            return mScreen->GetDrawFB();
-
-        GLuint ret = 0;
-        GetUIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING_EXT, &ret);
-        return ret;
-    }
-
-    GLuint GetReadFB() {
-        if (mScreen)
-            return mScreen->GetReadFB();
-
-        GLenum bindEnum = IsSupported(GLFeature::framebuffer_blit)
-                            ? LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT
-                            : LOCAL_GL_FRAMEBUFFER_BINDING;
-
-        GLuint ret = 0;
-        GetUIntegerv(bindEnum, &ret);
-        return ret;
-    }
-
-    GLuint GetFB() {
-        if (mScreen) {
-            // This has a very important extra assert that checks that we're
-            // not accidentally ignoring a situation where the draw and read
-            // FBs differ.
-            return mScreen->GetFB();
-        }
-
-        GLuint ret = 0;
-        GetUIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &ret);
-        return ret;
-    }
-
 private:
     void GetShaderPrecisionFormatNonES2(GLenum shadertype, GLenum precisiontype, GLint* range, GLint* precision) {
         switch (precisiontype) {
@@ -3363,10 +3150,6 @@ private:
     }
 
 public:
-
-    void ForceDirtyScreen();
-    void CleanDirtyScreen();
-
     virtual GLenum GetPreferredARGB32Format() const { return LOCAL_GL_RGBA; }
 
     virtual bool RenewSurface() { return false; }
@@ -3376,9 +3159,6 @@ public:
                                  const char *extension);
 
     GLint GetMaxTextureImageSize() { return mMaxTextureImageSize; }
-
-public:
-    std::map<GLuint, SharedSurface*> mFBOMapping;
 
     enum {
         DebugEnabled = 1 << 0,
@@ -3455,14 +3235,6 @@ public:
         return mLockedSurface;
     }
 
-    bool IsOffscreen() const {
-        return !!mScreen;
-    }
-
-    GLScreenBuffer* Screen() const {
-        return mScreen.get();
-    }
-
     /* Clear to transparent black, with 0 depth and stencil,
      * while preserving current ClearColor etc. values.
      * Useful for resizing offscreen buffers.
@@ -3470,10 +3242,6 @@ public:
     void ClearSafely();
 
     bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
-
-    bool IsDrawingToDefaultFramebuffer() {
-        return Screen()->IsDrawFramebufferDefault();
-    }
 
 protected:
     nsRefPtr<TextureGarbageBin> mTexGarbageBin;

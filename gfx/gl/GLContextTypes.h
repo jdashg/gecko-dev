@@ -17,7 +17,7 @@ class ISurfaceAllocator;
 }
 namespace gl {
 class GLContext;
-class SurfaceCaps;
+struct SurfaceCaps;
 
 enum class GLContextType {
     Unknown,
