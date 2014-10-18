@@ -1992,11 +1992,18 @@ GLContext::EmptyTexGarbageBin()
 }
 
 bool
-GLContext::IsOffscreenSizeAllowed(const IntSize& aSize) const
+GLContext::IsOffscreenSizeAllowed(const IntSize& size) const
 {
-    int32_t biggerDimension = std::max(aSize.width, aSize.height);
+    int32_t biggerDimension = std::max(size.width, size.height);
     int32_t maxAllowed = std::min(mMaxRenderbufferSize, mMaxTextureSize);
     return biggerDimension <= maxAllowed;
+}
+
+bool
+GLContext::IsTextureSizeAllowed(const IntSize& size) const
+{
+    GLsizei biggerDimension = std::max(size.width, size.height);
+    return biggerDimension <= mMaxTextureSize;
 }
 
 bool

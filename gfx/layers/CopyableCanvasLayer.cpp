@@ -141,12 +141,13 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
   if (NS_WARN_IF(!readSurf->Map(mapType, &map)))
     return;
 
+  mGLContext->MakeCurrent();
   frontbuffer->Readback(map.mData, readSurf->GetFormat(), map.mStride);
+
+  readSurf->Unmap();
 
   if (needsPremult)
     gfxUtils::PremultiplyDataSurface(readSurf, readSurf);
-
-  readSurf->Unmap();
 
   if (aDestTarget) {
     aDestTarget->CopySurface(readSurf,

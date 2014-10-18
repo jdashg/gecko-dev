@@ -4,8 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGL2Context.h"
-#include "WebGLContextUtils.h"
+
 #include "GLContext.h"
+#include "WebGLContextUtils.h"
+#include "WebGLTexture.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

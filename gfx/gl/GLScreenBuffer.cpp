@@ -192,6 +192,8 @@ GLScreenBuffer::Create(GLContext& gl,
 
     RefPtr<ShSurfHandle> surfHandle = factory->NewShSurfHandle(size);
     MOZ_ASSERT(surfHandle->Surf());
+
+    surfHandle->Surf()->ProducerAcquire();
     surfHandle->Surf()->LockProd();
 
     UniquePtr<ScreenReadBuffer> read = ScreenReadBuffer::Create(gl, readCaps,
@@ -307,7 +309,7 @@ GLScreenBuffer::CreateRead(const RefPtr<ShSurfHandle>& surfHandle)
 }
 
 bool
-GLScreenBuffer::Attach(const RefPtr<ShSurfHandle>& surfHandle)
+GLScreenBuffer::Attach_internal(const RefPtr<ShSurfHandle>& surfHandle)
 {
     MOZ_ASSERT(surfHandle->Surf());
 
@@ -315,8 +317,6 @@ GLScreenBuffer::Attach(const RefPtr<ShSurfHandle>& surfHandle)
 
     SharedSurface& curSurf = *mRead->SurfHandle()->Surf();
     SharedSurface& newSurf = *surfHandle->Surf();
-
-    ScopedBindFramebuffer autoFB(&mGL);
 
     curSurf.UnlockProd();
     curSurf.ProducerRelease();
@@ -351,6 +351,46 @@ GLScreenBuffer::Attach(const RefPtr<ShSurfHandle>& surfHandle)
     mRead = Move(newRead);
 
     return true;
+}
+
+bool
+GLScreenBuffer::Attach(const RefPtr<ShSurfHandle>& surfHandle)
+{
+    GLuint combined = 0;
+    GLuint draw = 0;
+    GLuint read = 0;
+
+    GLuint* pCombined = nullptr;
+    GLuint* pDraw = nullptr;
+    GLuint* pRead = nullptr;
+
+    const bool isSplit = mGL.IsSupported(GLFeature::framebuffer_blit);
+    if (isSplit) {
+        mGL.fGetIntegerv(LOCAL_GL_DRAW_FRAMEBUFFER_BINDING, (GLint*)&draw);
+        if (draw == DrawFB())
+            pDraw = &draw;
+
+        mGL.fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING, (GLint*)&read);
+        if (read == ReadFB())
+            pRead = &read;
+    } else {
+        MOZ_ASSERT(DrawFB() == ReadFB());
+
+        mGL.fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&combined);
+        if (combined == ReadFB())
+            pCombined = &combined;
+    }
+
+    const bool ret = Attach_internal(surfHandle);
+
+    if (pCombined)
+        mGL.fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, ReadFB());
+    if (pDraw)
+        mGL.fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER, DrawFB());
+    if (pRead)
+        mGL.fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER, ReadFB());
+
+    return ret;
 }
 
 const RefPtr<ShSurfHandle>&
@@ -399,16 +439,9 @@ GLScreenBuffer::Swap(const gfx::IntSize& size)
         return false;
     // Attach was successful.
 
-    mFront = oldBack;
     mNeedsBlit = true;
 
-    // Fence before copying.
-    if (mFront) {
-        mFront->Surf()->ProducerRelease();
-    }
-    if (mBack) {
-        mBack->Surf()->ProducerAcquire();
-    }
+    mFront = oldBack;
 
     if (mCaps.preserve &&
         mFront)
@@ -706,10 +739,9 @@ void
 ScreenReadBuffer::Attach(const RefPtr<ShSurfHandle>& surfHandle)
 {
     SharedSurface& newSurf = *surfHandle->Surf();
-    SharedSurface& oldSurf = *mSurfHandle->Surf();
 
-    MOZ_ASSERT(newSurf.mAttachType == oldSurf.mAttachType);
-    MOZ_ASSERT(newSurf.mSize == oldSurf.mSize);
+    MOZ_ASSERT(newSurf.mAttachType == mSurfHandle->Surf()->mAttachType);
+    MOZ_ASSERT(newSurf.mSize == mSurfHandle->Surf()->mSize);
 
     // Nothing else is needed for AttachType Screen.
     if (newSurf.mAttachType != AttachmentType::Screen) {

@@ -1044,6 +1044,7 @@ WebGLContext::AssertCachedBindings()
     }
 
     GLuint bound = mCurrentProgram ? mCurrentProgram->mGLName : 0;
+
     AssertUintParamCorrect(gl, LOCAL_GL_CURRENT_PROGRAM, bound);
 
     // Textures

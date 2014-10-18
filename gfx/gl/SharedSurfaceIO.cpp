@@ -23,8 +23,8 @@ SharedSurface_IOSurface::Create(const RefPtr<MacIOSurface>& ioSurf,
 
     gfx::IntSize size(ioSurf->GetWidth(), ioSurf->GetHeight());
 
-    typedef SharedSurface_IOSurface ptrT;
-    UniquePtr<ptrT> ret( new ptrT(ioSurf, gl, size, hasAlpha) );
+    UniquePtr<SharedSurface_IOSurface> ret;
+    ret.reset(new SharedSurface_IOSurface(ioSurf, gl, size, hasAlpha));
     return Move(ret);
 }
 
@@ -127,7 +127,10 @@ SurfaceFactory_IOSurface::Create(GLContext* gl,
 {
     gfx::IntSize maxDims(MacIOSurface::GetMaxWidth(),
                          MacIOSurface::GetMaxHeight());
-    return MakeUnique<SurfaceFactory_IOSurface>(gl, caps, maxDims);
+
+    UniquePtr<SurfaceFactory_IOSurface> ret;
+    ret.reset(new SurfaceFactory_IOSurface(gl, caps, maxDims));
+    return Move(ret);
 }
 
 UniquePtr<SharedSurface>
@@ -139,10 +142,11 @@ SurfaceFactory_IOSurface::CreateShared(const gfx::IntSize& size)
         return nullptr;
     }
 
+    const bool hasAlpha = mCaps.alpha;
+
     RefPtr<MacIOSurface> ioSurf;
     ioSurf = MacIOSurface::CreateIOSurface(size.width, size.height, 1.0,
-                                           mCaps.alpha);
-
+                                           hasAlpha);
     if (!ioSurf) {
         NS_WARNING("Failed to create MacIOSurface.");
         return nullptr;

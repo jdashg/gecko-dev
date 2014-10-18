@@ -600,13 +600,6 @@ CreateHeadlessGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
     return gl.forget();
 }
 
-// Try to create a dummy offscreen with the given caps.
-static bool
-CreateOffscreenWithCaps(GLContext* gl, const SurfaceCaps& caps)
-{
-    return gl->InitOffscreen(dummySize, caps);
-}
-
 static void
 PopulateCapFallbackQueue(const SurfaceCaps& baseCaps,
                          std::queue<SurfaceCaps>* out_fallbackCaps)
@@ -691,7 +684,7 @@ CreateScreen(GLContext* gl, const WebGLContextOptions& options,
     while (!fallbackCaps.empty()) {
         SurfaceCaps& caps = fallbackCaps.front();
 
-        screen = GLScreenBuffer::Create(&gl, caps, dummySize);
+        screen = GLScreenBuffer::Create(*gl, caps, dummySize);
         if (screen)
             break;
 
@@ -726,7 +719,7 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
         if (!gl)
             break;
 
-        mScreen = CreateScreen(*gl, mOptions, gfxInfo, this, surfAllocator);
+        mScreen = CreateScreen(gl, mOptions, gfxInfo, this, surfAllocator);
         if (!mScreen)
             break;
 
@@ -900,16 +893,24 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     // increment the generation number
     ++mGeneration;
 
+    const SurfaceCaps& caps = mScreen->mCaps;
+
     // Update our internal stuff:
     if (gl->WorkAroundDriverBugs()) {
-        if (!mOptions.alpha && gl->Caps().alpha)
+        if (!mOptions.alpha && caps.alpha)
             mNeedsFakeNoAlpha = true;
     }
 
     // Update mOptions.
-    mOptions.depth = gl->Caps().depth;
-    mOptions.stencil = gl->Caps().stencil;
-    mOptions.antialias = gl->Caps().antialias;
+    mOptions.depth = caps.depth;
+    mOptions.stencil = caps.stencil;
+    mOptions.antialias = caps.antialias;
+
+#ifdef DEBUG
+    MOZ_ASSERT(caps.color);
+    MOZ_ASSERT(caps.alpha == mOptions.alpha);
+    MOZ_ASSERT(caps.preserve == mOptions.preserveDrawingBuffer);
+#endif
 
     MakeContextCurrent();
 
@@ -918,14 +919,6 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     gl->fViewport(0, 0, mWidth, mHeight);
     mViewportWidth = mWidth;
     mViewportHeight = mHeight;
-
-    MOZ_ASSERT(gl->Caps().color);
-    MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
-    MOZ_ASSERT_IF(mNeedsFakeNoAlpha, !mOptions.alpha && gl->Caps().alpha);
-    MOZ_ASSERT(gl->Caps().depth == mOptions.depth);
-    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil);
-    MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias);
-    MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
     // Clear immediately, because we need to present the cleared initial
     // buffer.
@@ -950,7 +943,7 @@ WebGLContext::BindDefaultFramebuffer()
     if (drawFB == readFB) {
         gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, drawFB);
     } else {
-        MOZ_ASSERT(gl->IsSupported(GLFeature::FramebufferBlit));
+        MOZ_ASSERT(gl->IsSupported(GLFeature::framebuffer_blit));
         gl->fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER, drawFB);
         gl->fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER, readFB);
     }
@@ -961,14 +954,6 @@ WebGLContext::ClearBackbufferIfNeeded()
 {
     if (!mBackbufferNeedsClear)
         return;
-
-#ifdef DEBUG
-    gl->MakeCurrent();
-
-    GLuint fb = 0;
-    gl->GetUIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, &fb);
-    MOZ_ASSERT(fb == 0);
-#endif
 
     ClearScreen();
 
@@ -1233,11 +1218,11 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* builder,
     data.mGLContext = gl;
     data.mWebGL = this;
     data.mSize = nsIntSize(mWidth, mHeight);
-    data.mHasAlpha = gl->Caps().alpha;
+    data.mHasAlpha = mScreen->mCaps.alpha;
     data.mIsGLAlphaPremult = IsPremultAlpha() || !data.mHasAlpha;
 
     canvasLayer->Initialize(data);
-    uint32_t flags = gl->Caps().alpha ? 0 : Layer::CONTENT_OPAQUE;
+    uint32_t flags = mScreen->mCaps.alpha ? 0 : Layer::CONTENT_OPAQUE;
     canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated();
 
@@ -1440,7 +1425,7 @@ WebGLContext::PresentScreenBuffer()
 
     gl->MakeCurrent();
 
-    if (!mScreen->Swap(mScreen->Size()) {
+    if (!mScreen->Swap(mScreen->Size())) {
         ForceLoseContext();
         return false;
     }
@@ -1872,7 +1857,7 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
 gl::GLScreenBuffer*
 WebGLContext::Screen() const
 {
-    return mScreen;
+    return mScreen.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1897,6 +1882,16 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
                               mWebGL.mColorWriteMask[2],
                               mWebGL.mColorWriteMask[3]);
     }
+}
+
+TexInternalFormat
+WebGLContext::EffectiveFormatForTexImage(WebGLTexture* tex,
+                                         TexImageTarget texImageTarget,
+                                         int32_t level)
+{
+    const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(texImageTarget,
+                                                                level);
+    return imageInfo.EffectiveInternalFormat();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

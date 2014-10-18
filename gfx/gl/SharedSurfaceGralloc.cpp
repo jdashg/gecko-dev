@@ -48,7 +48,6 @@ SurfaceFactory_Gralloc::SurfaceFactory_Gralloc(GLContext* prodGL,
 
 /*static*/ UniquePtr<SharedSurface_Gralloc>
 SharedSurface_Gralloc::Create(GLContext* prodGL,
-                              const GLFormats& formats,
                               const gfx::IntSize& size,
                               bool hasAlpha,
                               layers::TextureFlags flags,
@@ -109,8 +108,8 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
 
     egl->fDestroyImage(display, image);
 
-    ret = MakeUnique<SharedSurface_Gralloc>(prodGL, size, hasAlpha, egl,
-                                            allocator, grallocTC, prodTex);
+    ret.reset(new SharedSurface_Gralloc(prodGL, size, hasAlpha, egl, allocator,
+                                        grallocTC, prodTex));
 
     DEBUG_PRINT("SharedSurface_Gralloc::Create: success -- surface %p,"
                 " GraphicBuffer %p.\n",
@@ -118,7 +117,6 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
 
     return Move(ret);
 }
-
 
 SharedSurface_Gralloc::SharedSurface_Gralloc(GLContext* prodGL,
                                              const gfx::IntSize& size,
@@ -139,7 +137,6 @@ SharedSurface_Gralloc::SharedSurface_Gralloc(GLContext* prodGL,
     , mProdTex(prodTex)
 {
 }
-
 
 bool
 SharedSurface_Gralloc::HasExtensions(GLLibraryEGL* egl, GLContext* gl)

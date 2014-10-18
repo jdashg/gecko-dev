@@ -41,8 +41,9 @@ public:
 
 private:
     GLContext& mGL;
-
+public:
     const SurfaceCaps mCaps;
+private:
     const GLFormats mFormats;
 
     UniquePtr<SurfaceFactory> mFactory;
@@ -89,7 +90,6 @@ public:
     void SetFactory(UniquePtr<SurfaceFactory> newFactory);
 
     bool Resize(const gfx::IntSize& size);
-
     bool Swap(const gfx::IntSize& size);
 
     GLuint DrawFB() const;
@@ -104,6 +104,7 @@ private:
     UniquePtr<ScreenReadBuffer> CreateRead(const RefPtr<ShSurfHandle>& surfHandle);
 
     bool Attach(const RefPtr<ShSurfHandle>& surfHandle);
+    bool Attach_internal(const RefPtr<ShSurfHandle>& surfHandle);
 };
 
 }   // namespace gl

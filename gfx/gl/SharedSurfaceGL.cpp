@@ -24,6 +24,10 @@ SharedSurface_Basic::Create(GLContext* gl,
                             bool hasAlpha)
 {
     UniquePtr<SharedSurface_Basic> ret;
+
+    if (!gl->IsTextureSizeAllowed(size))
+        return Move(ret);
+
     gl->MakeCurrent();
 
     GLContext::LocalErrorScope localError(*gl);
@@ -112,6 +116,9 @@ SharedSurface_GLTexture::Create(GLContext* prodGL, GLContext* consGL,
     MOZ_ASSERT(!consGL || prodGL->SharesWith(consGL));
 
     UniquePtr<SharedSurface_GLTexture> ret;
+
+    if (!prodGL->IsTextureSizeAllowed(size))
+        return Move(ret);
 
     prodGL->MakeCurrent();
     GLContext::LocalErrorScope localError(*prodGL);

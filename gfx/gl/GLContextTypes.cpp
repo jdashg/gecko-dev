@@ -20,8 +20,8 @@ GLFormats::GLFormats()
     std::memset(this, 0, sizeof(GLFormats));
 }
 
-static GLFormats
-Choose(GLContext& gl, const SurfaceCaps& caps)
+/*static*/ GLFormats
+GLFormats::Choose(GLContext* gl, const SurfaceCaps& caps)
 {
     GLFormats formats;
 
@@ -29,8 +29,8 @@ Choose(GLContext& gl, const SurfaceCaps& caps)
     // color or less OR we don't support full 8-bit color, return a 4444 or 565
     // format.
     bool bpp16 = caps.bpp16;
-    if (gl.IsGLES()) {
-        if (!gl.IsExtensionSupported(GLContext::OES_rgb8_rgba8))
+    if (gl->IsGLES()) {
+        if (!gl->IsExtensionSupported(GLContext::OES_rgb8_rgba8))
             bpp16 = true;
     } else {
         // RGB565 is uncommon on desktop, requiring ARB_ES2_compatibility.
@@ -39,7 +39,7 @@ Choose(GLContext& gl, const SurfaceCaps& caps)
     }
 
     if (bpp16) {
-        MOZ_ASSERT(gl.IsGLES());
+        MOZ_ASSERT(gl->IsGLES());
         if (caps.alpha) {
             formats.color_texInternalFormat = LOCAL_GL_RGBA;
             formats.color_texFormat = LOCAL_GL_RGBA;
@@ -55,12 +55,12 @@ Choose(GLContext& gl, const SurfaceCaps& caps)
         formats.color_texType = LOCAL_GL_UNSIGNED_BYTE;
 
         if (caps.alpha) {
-            formats.color_texInternalFormat = gl.IsGLES() ? LOCAL_GL_RGBA
+            formats.color_texInternalFormat = gl->IsGLES() ? LOCAL_GL_RGBA
                                                           : LOCAL_GL_RGBA8;
             formats.color_texFormat = LOCAL_GL_RGBA;
             formats.color_rbFormat  = LOCAL_GL_RGBA8;
         } else {
-            formats.color_texInternalFormat = gl.IsGLES() ? LOCAL_GL_RGB
+            formats.color_texInternalFormat = gl->IsGLES() ? LOCAL_GL_RGB
                                                           : LOCAL_GL_RGB8;
             formats.color_texFormat = LOCAL_GL_RGB;
             formats.color_rbFormat  = LOCAL_GL_RGB8;
@@ -69,10 +69,10 @@ Choose(GLContext& gl, const SurfaceCaps& caps)
 
     uint32_t msaaLevel = gfxPrefs::MSAALevel();
     GLsizei samples = msaaLevel * msaaLevel;
-    samples = std::min(samples, gl.MaxSamples());
+    samples = std::min(samples, gl->MaxSamples());
 
     // Bug 778765.
-    if (gl.WorkAroundDriverBugs() && samples == 1) {
+    if (gl->WorkAroundDriverBugs() && samples == 1) {
         samples = 0;
     }
     formats.samples = samples;
@@ -80,15 +80,15 @@ Choose(GLContext& gl, const SurfaceCaps& caps)
 
     // Be clear that these are 0 if unavailable.
     formats.depthStencil = 0;
-    if (!gl.IsGLES() ||
-        gl.IsExtensionSupported(GLContext::OES_packed_depth_stencil))
+    if (!gl->IsGLES() ||
+        gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil))
     {
         formats.depthStencil = LOCAL_GL_DEPTH24_STENCIL8;
     }
 
     formats.depth = 0;
-    if (gl.IsGLES()) {
-        if (gl.IsExtensionSupported(GLContext::OES_depth24)) {
+    if (gl->IsGLES()) {
+        if (gl->IsExtensionSupported(GLContext::OES_depth24)) {
             formats.depth = LOCAL_GL_DEPTH_COMPONENT24;
         } else {
             formats.depth = LOCAL_GL_DEPTH_COMPONENT16;

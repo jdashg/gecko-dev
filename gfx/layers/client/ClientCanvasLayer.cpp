@@ -18,6 +18,7 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "gfxPrefs.h"                   // for WebGLForceLayersReadback
+#include "WebGLContext.h"
 
 #ifdef XP_WIN
 #include "SharedSurfaceANGLE.h"         // for SurfaceFactory_ANGLEShareHandle

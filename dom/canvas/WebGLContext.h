@@ -625,9 +625,15 @@ public:
                        GLenum format, GLenum type,
                        const Nullable<dom::ArrayBufferView>& pixels,
                        ErrorResult& rv);
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       dom::ImageData* pixels, ErrorResult& rv);
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset, GLint yoffset,
+                       GLenum format, GLenum type, dom::ImageData* pixels,
+                       ErrorResult& rv);
+
+protected:
+    TexInternalFormat EffectiveFormatForTexImage(WebGLTexture* tex,
+                                                 TexImageTarget texImageTarget,
+                                                 int32_t level);
+public:
     // Allow whatever element types the bindings are willing to pass
     // us in TexSubImage2D
     template<class ElementType>
@@ -662,8 +668,9 @@ public:
         if (!tex)
             return ErrorInvalidOperation("texSubImage2D: no texture bound on active texture unit");
 
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(texImageTarget, level);
-        const TexInternalFormat internalFormat = imageInfo.EffectiveInternalFormat();
+        const TexInternalFormat internalformat = EffectiveFormatForTexImage(tex,
+                                                                            texImageTarget,
+                                                                            level);
 
         // Trying to handle the video by GPU directly first
         if (TexImageFromVideoElement(texImageTarget, level,

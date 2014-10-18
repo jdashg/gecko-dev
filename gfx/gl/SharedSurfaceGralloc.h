@@ -25,7 +25,6 @@ class SharedSurface_Gralloc
 {
 public:
     static UniquePtr<SharedSurface_Gralloc> Create(GLContext* prodGL,
-                                                   const GLFormats& formats,
                                                    const gfx::IntSize& size,
                                                    bool hasAlpha,
                                                    layers::TextureFlags flags,
@@ -91,8 +90,7 @@ public:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
         UniquePtr<SharedSurface> ret;
         if (mAllocator) {
-            ret = SharedSurface_Gralloc::Create(mGL, mFormats, size,
-                                                mCaps.alpha, mFlags,
+            ret = SharedSurface_Gralloc::Create(mGL, size, mCaps.alpha, mFlags,
                                                 mAllocator);
         }
         return Move(ret);

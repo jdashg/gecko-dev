@@ -89,7 +89,7 @@ struct DrawOptions {
                                      operation is multiplied. */
   CompositionOp mCompositionOp; /**< The operator that indicates how the source and
                                      destination patterns are blended. */
-  AntialiasMode mAntialiasMode; /**< The AntiAlias mode used for this drawing 
+  AntialiasMode mAntialiasMode; /**< The AntiAlias mode used for this drawing
                                      operation. */
 };
 
@@ -399,6 +399,7 @@ public:
 
   virtual bool Map(MapType, MappedSurface *aMappedSurface)
   {
+    MOZ_ASSERT(!mIsMapped);
     aMappedSurface->mData = GetData();
     aMappedSurface->mStride = Stride();
     mIsMapped = true;
@@ -466,7 +467,7 @@ class Path : public RefCounted<Path>
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(Path)
   virtual ~Path();
-  
+
   virtual BackendType GetBackendType() const = 0;
 
   /** This returns a PathBuilder object that contains a copy of the contents of
@@ -742,7 +743,7 @@ public:
 
   /** @see CopySurface
    * Same as CopySurface, except uses itself as the source.
-   * 
+   *
    * Some backends may be able to optimize this better
    * than just taking a snapshot and using CopySurface.
    */
@@ -802,7 +803,7 @@ public:
                       const Pattern &aPattern,
                       const StrokeOptions &aStrokeOptions = StrokeOptions(),
                       const DrawOptions &aOptions = DrawOptions()) = 0;
-  
+
   /**
    * Fill a path on the draw target with a certain source pattern.
    *
@@ -907,7 +908,7 @@ public:
    * Create a DrawTarget that captures the drawing commands and can be replayed
    * onto a compatible DrawTarget afterwards.
    *
-   * @param aSize Size of the area this DT will capture. 
+   * @param aSize Size of the area this DT will capture.
    */
   virtual TemporaryRef<DrawTargetCapture> CreateCaptureDT(const IntSize& aSize);
 
@@ -1090,7 +1091,7 @@ public:
 
   static TemporaryRef<DrawTarget>
     CreateRecordingDrawTarget(DrawEventRecorder *aRecorder, DrawTarget *aDT);
-     
+
   static TemporaryRef<DrawTarget>
     CreateDrawTargetForData(BackendType aBackend, unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat);
 

@@ -3244,7 +3244,8 @@ public:
 
     void EmptyTexGarbageBin();
 
-    bool IsOffscreenSizeAllowed(const gfx::IntSize& aSize) const;
+    bool IsOffscreenSizeAllowed(const gfx::IntSize& size) const;
+    bool IsTextureSizeAllowed(const gfx::IntSize& size) const;
 
 protected:
     bool InitWithPrefix(const char *prefix, bool trygl);
@@ -3292,10 +3293,6 @@ protected:
     }
 
 public:
-    GLsizei MaxSamples() const {
-        return mMaxSamples;
-    }
-
     void fViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
         if (mViewportRect[0] == x &&
             mViewportRect[1] == y &&
