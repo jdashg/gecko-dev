@@ -82,6 +82,8 @@ void
 CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
 {
   if (mDrawTarget) {
+    MOZ_ASSERT(!mWebGL);
+
     mDrawTarget->Flush();
     mSurface = mDrawTarget->Snapshot();
   }
@@ -100,7 +102,6 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
   if (mDrawTarget) {
     return;
   }
-
   MOZ_ASSERT(mGLContext);
 
   SharedSurface* frontbuffer = nullptr;
@@ -115,8 +116,7 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
     }
   }
 
-  if (!frontbuffer) {
-    NS_WARNING("Null frame received.");
+  if (NS_WARN_IF(!frontbuffer)) {
     return;
   }
 
@@ -124,51 +124,38 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
   SurfaceFormat format = (GetContentFlags() & CONTENT_OPAQUE)
                           ? SurfaceFormat::B8G8R8X8
                           : SurfaceFormat::B8G8R8A8;
-  bool needsPremult = frontbuffer->mHasAlpha && !mIsAlphaPremultiplied;
-
-  // Try to read back directly into aDestTarget's output buffer
-  if (aDestTarget) {
-    uint8_t* destData;
-    IntSize destSize;
-    int32_t destStride;
-    SurfaceFormat destFormat;
-    if (aDestTarget->LockBits(&destData, &destSize, &destStride, &destFormat)) {
-      if (destSize == readSize && destFormat == format) {
-        RefPtr<DataSourceSurface> data =
-          Factory::CreateWrappingDataSourceSurface(destData, destStride, destSize, destFormat);
-        mGLContext->Screen()->Readback(frontbuffer, data);
-        if (needsPremult) {
-            gfxUtils::PremultiplyDataSurface(data, data);
-        }
-        aDestTarget->ReleaseBits(destData);
-        return;
-      }
-      aDestTarget->ReleaseBits(destData);
-    }
-  }
-
-  RefPtr<DataSourceSurface> resultSurf = GetTempSurface(readSize, format);
+  RefPtr<DataSourceSurface> readSurf = GetTempSurface(readSize, format);
   // There will already be a warning from inside of GetTempSurface, but
   // it doesn't hurt to complain:
-  if (NS_WARN_IF(!resultSurf)) {
+  if (NS_WARN_IF(!readSurf)) {
     return;
   }
 
-  // Readback handles Flush/MarkDirty.
-  mGLContext->Screen()->Readback(frontbuffer, resultSurf);
-  if (needsPremult) {
-    gfxUtils::PremultiplyDataSurface(resultSurf, resultSurf);
-  }
-  MOZ_ASSERT(resultSurf);
+  bool needsPremult = frontbuffer->mHasAlpha && !mIsAlphaPremultiplied;
+
+  DataSourceSurface::MapType mapType;
+  mapType = needsPremult ? DataSourceSurface::MapType::READ_WRITE
+                         : DataSourceSurface::MapType::WRITE;
+
+  DataSourceSurface::MappedSurface map;
+  if (NS_WARN_IF(!readSurf->Map(mapType, &map)))
+    return;
+
+  frontbuffer->Readback(map.mData, readSurf->GetFormat(), map.mStride);
+
+  if (needsPremult)
+    gfxUtils::PremultiplyDataSurface(readSurf, readSurf);
+
+  readSurf->Unmap();
 
   if (aDestTarget) {
-    aDestTarget->CopySurface(resultSurf,
+    aDestTarget->CopySurface(readSurf,
                              IntRect(0, 0, readSize.width, readSize.height),
                              IntPoint(0, 0));
   } else {
-    // If !aDestSurface then we will end up painting using mSurface, so
+    // If !aDestTarget then we will end up painting using mSurface, so
     // stick our surface into mSurface, so that the Paint() path is the same.
-    mSurface = resultSurf;
+    mSurface = readSurf;
   }
 }
 

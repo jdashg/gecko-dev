@@ -101,7 +101,7 @@ CanvasLayerD3D9::UpdateSurface()
       return;
     surf->WaitSync();
 
-    if (!ReadbackSharedSurface(surf, rectDt)) {
+    if (!surf->Readback(rectDt)) {
       NS_WARNING("Failed to readback into texture.");
     }
   } else {

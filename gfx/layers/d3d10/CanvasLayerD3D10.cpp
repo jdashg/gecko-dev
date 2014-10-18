@@ -162,7 +162,7 @@ CanvasLayerD3D10::UpdateSurface()
                                              SurfaceFormat::R8G8B8A8);
 
   if (surf) {
-    if (!ReadbackSharedSurface(surf, destTarget)) {
+    if (!surf->Readback(destTarget)) {
       NS_WARNING("Failed to readback into texture.");
     }
   } else if (mSurface) {

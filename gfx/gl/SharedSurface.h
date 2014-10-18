@@ -191,6 +191,10 @@ public:
     virtual bool NeedsIndirectReads() const {
         return false;
     }
+
+    void Readback(uint8_t* dstBytes, gfx::SurfaceFormat dstFormat,
+                  size_t dstStride);
+    bool Readback(gfx::DrawTarget* dst);
 };
 
 template<typename T>
