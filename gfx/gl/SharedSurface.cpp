@@ -18,7 +18,7 @@ namespace gl {
 
 /*static*/ void
 SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
-                        SurfaceFactory* factory)
+                        const SurfaceCaps& caps)
 {
     GLContext* gl = src->mGL;
 
@@ -32,15 +32,13 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
         dest->mAttachType == AttachmentType::Screen)
     {
         // Here, we actually need to blit through a temp surface, so let's make one.
-        UniquePtr<SharedSurface_GLTexture> tempSurf;
-        tempSurf = SharedSurface_GLTexture::Create(gl,
-                                                   gl,
-                                                   factory->mFormats,
-                                                   src->mSize,
-                                                   factory->mCaps.alpha);
+        SurfaceFactory_Basic factory(gl, caps);
 
-        ProdCopy(src, tempSurf.get(), factory);
-        ProdCopy(tempSurf.get(), dest, factory);
+        UniquePtr<SharedSurface> tempSurf;
+        tempSurf = factory.CreateShared(src->mSize);
+
+        ProdCopy(src, tempSurf.get(), caps);
+        ProdCopy(tempSurf.get(), dest, caps);
         return;
     }
 
@@ -65,8 +63,7 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
             gl->BlitHelper()->BlitFramebufferToTexture(0, destTex,
                                                        src->mSize,
                                                        dest->mSize,
-                                                       destTarget,
-                                                       true);
+                                                       destTarget);
         } else if (dest->mAttachType == AttachmentType::GLRenderbuffer) {
             GLuint destRB = dest->ProdRenderbuffer();
             ScopedFramebufferForRenderbuffer destWrapper(gl, destRB);
@@ -74,8 +71,7 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
             gl->BlitHelper()->BlitFramebufferToFramebuffer(0,
                                                            destWrapper.FB(),
                                                            src->mSize,
-                                                           dest->mSize,
-                                                           true);
+                                                           dest->mSize);
         } else {
             MOZ_CRASH("Unhandled dest->mAttachType.");
         }
@@ -110,8 +106,7 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
             gl->BlitHelper()->BlitTextureToFramebuffer(srcTex, 0,
                                                        src->mSize,
                                                        dest->mSize,
-                                                       srcTarget,
-                                                       true);
+                                                       srcTarget);
         } else if (src->mAttachType == AttachmentType::GLRenderbuffer) {
             GLuint srcRB = src->ProdRenderbuffer();
             ScopedFramebufferForRenderbuffer srcWrapper(gl, srcRB);
@@ -119,8 +114,7 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
             gl->BlitHelper()->BlitFramebufferToFramebuffer(srcWrapper.FB(),
                                                            0,
                                                            src->mSize,
-                                                           dest->mSize,
-                                                           true);
+                                                           dest->mSize);
         } else {
             MOZ_CRASH("Unhandled src->mAttachType.");
         }
@@ -267,49 +261,13 @@ SharedSurface::PollSync_ContentThread()
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory
 
-static void
-ChooseBufferBits(const SurfaceCaps& caps,
-                 SurfaceCaps* const out_drawCaps,
-                 SurfaceCaps* const out_readCaps)
-{
-    MOZ_ASSERT(out_drawCaps);
-    MOZ_ASSERT(out_readCaps);
-
-    SurfaceCaps screenCaps;
-
-    screenCaps.color = caps.color;
-    screenCaps.alpha = caps.alpha;
-    screenCaps.bpp16 = caps.bpp16;
-
-    screenCaps.depth = caps.depth;
-    screenCaps.stencil = caps.stencil;
-
-    screenCaps.antialias = caps.antialias;
-    screenCaps.preserve = caps.preserve;
-
-    if (caps.antialias) {
-        *out_drawCaps = screenCaps;
-        out_readCaps->Clear();
-
-        // Color caps need to be duplicated in readCaps.
-        out_readCaps->color = caps.color;
-        out_readCaps->alpha = caps.alpha;
-        out_readCaps->bpp16 = caps.bpp16;
-    } else {
-        out_drawCaps->Clear();
-        *out_readCaps = screenCaps;
-    }
-}
-
 SurfaceFactory::SurfaceFactory(GLContext* gl,
                                SharedSurfaceType type,
                                const SurfaceCaps& caps)
     : mGL(gl)
-    , mCaps(caps)
     , mType(type)
-    , mFormats(gl->ChooseGLFormats(caps))
+    , mCaps(caps)
 {
-    ChooseBufferBits(mCaps, &mDrawCaps, &mReadCaps);
 }
 
 SurfaceFactory::~SurfaceFactory()
@@ -530,8 +488,8 @@ ReadbackSharedSurface(SharedSurface* src, gfx::DrawTarget* dst)
                 alignment = 4;
             ScopedPackAlignment autoAlign(gl, alignment);
 
-            gl->raw_fReadPixels(0, 0, width, height, readGLFormat, readType,
-                                dstBytes);
+            gl->fReadPixels(0, 0, width, height, readGLFormat, readType,
+                            dstBytes);
         }
     }
 

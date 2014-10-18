@@ -96,6 +96,9 @@ template<typename> struct Nullable;
 namespace gfx {
 class SourceSurface;
 }
+namespace gl {
+class GLScreenBuffer;
+}
 
 namespace webgl {
 struct LinkedProgramInfo;
@@ -1105,9 +1108,7 @@ protected:
     void BindDefaultFramebuffer();
 
 public:
-    gl::GLScreenBuffer* Screen() const {
-        return mScreen;
-    }
+    gl::GLScreenBuffer* Screen() const;;
 
 protected:
     CheckedUint32 mGeneration;

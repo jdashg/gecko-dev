@@ -9,6 +9,7 @@
 #include "GLContext.h"                  // for GLContext
 #include "GLScreenBuffer.h"             // for GLScreenBuffer
 #include "ScopedGLHelpers.h"
+#include "SharedSurface.h"
 #include "gfx2DGlue.h"                  // for ImageFormatToSurfaceFormat
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "GLReadTexImageHelper.h"
@@ -22,6 +23,8 @@
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsDebug.h"                    // for printf_stderr, NS_ASSERTION
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
+#include "WebGLContext.h"
+
 #ifdef MOZ_WIDGET_GONK
 #include "SharedSurfaceGralloc.h"
 #endif
@@ -299,7 +302,7 @@ TexClientFromReadback(SharedSurface* src, ISurfaceAllocator* allocator,
     {
       ScopedPackAlignment autoAlign(gl, 4);
 
-      gl->raw_fReadPixels(0, 0, width, height, readFormat, readType, lockedBytes);
+      gl->fReadPixels(0, 0, width, height, readFormat, readType, lockedBytes);
     }
 
     // RB_SWAPPED doesn't work with D3D11. (bug 1051010)
@@ -333,7 +336,7 @@ static TemporaryRef<gl::ShSurfHandle>
 CloneSurface(gl::SharedSurface* src, gl::SurfaceFactory* factory)
 {
     RefPtr<gl::ShSurfHandle> dest = factory->NewShSurfHandle(src->mSize);
-    SharedSurface::ProdCopy(src, dest->Surf(), factory);
+    SharedSurface::ProdCopy(src, dest->Surf(), factory->mCaps);
     return dest.forget();
 }
 

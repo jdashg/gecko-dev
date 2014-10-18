@@ -1004,17 +1004,8 @@ public:
             border = -1;
         }
 
-        BeforeGLReadCall();
         raw_fCopyTexImage2D(target, level, internalformat,
                             x, y, width, height, border);
-        AfterGLReadCall();
-    }
-
-    void fCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height) {
-        BeforeGLReadCall();
-        raw_fCopyTexSubImage2D(target, level, xoffset, yoffset,
-                               x, y, width, height);
-        AfterGLReadCall();
     }
 
     void fCullFace(GLenum mode) {
@@ -1862,14 +1853,13 @@ private:
         AFTER_GL_CALL;
     }
 
-    void raw_fCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+public:
+    void fCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
     {
         BEFORE_GL_CALL;
         mSymbols.fCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
         AFTER_GL_CALL;
     }
-
-public:
     void fGetShaderiv(GLuint shader, GLenum pname, GLint* param) {
         BEFORE_GL_CALL;
         mSymbols.fGetShaderiv(shader, pname, param);
@@ -3273,6 +3263,16 @@ protected:
     bool mNeedsTextureSizeChecks;
     bool mWorkAroundDriverBugs;
 
+public:
+    GLsizei MaxSamples() const {
+        return mMaxSamples;
+    }
+
+    bool IsOffscreen() const {
+        return false;
+    }
+
+protected:
     bool IsTextureSizeSafeToPassToDriver(GLenum target, GLsizei width, GLsizei height) const {
         if (mNeedsTextureSizeChecks) {
             // some drivers incorrectly handle some large texture sizes that are below the
@@ -3290,7 +3290,6 @@ protected:
         }
         return true;
     }
-
 
 public:
     GLsizei MaxSamples() const {

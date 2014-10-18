@@ -9,6 +9,10 @@ TEST_DIRS += ['compiledtest']
 
 EXPORTS += [
     'nsICanvasRenderingContextInternal.h',
+    'WebGLContext.h',
+    'WebGLObjectModel.h',
+    'WebGLStrongTypes.h',
+    'WebGLTypes.h',
 ]
 
 EXPORTS.mozilla.ipc += [

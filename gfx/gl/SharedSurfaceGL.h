@@ -8,7 +8,6 @@
 
 #include "ScopedGLHelpers.h"
 #include "SharedSurface.h"
-#include "SurfaceTypes.h"
 #include "GLContextTypes.h"
 #include "nsAutoPtr.h"
 #include "gfxTypes.h"
@@ -72,14 +71,17 @@ public:
 class SurfaceFactory_Basic
     : public SurfaceFactory
 {
+    const GLFormats mFormats;
+
 public:
     SurfaceFactory_Basic(GLContext* gl, const SurfaceCaps& caps)
         : SurfaceFactory(gl, SharedSurfaceType::Basic, caps)
+        // TODO: Don't construct mFormats in parallel to GLScreenBuffer.
+        , mFormats(GLFormats::Choose(gl, caps))
     {}
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
-        bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_Basic::Create(mGL, mFormats, size, hasAlpha);
+        return SharedSurface_Basic::Create(mGL, mFormats, size, mCaps.alpha);
     }
 };
 
@@ -93,8 +95,12 @@ public:
                                                      GLContext* consGL,
                                                      const GLFormats& formats,
                                                      const gfx::IntSize& size,
-                                                     bool hasAlpha,
-                                                     GLuint texture = 0);
+                                                     bool hasAlpha);
+    static UniquePtr<SharedSurface_GLTexture> Create(GLContext* prodGL,
+                                                     GLContext* consGL,
+                                                     GLuint texture,
+                                                     const gfx::IntSize& size,
+                                                     bool hasAlpha);
 
     static SharedSurface_GLTexture* Cast(SharedSurface* surf) {
         MOZ_ASSERT(surf->mType == SharedSurfaceType::GLTextureShare);
@@ -154,8 +160,8 @@ public:
 class SurfaceFactory_GLTexture
     : public SurfaceFactory
 {
-protected:
     GLContext* const mConsGL;
+    const GLFormats mFormats;
 
 public:
     // If we don't know `consGL` at construction time, use `nullptr`, and call
@@ -166,13 +172,15 @@ public:
                              const SurfaceCaps& caps)
         : SurfaceFactory(prodGL, SharedSurfaceType::GLTextureShare, caps)
         , mConsGL(consGL)
+        // TODO: Don't construct mFormats in parallel to GLScreenBuffer.
+        , mFormats(GLFormats::Choose(prodGL, caps))
     {
         MOZ_ASSERT(consGL != prodGL);
     }
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
-        bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_GLTexture::Create(mGL, mConsGL, mFormats, size, hasAlpha);
+        return SharedSurface_GLTexture::Create(mGL, mConsGL, mFormats, size,
+                                               mCaps.alpha);
     }
 };
 

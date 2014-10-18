@@ -57,16 +57,14 @@ ClientCanvasLayer::Initialize(const Data& aData)
   if (!mGLContext)
     return;
 
-  GLScreenBuffer* screen = mGLContext->Screen();
-
   SurfaceCaps caps;
   if (mGLFrontbuffer) {
     // The screen caps are irrelevant if we're using a separate frontbuffer.
     caps = mGLFrontbuffer->mHasAlpha ? SurfaceCaps::ForRGBA()
                                      : SurfaceCaps::ForRGB();
   } else {
-    MOZ_ASSERT(screen);
-    caps = screen->mCaps;
+    MOZ_ASSERT(mWebGL);
+    caps = mWebGL->Screen()->Factory()->mCaps;
   }
   MOZ_ASSERT(caps.alpha == aData.mHasAlpha);
 
@@ -132,7 +130,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
     }
   } else {
     if (factory)
-      screen->Morph(Move(factory));
+      mWebGL->Screen()->SetFactory(Move(factory));
   }
 }
 

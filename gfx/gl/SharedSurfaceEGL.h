@@ -91,18 +91,21 @@ public:
 
 protected:
     const EGLContext mContext;
+    const GLFormats mFormats;
 
     SurfaceFactory_EGLImage(GLContext* prodGL,
                             EGLContext context,
                             const SurfaceCaps& caps)
         : SurfaceFactory(prodGL, SharedSurfaceType::EGLImageShare, caps)
         , mContext(context)
+        // TODO: Don't construct mFormats in parallel to GLScreenBuffer.
+        , mFormats(GLFormats::Choose(prodGL, caps))
     {}
 
 public:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
-        bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_EGLImage::Create(mGL, mFormats, size, hasAlpha, mContext);
+        return SharedSurface_EGLImage::Create(mGL, mFormats, size, mCaps.alpha,
+                                              mContext);
     }
 };
 

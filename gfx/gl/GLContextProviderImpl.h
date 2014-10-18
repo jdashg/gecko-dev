@@ -18,7 +18,7 @@ public:
      * Create a context that renders to the surface of the widget that is
      * passed in.  The context is always created with an RGB pixel format,
      * with no alpha, depth or stencil.  If any of those features are needed,
-     * either use a framebuffer, or use CreateOffscreen.
+     * either use a framebuffer, or use CreateHeadless.
      *
      * This context will attempt to share resources with all other window
      * contexts.  As such, it's critical that resources allocated that are not
@@ -37,28 +37,6 @@ public:
      */
     static already_AddRefed<GLContext>
     CreateForWindow(nsIWidget* widget);
-
-    /**
-     * Create a context for offscreen rendering.  The target of this
-     * context should be treated as opaque -- it might be a FBO, or a
-     * pbuffer, or some other construct.  Users of this GLContext
-     * should bind framebuffer 0 directly to use this offscreen buffer.
-     *
-     * The offscreen context returned by this method will always have
-     * the ability to be rendered into a context created by a window.
-     * It might or might not share resources with the global context;
-     * query GetSharedContext() for a non-null result to check.  If
-     * resource sharing can be avoided on the target platform, it will
-     * be, in order to isolate the offscreen context.
-     *
-     * @param aSize The initial size of this offscreen context.
-     * @param aFormat The ContextFormat for this offscreen context.
-     *
-     * @return Context to use for offscreen rendering
-     */
-    static already_AddRefed<GLContext>
-    CreateOffscreen(const gfxIntSize& size,
-                    const SurfaceCaps& caps);
 
     // Just create a context. We'll add offscreen stuff ourselves.
     static already_AddRefed<GLContext>

@@ -421,7 +421,7 @@ SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
     *out_success = false;
 
     mContext = GLContextEGL::Cast(mProdGL)->GetEGLContext();
-    mConfig = ChooseConfig(mProdGL, mEGL, mReadCaps);
+    mConfig = ChooseConfig(mProdGL, mEGL, mCaps);
     if (mConfig == EGL_NO_CONFIG)
         return;
 

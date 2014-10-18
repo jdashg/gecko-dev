@@ -14,7 +14,8 @@
 #include "gfxUtils.h"
 #include "GLBlitHelper.h"
 #include "GLContext.h"
-#include "GLContextProvider.h"
+#include "GLScreenBuffer.h"
+#include "ScopedGLHelpers.h"
 #include "GLReadTexImageHelper.h"
 #include "ImageContainer.h"
 #include "ImageEncoder.h"
@@ -725,7 +726,7 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
         if (!gl)
             break;
 
-        mScreen = CreateScreen(gl, mOptions, gfxInfo, this, surfAllocator);
+        mScreen = CreateScreen(*gl, mOptions, gfxInfo, this, surfAllocator);
         if (!mScreen)
             break;
 
@@ -1868,6 +1869,12 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     return ok;
 }
 
+gl::GLScreenBuffer*
+WebGLContext::Screen() const
+{
+    return mScreen;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
@@ -1891,6 +1898,7 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
                               mWebGL.mColorWriteMask[3]);
     }
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 // XPCOM goop
 

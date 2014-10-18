@@ -351,15 +351,6 @@ GLContextEGL::ReleaseTexImage()
 
 void
 GLContextEGL::SetEGLSurfaceOverride(EGLSurface surf) {
-    if (Screen()) {
-        /* Blit `draw` to `read` if we need to, before we potentially juggle
-          * `read` around. If we don't, we might attach a different `read`,
-          * and *then* hit AssureBlitted, which will blit a dirty `draw` onto
-          * the wrong `read`!
-          */
-        Screen()->AssureBlitted();
-    }
-
     mSurfaceOverride = surf ? (EGLSurface) surf : mSurface;
     MakeCurrent(true);
 }
@@ -888,22 +879,6 @@ GLContextProviderEGL::CreateHeadless()
     nsRefPtr<GLContext> glContext;
     glContext = GLContextEGL::CreateEGLPBufferOffscreenContext(dummySize);
     if (!glContext)
-        return nullptr;
-
-    return glContext.forget();
-}
-
-// Under EGL, on Android, pbuffers are supported fine, though
-// often without the ability to texture from them directly.
-already_AddRefed<GLContext>
-GLContextProviderEGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
-{
-    nsRefPtr<GLContext> glContext = CreateHeadless();
-    if (!glContext)
-        return nullptr;
-
-    if (!glContext->InitOffscreen(ToIntSize(size), caps))
         return nullptr;
 
     return glContext.forget();

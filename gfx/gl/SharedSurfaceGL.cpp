@@ -104,41 +104,43 @@ SharedSurface_Basic::~SharedSurface_Basic()
 // SharedSurface_GLTexture
 
 /*static*/ UniquePtr<SharedSurface_GLTexture>
-SharedSurface_GLTexture::Create(GLContext* prodGL,
-                                GLContext* consGL,
-                                const GLFormats& formats,
-                                const IntSize& size,
-                                bool hasAlpha,
-                                GLuint texture)
+SharedSurface_GLTexture::Create(GLContext* prodGL, GLContext* consGL,
+                                const GLFormats& formats, const IntSize& size,
+                                bool hasAlpha)
 {
     MOZ_ASSERT(prodGL);
     MOZ_ASSERT(!consGL || prodGL->SharesWith(consGL));
 
-    prodGL->MakeCurrent();
-
-    GLuint tex = texture;
-
-    bool ownsTex = false;
-
     UniquePtr<SharedSurface_GLTexture> ret;
 
-    if (!tex) {
-        GLContext::LocalErrorScope localError(*prodGL);
+    prodGL->MakeCurrent();
+    GLContext::LocalErrorScope localError(*prodGL);
 
-        tex = CreateTextureForOffscreen(prodGL, formats, size);
+    GLuint tex = CreateTextureForOffscreen(prodGL, formats, size);
 
-        GLenum err = localError.GetError();
-        MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_OUT_OF_MEMORY);
-        if (err) {
-            prodGL->fDeleteTextures(1, &tex);
-            return Move(ret);
-        }
-
-        ownsTex = true;
+    GLenum err = localError.GetError();
+    MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_OUT_OF_MEMORY);
+    if (err) {
+        prodGL->fDeleteTextures(1, &tex);
+        return Move(ret);
     }
 
-    ret.reset( new SharedSurface_GLTexture(prodGL, consGL, size,
-                                           hasAlpha, tex, ownsTex) );
+    ret.reset(new SharedSurface_GLTexture(prodGL, consGL, size, hasAlpha, tex,
+                                          false));
+    return Move(ret);
+}
+
+/*static*/ UniquePtr<SharedSurface_GLTexture>
+SharedSurface_GLTexture::Create(GLContext* prodGL, GLContext* consGL,
+                                GLuint texture, const IntSize& size,
+                                bool hasAlpha)
+{
+    MOZ_ASSERT(prodGL);
+    MOZ_ASSERT(!consGL || prodGL->SharesWith(consGL));
+
+    UniquePtr<SharedSurface_GLTexture> ret;
+    ret.reset(new SharedSurface_GLTexture(prodGL, consGL, size, hasAlpha,
+                                          texture, false));
     return Move(ret);
 }
 

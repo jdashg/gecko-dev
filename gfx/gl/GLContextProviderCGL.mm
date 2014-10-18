@@ -260,17 +260,6 @@ GLContextProviderCGL::CreateHeadless()
     return glContext.forget();
 }
 
-already_AddRefed<GLContext>
-GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
-{
-    nsRefPtr<GLContext> glContext = CreateHeadless();
-    if (!glContext->InitOffscreen(ToIntSize(size), caps))
-        return nullptr;
-
-    return glContext.forget();
-}
-
 static nsRefPtr<GLContext> gGlobalContext;
 
 GLContext*

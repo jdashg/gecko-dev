@@ -21,6 +21,7 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsSize.h"                     // for nsIntSize
 #include "gfxUtils.h"
+#include "WebGLContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -54,15 +55,12 @@ CopyableCanvasLayer::Initialize(const Data& aData)
     mIsAlphaPremultiplied = aData.mIsGLAlphaPremult;
     mOriginPos = gl::OriginPos::BottomLeft;
 
-    MOZ_ASSERT(mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
-
     if (aData.mFrontbufferGLTex) {
       gfx::IntSize size(aData.mSize.width, aData.mSize.height);
       mGLFrontbuffer = SharedSurface_GLTexture::Create(aData.mGLContext,
                                                        nullptr,
-                                                       aData.mGLContext->GetGLFormats(),
-                                                       size, aData.mHasAlpha,
-                                                       aData.mFrontbufferGLTex);
+                                                       aData.mFrontbufferGLTex,
+                                                       size, aData.mHasAlpha);
     }
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
@@ -109,7 +107,8 @@ CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
   if (mGLFrontbuffer) {
     frontbuffer = mGLFrontbuffer.get();
   } else {
-    GLScreenBuffer* screen = mGLContext->Screen();
+    MOZ_ASSERT(mWebGL);
+    GLScreenBuffer* screen = mWebGL->Screen();
     ShSurfHandle* front = screen->Front();
     if (front) {
       frontbuffer = front->Surf();

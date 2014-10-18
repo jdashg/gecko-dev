@@ -68,7 +68,7 @@ class SharedSurface
 {
 public:
     static void ProdCopy(SharedSurface* src, SharedSurface* dest,
-                         SurfaceFactory* factory);
+                         const SurfaceCaps& caps);
 
     const SharedSurfaceType mType;
     const AttachmentType mAttachType;
@@ -232,28 +232,14 @@ public:
     MOZ_DECLARE_REFCOUNTED_TYPENAME(SurfaceFactory)
 
     GLContext* const mGL;
-    const SurfaceCaps mCaps;
     const SharedSurfaceType mType;
-    const GLFormats mFormats;
-
-protected:
-    SurfaceCaps mDrawCaps;
-    SurfaceCaps mReadCaps;
+    const SurfaceCaps mCaps;
 
     SurfaceFactory(GLContext* gl,
                    SharedSurfaceType type,
                    const SurfaceCaps& caps);
 
-public:
     virtual ~SurfaceFactory();
-
-    const SurfaceCaps& DrawCaps() const {
-        return mDrawCaps;
-    }
-
-    const SurfaceCaps& ReadCaps() const {
-        return mReadCaps;
-    }
 
 protected:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) = 0;

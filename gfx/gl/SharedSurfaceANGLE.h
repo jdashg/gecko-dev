@@ -107,10 +107,9 @@ protected:
                                     bool* const out_success);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
-        bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_ANGLEShareHandle::Create(mProdGL,
-                                                      mContext, mConfig,
-                                                      size, hasAlpha);
+        return SharedSurface_ANGLEShareHandle::Create(mProdGL, mContext,
+                                                      mConfig, size,
+                                                      mCaps.alpha);
     }
 };
 

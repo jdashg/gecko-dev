@@ -70,11 +70,11 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
     auto platform = gfxPlatform::GetPlatform();
     gfxImageFormat format = platform->OptimalFormatForContent(type);
 
-    typedef GrallocTextureClientOGL ptrT;
-    RefPtr<ptrT> grallocTC = new ptrT(allocator,
-                                      gfx::ImageFormatToSurfaceFormat(format),
-                                      gfx::BackendType::NONE, // we don't need to use it with a DrawTarget
-                                      flags);
+    RefPtr<GrallocTextureClientOGL> grallocTC;
+    grallocTC = new GrallocTextureClientOGL(allocator,
+                                            gfx::ImageFormatToSurfaceFormat(format),
+                                            gfx::BackendType::NONE, // we don't need to use it with a DrawTarget
+                                            flags);
 
     if (!grallocTC->AllocateForGLRendering(size)) {
         return Move(ret);
@@ -109,9 +109,8 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
 
     egl->fDestroyImage(display, image);
 
-    ret.reset( new SharedSurface_Gralloc(prodGL, size, hasAlpha, egl,
-                                         allocator, grallocTC,
-                                         prodTex) );
+    ret = MakeUnique<SharedSurface_Gralloc>(prodGL, size, hasAlpha, egl,
+                                            allocator, grallocTC, prodTex);
 
     DEBUG_PRINT("SharedSurface_Gralloc::Create: success -- surface %p,"
                 " GraphicBuffer %p.\n",

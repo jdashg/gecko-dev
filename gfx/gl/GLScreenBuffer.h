@@ -32,6 +32,7 @@ class SurfaceFactory;
 
 class GLScreenBuffer
 {
+    friend class UniquePtr<GLScreenBuffer>;
 public:
     // Fallible.
     static UniquePtr<GLScreenBuffer> Create(GLContext& gl,
@@ -40,6 +41,7 @@ public:
 
 private:
     GLContext& mGL;
+
     const SurfaceCaps mCaps;
     const GLFormats mFormats;
 
@@ -52,7 +54,7 @@ private:
 
     bool mNeedsBlit;
 
-    GLScreenBuffer(GLContext* gl, const SurfaceCaps& caps,
+    GLScreenBuffer(GLContext& gl, const SurfaceCaps& caps,
                    const GLFormats& formats, UniquePtr<SurfaceFactory> factory,
                    UniquePtr<ScreenDrawBuffer> draw,
                    UniquePtr<ScreenReadBuffer> read);
@@ -83,6 +85,7 @@ public:
 
     const gfx::IntSize& Size() const;
 
+    SurfaceFactory* Factory() const;
     void SetFactory(UniquePtr<SurfaceFactory> newFactory);
 
     bool Resize(const gfx::IntSize& size);
