@@ -308,7 +308,6 @@ public:
     virtual bool IsCurrent() = 0;
 
 protected:
-
     bool mInitialized;
     bool mIsOffscreen;
     bool mIsGlobalSharedContext;
@@ -325,9 +324,12 @@ protected:
     GLVendor mVendor;
     GLRenderer mRenderer;
 
-    inline void SetProfileVersion(ContextProfile profile, unsigned int version) {
-        MOZ_ASSERT(!mInitialized, "SetProfileVersion can only be called before initialization!");
-        MOZ_ASSERT(profile != ContextProfile::Unknown && profile != ContextProfile::OpenGL, "Invalid `profile` for SetProfileVersion");
+    void SetProfileVersion(ContextProfile profile, uint32_t version) {
+        MOZ_ASSERT(!mInitialized, "SetProfileVersion can only be called before"
+                                  " initialization!");
+        MOZ_ASSERT(profile != ContextProfile::Unknown &&
+                   profile != ContextProfile::OpenGL,
+                   "Invalid `profile` for SetProfileVersion");
         MOZ_ASSERT(version >= 100, "Invalid `version` for SetProfileVersion");
 
         mVersion = version;

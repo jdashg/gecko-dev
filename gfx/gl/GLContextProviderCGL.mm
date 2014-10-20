@@ -21,16 +21,14 @@ namespace gl {
 
 using namespace mozilla::gfx;
 
-static bool gUseDoubleBufferedWindows = true;
-
 class CGLLibrary
 {
 public:
     CGLLibrary()
-      : mInitialized(false),
-        mOGLLibrary(nullptr),
-        mPixelFormat(nullptr)
-    { }
+        : mInitialized(false)
+        , mUseDoubleBufferedWindows(true)
+        , mOGLLibrary(nullptr)
+    {}
 
     bool EnsureInitialized()
     {
@@ -46,35 +44,23 @@ public:
         }
 
         const char* db = PR_GetEnv("MOZ_CGL_DB");
-        gUseDoubleBufferedWindows = (!db || *db != '0');
+        if (db) {
+            mUseDoubleBufferedWindows = *db != '0';
+        }
 
         mInitialized = true;
         return true;
     }
 
-    NSOpenGLPixelFormat *PixelFormat()
-    {
-        if (mPixelFormat == nullptr) {
-            NSOpenGLPixelFormatAttribute attribs[] = {
-                NSOpenGLPFAAccelerated,
-                NSOpenGLPFAAllowOfflineRenderers,
-                NSOpenGLPFADoubleBuffer,
-                0
-            };
-
-            if (!gUseDoubleBufferedWindows) {
-              attribs[2] = 0;
-            }
-
-            mPixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];
-        }
-
-        return mPixelFormat;
+    bool UseDoubleBufferedWindows() const {
+        MOZ_ASSERT(mInitialized);
+        return mUseDoubleBufferedWindows;
     }
+
 private:
     bool mInitialized;
+    bool mUseDoubleBufferedWindows;
     PRLibrary *mOGLLibrary;
-    NSOpenGLPixelFormat *mPixelFormat;
 };
 
 CGLLibrary sCGLLibrary;
@@ -159,7 +145,7 @@ GLContextCGL::SetupLookupFunction()
 bool
 GLContextCGL::IsDoubleBuffered() const
 {
-  return gUseDoubleBufferedWindows;
+  return sCGLLibrary.UseDoubleBufferedWindows();
 }
 
 bool
@@ -185,12 +171,58 @@ GLContextProviderCGL::CreateWrappingExisting(void*, void*)
     return nullptr;
 }
 
+static const NSOpenGLPixelFormatAttribute kAttribs_singleBuffered[] = {
+    NSOpenGLPFAAccelerated,
+    NSOpenGLPFAAllowOfflineRenderers,
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_doubleBuffered[] = {
+    NSOpenGLPFAAccelerated,
+    NSOpenGLPFAAllowOfflineRenderers,
+    NSOpenGLPFADoubleBuffer,
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_offscreen[] = {
+    NSOpenGLPFAPixelBuffer,
+    0
+};
+
+static const NSOpenGLPixelFormatAttribute kAttribs_offscreen_coreProfile[] = {
+    NSOpenGLPFAPixelBuffer,
+    NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion3_2Core,
+    0
+};
+
+static NSOpenGLContext*
+CreateWithFormat(const NSOpenGLPixelFormatAttribute* attribs)
+{
+    NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
+                                   initWithAttributes:attribs];
+
+    NSOpenGLContext* context = [[NSOpenGLContext alloc] initWithFormat:format
+                                shareContext:nullptr];
+
+    [format release];
+
+    return context;
+}
+
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 {
-    NSOpenGLContext *context = [[NSOpenGLContext alloc]
-                                initWithFormat:sCGLLibrary.PixelFormat()
-                                shareContext:nullptr];
+    if (!sCGLLibrary.EnsureInitialized()) {
+        return nullptr;
+    }
+
+    const NSOpenGLPixelFormatAttribute* attribs;
+    if (sCGLLibrary.UseDoubleBufferedWindows()) {
+        attribs = kAttribs_doubleBuffered;
+    } else {
+        attribs = kAttribs_singleBuffered;
+    }
+    NSOpenGLContext* context = CreateWithFormat(attribs);
     if (!context) {
         return nullptr;
     }
@@ -201,7 +233,10 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
     nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps, context, false);
+
     if (!glContext->Init()) {
+        glContext = nullptr;
+        [context release];
         return nullptr;
     }
 
@@ -215,9 +250,7 @@ CreateOffscreenFBOContext(bool aShare = true)
         return nullptr;
     }
 
-    NSOpenGLContext* context = [[NSOpenGLContext alloc]
-                                initWithFormat:sCGLLibrary.PixelFormat()
-                                shareContext:nullptr];
+    NSOpenGLContext* context = CreateWithFormat(kAttribs_offscreen);
     if (!context) {
         return nullptr;
     }
