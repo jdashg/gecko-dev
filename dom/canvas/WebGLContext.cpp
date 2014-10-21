@@ -909,6 +909,18 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     // increment the generation number
     ++mGeneration;
 
+    // Update our internal stuff:
+
+    if (gl->WorkAroundDriverBugs()) {
+        if (!mOptions.alpha && gl->Caps().alpha) {
+            mNeedsFakeNoAlpha = true;
+        }
+    }
+
+    mOptions.depth = gl->Caps().depth;
+    mOptions.stencil = gl->Caps().stencil;
+    mOptions.antialias = gl->Caps().antialias;
+
     MakeContextCurrent();
 
     gl->fViewport(0, 0, mWidth, mHeight);
@@ -922,12 +934,6 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     AssertCachedBindings();
     AssertCachedState();
 
-    if (gl->WorkAroundDriverBugs()) {
-        if (!mOptions.alpha && gl->Caps().alpha) {
-            mNeedsFakeNoAlpha = true;
-        }
-    }
-
     // Clear immediately, because we need to present the cleared initial
     // buffer.
     mBackbufferNeedsClear = true;
@@ -938,9 +944,9 @@ WebGLContext::SetDimensions(int32_t sWidth, int32_t sHeight)
     MOZ_ASSERT(gl->Caps().color);
     MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
     MOZ_ASSERT_IF(mNeedsFakeNoAlpha, !mOptions.alpha && gl->Caps().alpha);
-    MOZ_ASSERT(gl->Caps().depth == mOptions.depth || !gl->Caps().depth);
-    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil || !gl->Caps().stencil);
-    MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias || !gl->Caps().antialias);
+    MOZ_ASSERT(gl->Caps().depth == mOptions.depth);
+    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil);
+    MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
     AssertCachedBindings();
