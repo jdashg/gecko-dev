@@ -259,7 +259,7 @@ CreateOffscreenFBOContext(bool requireCompatProfile)
 
     if (!requireCompatProfile) {
         profile = ContextProfile::OpenGLCore;
-        context == CreateWithFormat(kAttribs_offscreen_coreProfile);
+        context = CreateWithFormat(kAttribs_offscreen_coreProfile);
     }
     if (!context) {
         profile = ContextProfile::OpenGLCompatibility;
