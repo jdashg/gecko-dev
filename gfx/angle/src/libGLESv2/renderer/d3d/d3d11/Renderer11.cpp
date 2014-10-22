@@ -60,8 +60,8 @@ namespace rx
 {
 static const DXGI_FORMAT RenderTargetFormats[] =
     {
-        DXGI_FORMAT_B8G8R8A8_UNORM,
-        DXGI_FORMAT_R8G8B8A8_UNORM
+        DXGI_FORMAT_R8G8B8A8_UNORM,
+        DXGI_FORMAT_B8G8R8A8_UNORM
     };
 
 static const DXGI_FORMAT DepthStencilFormats[] =
@@ -1030,7 +1030,7 @@ gl::Error Renderer11::drawArrays(GLenum mode, GLsizei count, GLsizei instances, 
     {
         // Since point sprites are generated with a geometry shader, too many vertices will
         // be written if transform feedback is active.  To work around this, draw only the points
-        // with the stream out shader and no pixel shader to feed the stream out buffers and then 
+        // with the stream out shader and no pixel shader to feed the stream out buffers and then
         // draw again with the point sprite geometry shader to rasterize the point sprites.
 
         mDeviceContext->PSSetShader(NULL, NULL, 0);
