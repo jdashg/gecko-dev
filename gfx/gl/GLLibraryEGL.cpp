@@ -421,15 +421,23 @@ GLLibraryEGL::EnsureInitialized()
 void
 GLLibraryEGL::InitExtensions()
 {
-    const char *extensions = (const char*)fQueryString(mEGLDisplay, LOCAL_EGL_EXTENSIONS);
-
-    if (!extensions) {
+    const char* rawExts = (const char*)fQueryString(mEGLDisplay,
+                                                    LOCAL_EGL_EXTENSIONS);
+    if (rawExts) {
+        nsDependentCString exts(rawExts);
+        SplitByChar(exts, ' ', &mDriverExtensionList);
+    } else {
         NS_WARNING("Failed to load EGL extension list!");
-        return;
     }
 
-    GLContext::InitializeExtensionsBitSet(mAvailableExtensions, extensions,
-                                          sEGLExtensionNames);
+    const bool shouldDumpExts = GLContext::ShouldDumpExts();
+    if (shouldDumpExts) {
+        printf_stderr("%i EGL driver extensions:\n",
+                      (uint32_t)mDriverExtensionList.size());
+    }
+
+    MarkBitfieldByStrings(mDriverExtensionList, shouldDumpExts,
+                          sEGLExtensionNames, mAvailableExtensions);
 }
 
 void

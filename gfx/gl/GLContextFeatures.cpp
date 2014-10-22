@@ -275,6 +275,16 @@ static const FeatureInfo sFeatureInfoArr[] = {
          */
     },
     {
+        "get_string_indexed",
+        300, // OpenGL version
+        300,   // OpenGL ES version
+        GLContext::Extension_None,
+        {
+            GLContext::Extensions_End
+        }
+        // glGetStringi
+    },
+    {
         "gpu_shader4",
         GLVersion::GL3,
         GLESVersion::ES3,
