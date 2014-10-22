@@ -3427,11 +3427,9 @@ public:
         fViewport(0, 0, size.width, size.height);
 
         mCaps = mScreen->mCaps;
-        if (mCaps.any)
-            DetermineCaps();
+        MOZ_ASSERT(!mCaps.any);
 
         UpdateGLFormats(mCaps);
-        UpdatePixelFormat();
 
         return true;
     }
@@ -3454,10 +3452,8 @@ public:
 protected:
     SurfaceCaps mCaps;
     nsAutoPtr<GLFormats> mGLFormats;
-    nsAutoPtr<PixelBufferFormat> mPixelFormat;
 
 public:
-    void DetermineCaps();
     const SurfaceCaps& Caps() const {
         return mCaps;
     }
@@ -3471,14 +3467,6 @@ public:
     const GLFormats& GetGLFormats() const {
         MOZ_ASSERT(mGLFormats);
         return *mGLFormats;
-    }
-
-    PixelBufferFormat QueryPixelFormat();
-    void UpdatePixelFormat();
-
-    const PixelBufferFormat& GetPixelFormat() const {
-        MOZ_ASSERT(mPixelFormat);
-        return *mPixelFormat;
     }
 
     bool IsFramebufferComplete(GLuint fb, GLenum* status = nullptr);
