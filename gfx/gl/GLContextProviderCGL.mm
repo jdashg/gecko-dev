@@ -248,14 +248,19 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 }
 
 static already_AddRefed<GLContextCGL>
-CreateOffscreenFBOContext(bool aShare = true)
+CreateOffscreenFBOContext(bool requireCompatProfile)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;
     }
 
-    ContextProfile profile = ContextProfile::OpenGLCore;
-    NSOpenGLContext* context = CreateWithFormat(kAttribs_offscreen_coreProfile);
+    ContextProfile profile;
+    NSOpenGLContext* context = nullptr;
+
+    if (!requireCompatProfile) {
+        profile = ContextProfile::OpenGLCore;
+        context == CreateWithFormat(kAttribs_offscreen_coreProfile);
+    }
     if (!context) {
         profile = ContextProfile::OpenGLCompatibility;
         context = CreateWithFormat(kAttribs_offscreen);
@@ -272,23 +277,25 @@ CreateOffscreenFBOContext(bool aShare = true)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderCGL::CreateHeadless()
+GLContextProviderCGL::CreateHeadless(bool requireCompatProfile)
 {
-    nsRefPtr<GLContextCGL> glContext = CreateOffscreenFBOContext();
-    if (!glContext)
+    nsRefPtr<GLContextCGL> gl;
+    gl = CreateOffscreenFBOContext(requireCompatProfile);
+    if (!gl)
         return nullptr;
 
-    if (!glContext->Init())
+    if (!gl->Init())
         return nullptr;
 
-    return glContext.forget();
+    return gl.forget();
 }
 
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
+                                      const SurfaceCaps& caps,
+                                      bool requireCompatProfile)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless();
+    nsRefPtr<GLContext> glContext = CreateHeadless(requireCompatProfile);
     if (!glContext->InitOffscreen(ToIntSize(size), caps))
         return nullptr;
 
