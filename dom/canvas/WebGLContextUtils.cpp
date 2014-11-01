@@ -28,20 +28,6 @@
 namespace mozilla {
 
 bool
-IsGLDepthFormat(TexInternalFormat internalformat)
-{
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(internalformat);
-    return unsizedformat == LOCAL_GL_DEPTH_COMPONENT;
-}
-
-bool
-IsGLDepthStencilFormat(TexInternalFormat internalformat)
-{
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(internalformat);
-    return unsizedformat == LOCAL_GL_DEPTH_STENCIL;
-}
-
-bool
 FormatHasAlpha(TexInternalFormat internalformat)
 {
     TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(internalformat);

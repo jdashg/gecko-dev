@@ -10,79 +10,6 @@
 
 namespace mozilla {
 
-bool
-WebGL2Context::ValidateSizedInternalFormat(GLenum internalformat, const char* info)
-{
-    switch (internalformat) {
-        // Sized Internal Formats
-        // https://www.khronos.org/opengles/sdk/docs/man3/html/glTexStorage2D.xhtml
-    case LOCAL_GL_R8:
-    case LOCAL_GL_R8_SNORM:
-    case LOCAL_GL_R16F:
-    case LOCAL_GL_R32F:
-    case LOCAL_GL_R8UI:
-    case LOCAL_GL_R8I:
-    case LOCAL_GL_R16UI:
-    case LOCAL_GL_R16I:
-    case LOCAL_GL_R32UI:
-    case LOCAL_GL_R32I:
-    case LOCAL_GL_RG8:
-    case LOCAL_GL_RG8_SNORM:
-    case LOCAL_GL_RG16F:
-    case LOCAL_GL_RG32F:
-    case LOCAL_GL_RG8UI:
-    case LOCAL_GL_RG8I:
-    case LOCAL_GL_RG16UI:
-    case LOCAL_GL_RG16I:
-    case LOCAL_GL_RG32UI:
-    case LOCAL_GL_RG32I:
-    case LOCAL_GL_RGB8:
-    case LOCAL_GL_SRGB8:
-    case LOCAL_GL_RGB565:
-    case LOCAL_GL_RGB8_SNORM:
-    case LOCAL_GL_R11F_G11F_B10F:
-    case LOCAL_GL_RGB9_E5:
-    case LOCAL_GL_RGB16F:
-    case LOCAL_GL_RGB32F:
-    case LOCAL_GL_RGB8UI:
-    case LOCAL_GL_RGB8I:
-    case LOCAL_GL_RGB16UI:
-    case LOCAL_GL_RGB16I:
-    case LOCAL_GL_RGB32UI:
-    case LOCAL_GL_RGB32I:
-    case LOCAL_GL_RGBA8:
-    case LOCAL_GL_SRGB8_ALPHA8:
-    case LOCAL_GL_RGBA8_SNORM:
-    case LOCAL_GL_RGB5_A1:
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGB10_A2:
-    case LOCAL_GL_RGBA16F:
-    case LOCAL_GL_RGBA32F:
-    case LOCAL_GL_RGBA8UI:
-    case LOCAL_GL_RGBA8I:
-    case LOCAL_GL_RGB10_A2UI:
-    case LOCAL_GL_RGBA16UI:
-    case LOCAL_GL_RGBA16I:
-    case LOCAL_GL_RGBA32I:
-    case LOCAL_GL_RGBA32UI:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_DEPTH_COMPONENT24:
-    case LOCAL_GL_DEPTH_COMPONENT32F:
-    case LOCAL_GL_DEPTH24_STENCIL8:
-    case LOCAL_GL_DEPTH32F_STENCIL8:
-        return true;
-    }
-
-    if (IsCompressedTextureFormat(internalformat))
-        return true;
-
-    nsCString name;
-    EnumName(internalformat, &name);
-    ErrorInvalidEnum("%s: invalid internal format %s", info, name.get());
-
-    return false;
-}
-
 /** Validates parameters to texStorage{2D,3D} */
 bool
 WebGL2Context::ValidateTexStorage(GLenum target, GLsizei levels, GLenum internalformat,
@@ -249,22 +176,35 @@ WebGL2Context::TexImage3D(GLenum target, GLint level, GLenum internalformat,
     TexInternalFormat effectiveInternalFormat =
         EffectiveInternalFormatFromInternalFormatAndType(internalformat, type);
 
-    if (effectiveInternalFormat == LOCAL_GL_NONE) {
-        return ErrorInvalidOperation("texImage3D: bad combination of internalformat and type");
+    SizedFormat sizedFormat;
+    SizedFormat sizedExternalFormat;
+    if (!FormatFromUnsizedFormatAndType(format, type, &sizedExternalFormat)) {
+        ErrorInvalidOperation("texImage3D: Bad format/type pair.");
+        return;
     }
 
-    // we need to find the exact sized format of the source data. Slightly abusing
-    // EffectiveInternalFormatFromInternalFormatAndType for that purpose. Really, an unsized source format
-    // is the same thing as an unsized internalformat.
-    TexInternalFormat effectiveSourceFormat =
-        EffectiveInternalFormatFromInternalFormatAndType(format, type);
-    MOZ_ASSERT(effectiveSourceFormat != LOCAL_GL_NONE); // should have validated format/type combo earlier
-    const size_t srcbitsPerTexel = GetBitsPerTexel(effectiveSourceFormat);
-    MOZ_ASSERT((srcbitsPerTexel % 8) == 0); // should not have compressed formats here.
-    size_t srcTexelSize = srcbitsPerTexel / 8;
+    if (FormatFromSizedFormat(internalFormat, &sizedFormat))
+        if (sizedFormat != sizedExternalFormat) {
+            ErrorInvalidOperation("texImage3D: Format/type pair does not match"
+                                  " internalformat.");
+            return;
+        }
+    } else {
+        sizedFormat = sizedExternalFormat;
+    }
 
-    CheckedUint32 checked_neededByteLength =
-        GetImageSize(height, width, depth, srcTexelSize, mPixelStoreUnpackAlignment);
+    const FormatCaps& caps = FormatCaps(sizedFormat);
+    if (!caps.sampleable) {
+        ErrorInvalidEnum("texImage3D: Invalid format for a texture.");
+        return;
+    }
+
+    const FormatInfo& info = InfoForFormat(sizedFormat);
+
+    size_t srcTexelSize = info.unitBytes;
+    CheckedUint32 checked_neededByteLength = GetImageSize(height, width, depth,
+                                                          srcTexelSize,
+                                                          mPixelStoreUnpackAlignment);
 
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidOperation("texSubImage2D: integer overflow computing the needed buffer size");

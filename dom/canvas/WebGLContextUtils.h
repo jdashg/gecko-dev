@@ -14,9 +14,6 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
-
-bool IsGLDepthFormat(TexInternalFormat webGLFormat);
-bool IsGLDepthStencilFormat(TexInternalFormat webGLFormat);
 bool FormatHasAlpha(TexInternalFormat webGLFormat);
 
 void

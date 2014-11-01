@@ -972,8 +972,11 @@ WebGLContext::GenerateMipmap(GLenum rawTarget)
     if (IsTextureFormatCompressed(internalformat))
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
+    webgl::EffectiveFormat effectiveFormat;
+    MOZ_ALWAYS_TRUE(EffectiveFormatFromSizedFormat(internalformat.get(),
+                                                   &effectiveFormat));
     if (IsExtensionEnabled(WebGLExtensionID::WEBGL_depth_texture) &&
-        (IsGLDepthFormat(internalformat) || IsGLDepthStencilFormat(internalformat)))
+        FormatInfo(effectiveFormat).hasDepth)
     {
         return ErrorInvalidOperation("generateMipmap: "
                                      "A texture that has a base internal format of "
@@ -1178,7 +1181,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                     return JS::NullValue();
                 }
 
-                if (!fba.IsComplete())
+                if (!fba.IsComplete(this))
                     return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
 
                 uint32_t ret = LOCAL_GL_NONE;
@@ -1263,7 +1266,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                     return JS::NullValue();
                 }
 
-                if (!fba.IsComplete())
+                if (!fba.IsComplete(this))
                     return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
 
                 TexInternalFormat effectiveInternalFormat =
@@ -2953,21 +2956,139 @@ WebGLContext::CompileShader(WebGLShader* shader)
     shader->CompileShader();
 }
 
+static CheckedUint32
+CalcStrideForAlignment(CheckedUint32 len, CheckedUint32 alignment)
+{
+    return (len + (alignment - 1)) / alignment;
+}
+
+static bool
+ValidateCompressedTexImage(SizedFormat format, size_t width, size_t height,
+                           size_t dataBytes, WebGLContext* webgl, const char* funcName)
+{
+    const CompressedFormatInfo& info = InfoForCompressedFormat(format);
+
+    if (info.requirePOT) {
+        if (!IsPOTAssumingNonnegative(width) ||
+            !IsPOTAssumingNonnegative(height))
+        {
+            webgl->ErrorInvalidValue("%s: width and height must be powers-of-two for this"
+                                     " internalformat.",
+                                     funcName);
+            return false;
+        }
+    }
+
+    CheckedUint32 widthInBlocks = CalcStrideForAlignment(width, info.blockWidth);
+    CheckedUint32 heightInBlocks = CalcStrideForAlignment(height, info.blockHeight);
+
+    CheckedUint32 requiredBlocks = widthInBlocks * heightInBlocks;
+    if (requiredBlocks < 1)
+        requiredBlocks = 1;
+
+    CheckedUint32 requiredBytes = requiredBlocks * info.bytesPerBlock;
+    if (!requiredBytes.IsValid() ||
+        dataBytes != requiredBytes)
+    {
+        webgl->ErrorInvalidValue("%s: Size of provided data does not match dimensions.",
+                                 funcName);
+        return false;
+    }
+
+    return true;
+}
+
+static bool
+ValidateCompressedTexSubImage(SizedFormat format, size_t x0, size_t y0,
+                              size_t x1, size_t y1, size_t imageWidth,
+                              size_t imageHeight, WebGLContext* webgl,
+                              const char* funcName)
+{
+    const CompressedFormatInfo& info = InfoForCompressedFormat(format);
+
+    switch (info.uploadBehavior) {
+    case TexImageUploadBehavior::Forbidden:
+        webgl->ErrorInvalidEnum("%s: `internalformat` cannot be used with this"
+                                " function.", funcName);
+        return false;
+
+    case TexImageUploadBehavior::FullOnly:
+        if (x0 != 0 && y0 != 0) {
+            webgl->ErrorInvalidValue("%s: Invalid {x,y}offset for given internalformat.",
+                                     funcName);
+            return false;
+        }
+
+        if (x1 != imageWidth && y1 == imageHeight) {
+            webgl->ErrorInvalidValue("%s: Invalid width/height for given internalformat.",
+                                     funcName);
+            return false;
+        }
+
+        return true;
+
+    case TexImageUploadBehavior::BlockAligned:
+        if (x0 % info.blockWidth != 0 ||
+            y0 % info.blockHeight != 0)
+        {
+            webgl->ErrorInvalidValue("%s: Invalid {x,y}offset for given internalformat.",
+                                     funcName);
+            return false;
+        }
+
+        const bool x1Good = (x1 % info.blockWidth == 0 || x1 == imageWidth);
+        const bool y1Good = (y1 % info.blockHeight == 0 || y1 == imageHeight);
+
+        if (!x1Good || !y1Good)
+        {
+            webgl->ErrorInvalidValue("%s: Invalid width/height for given internalformat.",
+                                     funcName);
+            return false;
+        }
+
+        return true;
+    }
+}
+
 void
-WebGLContext::CompressedTexImage2D(GLenum rawTexImgTarget,
-                                   GLint level,
-                                   GLenum internalformat,
-                                   GLsizei width, GLsizei height, GLint border,
-                                   const ArrayBufferView& view)
+WebGLContext::CompressedTexImage2D(GLenum rawTexImgTarget, GLint level,
+                                   GLenum internalformat, GLsizei width, GLsizei height,
+                                   GLint border, const ArrayBufferView& view)
 {
     if (IsContextLost())
         return;
+
+    view.ComputeLengthAndData();
 
     const WebGLTexImageFunc func = WebGLTexImageFunc::CompTexImage;
     const WebGLTexDimensions dims = WebGLTexDimensions::Tex2D;
 
     if (!ValidateTexImageTarget(rawTexImgTarget, func, dims))
         return;
+
+    bool isFormatValid = false;
+    SizedFormat sizedFormat;
+    const FormatInfo* formatInfo;
+    const FormatCaps* formatCaps;
+    if (FormatFromSizedFormat(internalformat, &sizedFormat)) {
+        formatInfo = &InfoForFormat(sizedFormat);
+        formatCaps = &FormatCaps(sizedFormat);
+
+        isFormatValid = (formatCaps->isSampleable &&
+                         formatInfo->isCompressed);
+    }
+
+    if (!isFormatValid) {
+        ErrorInvalidEnum("%s: Invalid `internalformat` enum %s.", info,
+                         EnumName(internalFormat));
+        return;
+    }
+
+    if (!ValidateCompressedTexImage(sizedFormat, width, height, view.Length(), this,
+                                    "compressedTexImage2D"))
+    {
+        return;
+    }
 
     if (!ValidateTexImage(rawTexImgTarget, level, internalformat,
                           0, 0, 0, width, height, 0,
@@ -2977,8 +3098,6 @@ WebGLContext::CompressedTexImage2D(GLenum rawTexImgTarget,
     {
         return;
     }
-
-    view.ComputeLengthAndData();
 
     uint32_t byteLength = view.Length();
     if (!ValidateCompTexImageDataSize(level, internalformat, width, height, byteLength, func, dims)) {
@@ -3241,13 +3360,43 @@ GLenum WebGLContext::CheckedTexImage2D(TexImageTarget texImageTarget,
     return error;
 }
 
+static FormatInfo*
+FormatForFormatTuple(GLenum internalFormat, GLenum unpackFormat, GLenum unpackType,
+                     WebGLContext* webgl, const char* funcName)
+{
+    // Two main internalFormat/format/type tuples:
+    // 1. Sized internalFormat. (format is always unsized)
+    // 2. Unsized internalFormat, matches format.
+
+    FormatInfo* format = FormatFromSizedFormat(internalFormat);
+    if (format)
+        return format;
+
+    // Must be an unsized format.
+    if (unpackFormat != internalFormat) {
+        webgl->ErrorInvalidOperation("%s: Non-sized `internalFormat` must match"
+                                     " `format`.",
+                                     funcName);
+        return nullptr;
+    }
+
+    format = FormatFromUnpackTuple(unpackFormat, unpackType);
+    if (format)
+        return format;
+
+    webgl->ErrorInvalidOperation("%s: Unrecognized `internalFormat`/`format`/`type`.",
+                                 funcName);
+    return nullptr;
+}
+
+
 void
 WebGLContext::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
-                              GLenum internalformat,
+                              GLenum internalFormat,
                               GLsizei width, GLsizei height, GLsizei srcStrideOrZero,
                               GLint border,
-                              GLenum format,
-                              GLenum type,
+                              GLenum unpackFormat,
+                              GLenum unpackType,
                               void* data, uint32_t byteLength,
                               js::Scalar::Type jsArrayType,
                               WebGLTexelFormat srcFormat, bool srcPremultiplied)
@@ -3255,9 +3404,9 @@ WebGLContext::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
     const WebGLTexImageFunc func = WebGLTexImageFunc::TexImage;
     const WebGLTexDimensions dims = WebGLTexDimensions::Tex2D;
 
-    if (type == LOCAL_GL_HALF_FLOAT_OES) {
-        type = LOCAL_GL_HALF_FLOAT;
-    }
+    FormatInfo* format = FormatForFormatTuple(internalFormat, unpackFormat, unpackType);
+    if (!format)
+        return;
 
     if (!ValidateTexImage(texImageTarget, level, internalformat,
                           0, 0, 0,

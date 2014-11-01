@@ -223,69 +223,8 @@ WebGLFBAttachPoint::RectangleObject() const
 // is used by GL or GL ES texture formats.  This corresponds to the state that
 // is stored in WebGLTexture::ImageInfo::InternalFormat()
 
-static inline bool
-IsValidFBOTextureDepthFormat(GLenum internalformat)
-{
-    return IsGLDepthFormat(internalformat);
-}
-
-static inline bool
-IsValidFBOTextureDepthStencilFormat(GLenum internalformat)
-{
-    return IsGLDepthStencilFormat(internalformat);
-}
-
-// The following IsValidFBORenderbufferXXX functions check the internal format
-// that is stored by WebGLRenderbuffer::InternalFormat(). Valid values can be
-// found in WebGLContext::RenderbufferStorage.
-
-static inline bool
-IsValidFBORenderbufferDepthFormat(GLenum internalFormat)
-{
-    return internalFormat == LOCAL_GL_DEPTH_COMPONENT16;
-}
-
-static inline bool
-IsValidFBORenderbufferDepthStencilFormat(GLenum internalFormat)
-{
-    return internalFormat == LOCAL_GL_DEPTH_STENCIL;
-}
-
-static inline bool
-IsValidFBORenderbufferStencilFormat(GLenum internalFormat)
-{
-    return internalFormat == LOCAL_GL_STENCIL_INDEX8;
-}
-
 bool
-WebGLContext::IsFormatValidForFB(GLenum sizedFormat) const
-{
-    switch (sizedFormat) {
-    case LOCAL_GL_RGB8:
-    case LOCAL_GL_RGBA8:
-    case LOCAL_GL_RGB565:
-    case LOCAL_GL_RGB5_A1:
-    case LOCAL_GL_RGBA4:
-        return true;
-
-    case LOCAL_GL_SRGB8:
-    case LOCAL_GL_SRGB8_ALPHA8_EXT:
-        return IsExtensionEnabled(WebGLExtensionID::EXT_sRGB);
-
-    case LOCAL_GL_RGB32F:
-    case LOCAL_GL_RGBA32F:
-        return IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float);
-
-    case LOCAL_GL_RGB16F:
-    case LOCAL_GL_RGBA16F:
-        return IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float);
-    }
-
-    return false;
-}
-
-bool
-WebGLFBAttachPoint::IsComplete() const
+WebGLFBAttachPoint::IsComplete(const WebGLContext* webgl) const
 {
     if (!HasImage())
         return false;
@@ -298,58 +237,43 @@ WebGLFBAttachPoint::IsComplete() const
         return false;
     }
 
+    GLenum sizedFormat;
+
     if (Texture()) {
         MOZ_ASSERT(Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel));
         const WebGLTexture::ImageInfo& imageInfo =
             Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
-        GLenum sizedFormat = imageInfo.EffectiveInternalFormat().get();
-
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-            return IsValidFBOTextureDepthFormat(sizedFormat);
-
-        if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT) {
-            // Textures can't have the correct format for stencil buffers.
-            return false;
-        }
-
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return IsValidFBOTextureDepthStencilFormat(sizedFormat);
-
-        if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-            mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
-                                             WebGLContext::kMaxColorAttachments))
-        {
-            WebGLContext* webgl = Texture()->Context();
-            return webgl->IsFormatValidForFB(sizedFormat);
-        }
-        MOZ_ASSERT(false, "Invalid WebGL attachment point?");
-        return false;
+        sizedFormat = imageInfo.EffectiveInternalFormat().get();
+    } else if (Renderbuffer()) {
+        sizedFormat = Renderbuffer()->InternalFormat();
     }
 
-    if (Renderbuffer()) {
-        GLenum internalFormat = Renderbuffer()->InternalFormat();
+    webgl::EffectiveFormat effectiveFormat;
+    MOZ_ALWAYS_TRUE(EffectiveFormatFromSizedFormat(sizedFormat,
+                                                   &effectiveFormat));
 
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-            return IsValidFBORenderbufferDepthFormat(internalFormat);
+    const webgl::EffectiveFormatInfo& info = webgl->FormatInfo(effectiveFormat);
 
-        if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
-            return IsValidFBORenderbufferStencilFormat(internalFormat);
-
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return IsValidFBORenderbufferDepthStencilFormat(internalFormat);
-
-        if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-            mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
-                                             WebGLContext::kMaxColorAttachments))
-        {
-            WebGLContext* webgl = Renderbuffer()->Context();
-            return webgl->IsFormatValidForFB(internalFormat);
-        }
-        MOZ_ASSERT(false, "Invalid WebGL attachment point?");
+    if (!info.isRenderable)
         return false;
+
+    if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+        mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
+                                         WebGLContext::kMaxColorAttachments))
+    {
+        return info.hasColor;
     }
-    MOZ_ASSERT(false, "Should not get here.");
-    return false;
+
+    if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+        return info.hasDepth;
+
+    if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
+        return info.hasStencil;
+
+    if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+        return info.hasDepth && info.hasStencil;
+
+    MOZ_CRASH("Unreachable.");
 }
 
 void
@@ -581,9 +505,9 @@ WebGLFramebuffer::HasDefinedAttachments() const
 }
 
 static bool
-IsIncomplete(const WebGLFBAttachPoint& cur)
+IsIncomplete(const WebGLFBAttachPoint& cur, const WebGLContext* webgl)
 {
-    return cur.IsDefined() && !cur.IsComplete();
+    return cur.IsDefined() && !cur.IsComplete(webgl);
 }
 
 bool
@@ -591,14 +515,14 @@ WebGLFramebuffer::HasIncompleteAttachments() const
 {
     bool hasIncomplete = false;
 
-    hasIncomplete |= IsIncomplete(mColorAttachment0);
-    hasIncomplete |= IsIncomplete(mDepthAttachment);
-    hasIncomplete |= IsIncomplete(mStencilAttachment);
-    hasIncomplete |= IsIncomplete(mDepthStencilAttachment);
+    hasIncomplete |= IsIncomplete(mColorAttachment0, mContext);
+    hasIncomplete |= IsIncomplete(mDepthAttachment, mContext);
+    hasIncomplete |= IsIncomplete(mStencilAttachment, mContext);
+    hasIncomplete |= IsIncomplete(mDepthStencilAttachment, mContext);
 
     const size_t moreColorAttachmentCount = mMoreColorAttachments.Length();
     for (size_t i = 0; i < moreColorAttachmentCount; i++) {
-        hasIncomplete |= IsIncomplete(mMoreColorAttachments[i]);
+        hasIncomplete |= IsIncomplete(mMoreColorAttachments[i], mContext);
     }
 
     return hasIncomplete;

@@ -85,7 +85,7 @@ public:
     const WebGLRectangleObject& RectangleObject() const;
 
     bool HasImage() const;
-    bool IsComplete() const;
+    bool IsComplete(const WebGLContext* webgl) const;
 
     void FinalizeAttachment(gl::GLContext* gl,
                             FBAttachment attachmentLoc) const;

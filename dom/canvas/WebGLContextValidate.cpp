@@ -838,16 +838,17 @@ WebGLContext::ValidateCompTexImageSize(GLint level, GLenum format,
     return true;
 }
 
+static size_t
+
 /**
  * Return true if the enough data is present to satisfy compressed
  * texture format constraints.
  */
 bool
-WebGLContext::ValidateCompTexImageDataSize(GLint level, GLenum format,
+WebGLContext::ValidateCompTexImageDataSize(bool isSubUpdate, SizedFormat format,
                                            GLsizei width, GLsizei height,
                                            uint32_t byteLength,
-                                           WebGLTexImageFunc func,
-                                           WebGLTexDimensions dims)
+                                           WebGLTexImageFunc func)
 {
     // negative width and height must already have been handled above
     MOZ_ASSERT(width >= 0 && height >= 0);
@@ -1310,7 +1311,7 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
 }
 
 /**
- * Test the gl(Copy|Compressed)?Tex[Sub]?Image[23]() parameters for errors.
+ * Test the gl[Copy,Compressed]Tex[Sub]Image{2,3}() parameters for errors.
  * Verifies each of the parameters against the WebGL standard and enabled
  * extensions.
  */

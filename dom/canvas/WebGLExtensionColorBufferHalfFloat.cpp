@@ -14,6 +14,11 @@ WebGLExtensionColorBufferHalfFloat::WebGLExtensionColorBufferHalfFloat(WebGLCont
     : WebGLExtensionBase(webgl)
 {
     MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
+    FormatAuthority* auth = webgl->mFormatAuthority;
+
+    if (!auth.HasInfo(RGBA16F)) {
+        auth.AddEffectiveFormat(RGBA16F,
+    }
 }
 
 WebGLExtensionColorBufferHalfFloat::~WebGLExtensionColorBufferHalfFloat()
