@@ -1404,7 +1404,8 @@ protected:
 
     uint32_t mMaxFramebufferColorAttachments;
 
-    WebGLRefPtr<WebGLFramebuffer> mBoundFramebuffer;
+    WebGLRefPtr<WebGLFramebuffer> mBoundDrawFramebuffer;
+    WebGLRefPtr<WebGLFramebuffer> mBoundReadFramebuffer;
     WebGLRefPtr<WebGLRenderbuffer> mBoundRenderbuffer;
     WebGLRefPtr<WebGLTransformFeedback> mBoundTransformFeedback;
     WebGLRefPtr<WebGLVertexArray> mBoundVertexArray;

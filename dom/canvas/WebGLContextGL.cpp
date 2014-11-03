@@ -164,8 +164,26 @@ WebGLContext::BindFramebuffer(GLenum target, WebGLFramebuffer* wfb)
     if (IsContextLost())
         return;
 
-    if (target != LOCAL_GL_FRAMEBUFFER)
-        return ErrorInvalidEnum("bindFramebuffer: target must be GL_FRAMEBUFFER");
+    bool isTargetValid = false;
+    switch (target) {
+    case LOCAL_GL_FRAMEBUFFER:
+        isTargetValid = true;
+        break;
+
+    case LOCAL_GL_DRAW_FRAMEBUFFER:
+    case LOCAL_GL_READ_FRAMEBUFFER:
+        if (IsWebGL2())
+            isTargetValid = true;
+        break;
+
+    default:
+        break;
+    }
+
+    if (!isTargetValid) {
+        return ErrorInvalidEnum("bindFramebuffer: Invalid target: %s (0x%04x)",
+                                EnumName(target), target);
+    }
 
     if (!ValidateObjectAllowDeletedOrNull("bindFramebuffer", wfb))
         return;
@@ -184,7 +202,20 @@ WebGLContext::BindFramebuffer(GLenum target, WebGLFramebuffer* wfb)
         gl->fBindFramebuffer(target, framebuffername);
     }
 
-    mBoundFramebuffer = wfb;
+    switch (target) {
+    case LOCAL_GL_FRAMEBUFFER:
+        mBoundDrawFramebuffer = wfb;
+        mBoundReadFramebuffer = wfb;
+        break;
+    case LOCAL_GL_DRAW_FRAMEBUFFER:
+        mBoundDrawFramebuffer = wfb;
+        break;
+    case LOCAL_GL_READ_FRAMEBUFFER:
+        mBoundReadFramebuffer = wfb;
+        break;
+    default:
+        break;
+    }
 }
 
 void

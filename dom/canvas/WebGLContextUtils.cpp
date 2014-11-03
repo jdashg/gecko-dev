@@ -598,11 +598,14 @@ WebGLContext::EnumName(GLenum glenum)
         XX(DEPTH_COMPONENT32);
         XX(DEPTH_STENCIL);
         XX(DEPTH24_STENCIL8);
+        XX(DRAW_FRAMEBUFFER);
         XX(ETC1_RGB8_OES);
         XX(FLOAT);
+        XX(FRAMEBUFFER);
         XX(HALF_FLOAT);
         XX(LUMINANCE);
         XX(LUMINANCE_ALPHA);
+        XX(READ_FRAMEBUFFER);
         XX(RGB);
         XX(RGB16F);
         XX(RGB32F);
