@@ -57,16 +57,39 @@ WebGL2Context::InvalidateFramebuffer(GLenum target, const dom::Sequence<GLenum>&
 {
     if (IsContextLost())
         return;
+
     MakeContextCurrent();
 
-    if (target != LOCAL_GL_FRAMEBUFFER)
-        return ErrorInvalidEnumInfo("invalidateFramebuffer: target", target);
-    for (size_t i = 0; i < attachments.Length(); i++) {
-        if (!ValidateFramebufferAttachment(attachments[i], "invalidateFramebuffer"))
-            return;
+    if (!ValidateFramebufferTarget(target, "framebufferRenderbuffer"))
+        return;
+
+    const WebGLFramebuffer* fb;
+    bool isDefaultFB;
+    switch (target) {
+    case LOCAL_GL_FRAMEBUFFER:
+    case LOCAL_GL_DRAW_FRAMEBUFFER:
+        fb = mBoundDrawFramebuffer;
+        isDefaultFB = gl->Screen()->IsDrawFramebufferDefault();
+        break;
+
+    case LOCAL_GL_READ_FRAMEBUFFER:
+        fb = mBoundReadFramebuffer;
+        isDefaultFB = gl->Screen()->IsReadFramebufferDefault();
+        break;
+
+    default:
+        MOZ_CRASH("Bad target.");
     }
 
-    if (!mBoundFramebuffer && !gl->IsDrawingToDefaultFramebuffer()) {
+    for (size_t i = 0; i < attachments.Length(); i++) {
+        if (!ValidateFramebufferAttachment(fb, attachments[i],
+                                           "invalidateFramebuffer"))
+        {
+            return;
+        }
+    }
+
+    if (!fb && !isDefaultFB) {
         dom::Sequence<GLenum> tmpAttachments;
         TranslateDefaultAttachments(attachments, &tmpAttachments);
         gl->fInvalidateFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements());
@@ -81,16 +104,39 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
 {
     if (IsContextLost())
         return;
+
     MakeContextCurrent();
 
-    if (target != LOCAL_GL_FRAMEBUFFER)
-        return ErrorInvalidEnumInfo("invalidateFramebuffer: target", target);
-    for (size_t i = 0; i < attachments.Length(); i++) {
-        if (!ValidateFramebufferAttachment(attachments[i], "invalidateSubFramebuffer"))
-            return;
+    if (!ValidateFramebufferTarget(target, "framebufferRenderbuffer"))
+        return;
+
+    const WebGLFramebuffer* fb;
+    bool isDefaultFB;
+    switch (target) {
+    case LOCAL_GL_FRAMEBUFFER:
+    case LOCAL_GL_DRAW_FRAMEBUFFER:
+        fb = mBoundDrawFramebuffer;
+        isDefaultFB = gl->Screen()->IsDrawFramebufferDefault();
+        break;
+
+    case LOCAL_GL_READ_FRAMEBUFFER:
+        fb = mBoundReadFramebuffer;
+        isDefaultFB = gl->Screen()->IsReadFramebufferDefault();
+        break;
+
+    default:
+        MOZ_CRASH("Bad target.");
     }
 
-    if (!mBoundFramebuffer && !gl->IsDrawingToDefaultFramebuffer()) {
+    for (size_t i = 0; i < attachments.Length(); i++) {
+        if (!ValidateFramebufferAttachment(fb, attachments[i],
+                                           "invalidateSubFramebuffer"))
+        {
+            return;
+        }
+    }
+
+    if (!fb && !isDefaultFB) {
         dom::Sequence<GLenum> tmpAttachments;
         TranslateDefaultAttachments(attachments, &tmpAttachments);
         gl->fInvalidateSubFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements(),
