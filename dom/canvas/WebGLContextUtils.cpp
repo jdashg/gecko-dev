@@ -1031,10 +1031,21 @@ WebGLContext::AssertCachedBindings()
     }
 
     // Bound object state
-    GLuint bound = mBoundFramebuffer ? mBoundFramebuffer->GLName() : 0;
-    AssertUintParamCorrect(gl, LOCAL_GL_FRAMEBUFFER_BINDING, bound);
+    if (IsWebGL2()) {
+        GLuint bound = mBoundDrawFramebuffer ? mBoundDrawFramebuffer->GLName()
+                                             : 0;
+        AssertUintParamCorrect(gl, LOCAL_GL_DRAW_FRAMEBUFFER_BINDING, bound);
 
-    bound = mCurrentProgram ? mCurrentProgram->GLName() : 0;
+        bound = mBoundReadFramebuffer ? mBoundReadFramebuffer->GLName() : 0;
+        AssertUintParamCorrect(gl, LOCAL_GL_READ_FRAMEBUFFER_BINDING, bound);
+    } else {
+        MOZ_ASSERT(mBoundDrawFramebuffer == mBoundReadFramebuffer);
+        GLuint bound = mBoundDrawFramebuffer ? mBoundDrawFramebuffer->GLName()
+                                             : 0;
+        AssertUintParamCorrect(gl, LOCAL_GL_FRAMEBUFFER_BINDING, bound);
+    }
+
+    GLuint bound = mCurrentProgram ? mCurrentProgram->GLName() : 0;
     AssertUintParamCorrect(gl, LOCAL_GL_CURRENT_PROGRAM, bound);
 
     // Textures
