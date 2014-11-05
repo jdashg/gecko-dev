@@ -250,6 +250,14 @@ WebGLProgram::GetUniformInfoForMappedIdentifier(const nsACString& name)
 bool
 WebGLProgram::UpdateInfo()
 {
+    const size_t shaderCount = mAttachedShaders.Length();
+    for (size_t i = 0; i < shaderCount; i++) {
+        if (mAttachedShaders[i]->BypassANGLE()) {
+            UpdateShaderInfo(mAttachedShaders[i]);
+            break;
+        }
+    }
+
     mAttribMaxNameLength = 0;
     for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
         mAttribMaxNameLength = std::max(mAttribMaxNameLength,
@@ -343,8 +351,69 @@ WebGLProgram::UpdateInfo()
     return true;
 }
 
-/*static*/ uint64_t
-WebGLProgram::IdentifierHashFunction(const char* ident, size_t size)
+void
+WebGLProgram::UpdateShaderInfo(WebGLShader* shader)
+{
+    const GLuint program = GLName();
+    GLContext* gl = mContext->GL();
+
+    GLint num_attributes = 0;
+    gl->fGetProgramiv(program, LOCAL_GL_ACTIVE_ATTRIBUTES, &num_attributes);
+    GLint num_uniforms = 0;
+    gl->fGetProgramiv(program, LOCAL_GL_ACTIVE_UNIFORMS, &num_uniforms);
+    GLint attrib_max_length = 0;
+    gl->fGetProgramiv(program, LOCAL_GL_ACTIVE_ATTRIBUTE_MAX_LENGTH, &attrib_max_length);
+    GLint uniform_max_length = 0;
+    gl->fGetProgramiv(program, LOCAL_GL_ACTIVE_UNIFORM_MAX_LENGTH, &uniform_max_length);
+    GLint mapped_max_length = std::max(attrib_max_length, uniform_max_length);
+
+    shader->mAttribMaxNameLength = attrib_max_length;
+    shader->mAttributes.Clear();
+    shader->mUniforms.Clear();
+    shader->mUniformInfos.Clear();
+
+    UniquePtr<GLchar[]> attribute_name(new GLchar[attrib_max_length+1]);
+    UniquePtr<GLchar[]> uniform_name(new GLchar[uniform_max_length+1]);
+    UniquePtr<GLchar[]> mapped_name(new GLchar[mapped_max_length+1]);
+
+    for (size_t i = 0; i < num_uniforms; i++) {
+        GLsizei length;
+        GLint size;
+        GLenum type;
+        gl->fGetActiveUniform(program, (GLuint) i, (GLsizei) uniform_max_length,
+                              &length, &size, &type, &uniform_name[0]);
+
+        shader->mUniforms.AppendElement(WebGLMappedIdentifier(
+                                            nsDependentCString(&uniform_name[0]),
+                                            nsDependentCString(&uniform_name[0])));
+
+        // we need uniform info to validate uniform setter calls
+        size_t mappedNameLength = strlen(&uniform_name[0]);
+        GLchar mappedNameLastChar = mappedNameLength > 1
+                                  ? mapped_name[mappedNameLength - 1]
+                                  : 0;
+        shader->mUniformInfos.AppendElement(WebGLUniformInfo(
+                                                size,
+                                                mappedNameLastChar == ']',
+                                                type));
+    }
+
+    for (size_t i = 0; i < num_attributes; i++) {
+        GLsizei length;
+        GLint size;
+        GLenum type;
+
+
+        gl->fGetActiveAttrib(program, (GLuint) i, (GLsizei) attrib_max_length,
+                             &length, &size, &type, &attribute_name[0]);
+        shader->mAttributes.AppendElement(WebGLMappedIdentifier(
+                                              nsDependentCString(&attribute_name[0]),
+                                              nsDependentCString(&attribute_name[0])));
+    }
+}
+
+/* static */ uint64_t
+WebGLProgram::IdentifierHashFunction(const char *ident, size_t size)
 {
     uint64_t outhash[2];
     // NB: we use the x86 function everywhere, even though it's suboptimal perf

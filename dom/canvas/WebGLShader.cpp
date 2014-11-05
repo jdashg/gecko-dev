@@ -25,6 +25,8 @@ WebGLShader::WebGLShader(WebGLContext* webgl, GLenum type)
     , mNeedsTranslation(true)
     , mAttribMaxNameLength(0)
     , mCompileStatus(false)
+    , mNeedsTranslation(true)
+    , mBypassANGLE(false)
 {
     mContext->MakeContextCurrent();
     mGLName = mContext->gl->fCreateShader(mType);

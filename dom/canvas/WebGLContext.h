@@ -374,7 +374,9 @@ public:
     void ClearStencil(GLint v);
     void ColorMask(WebGLboolean r, WebGLboolean g, WebGLboolean b, WebGLboolean a);
     void CompileShader(WebGLShader* shader);
-    void CompressedTexImage2D(GLenum texImageTarget, GLint level,
+    void CompileShaderANGLE(WebGLShader* shader);
+    void CompileShaderBypass(WebGLShader* shader, const nsCString& shaderSource);
+    void CompressedTexImage2D(GLenum target, GLint level,
                               GLenum internalformat, GLsizei width,
                               GLsizei height, GLint border,
                               const dom::ArrayBufferView& view);

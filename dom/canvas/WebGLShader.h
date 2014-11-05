@@ -54,15 +54,13 @@ public:
     void SetNeedsTranslation() { mNeedsTranslation = true; }
     bool NeedsTranslation() const { return mNeedsTranslation; }
 
-    void SetCompileStatus (bool status) {
-        mCompileStatus = status;
-    }
+    void SetCompileStatus(bool status) { mCompileStatus = status; }
+    bool CompileStatus() const { return mCompileStatus; }
+
+    void SetBypassANGLE() { mBypassANGLE = true; }
+    bool BypassANGLE() const { return mBypassANGLE; }
 
     void Delete();
-
-    bool CompileStatus() const {
-        return mCompileStatus;
-    }
 
     void SetTranslationSuccess();
 
@@ -71,7 +69,6 @@ public:
     }
 
     const nsCString& TranslationLog() const { return mTranslationLog; }
-
     const nsString& TranslatedSource() const { return mTranslatedSource; }
 
     WebGLContext* GetParentObject() const {
@@ -84,21 +81,20 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLShader)
 
 protected:
-    ~WebGLShader() {
-        DeleteOnce();
-    }
+    ~WebGLShader() { DeleteOnce(); }
 
     GLuint mGLName;
     GLenum mType;
     nsString mSource;
     nsString mTranslatedSource;
     nsCString mTranslationLog; // The translation log should contain only ASCII characters
-    bool mNeedsTranslation;
     nsTArray<WebGLMappedIdentifier> mAttributes;
     nsTArray<WebGLMappedIdentifier> mUniforms;
     nsTArray<WebGLUniformInfo> mUniformInfos;
     int mAttribMaxNameLength;
     bool mCompileStatus;
+    bool mNeedsTranslation;
+    bool mBypassANGLE;
 };
 
 } // namespace mozilla

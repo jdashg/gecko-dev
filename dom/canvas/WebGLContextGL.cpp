@@ -3184,8 +3184,74 @@ WebGLContext::CompileShader(WebGLShader* shader)
     if (!ValidateObject("compileShader", shader))
         return;
 
-    GLuint shadername = shader->GLName();
+    // HACK - dump shader source
+    {
+/*
+        printf_stderr("//-*- glsl -*-\n");
+        // Wow - Roll Your Own For Each Lines because printf_stderr has a hard-coded internal size, so long strings are truncated.
+        const nsString& src = shader->Source();
+        int32_t start = 0;
+        int32_t end = src.Find("\n", false, start, -1);
+        while (end > -1) {
+            printf_stderr("%s\n", NS_ConvertUTF16toUTF8(nsDependentSubstring(src, start, end - start)).get());
+            start = end + 1;
+            end = src.Find("\n", false, start, -1);
+        }
+        printf_stderr("//\n");
+*/
+    }
+    // HACK
 
+    // nothing to do if the validator is disabled
+    if (!mShaderValidation)
+        return;
+
+    // nothing to do if translation was already done
+    if (!shader->NeedsTranslation())
+        return;
+
+    // We're storing an actual instance of StripComments because, if we don't, the
+    // cleanSource nsAString instance will be destroyed before the reference is
+    // actually used.
+    StripComments stripComments(shader->Source());
+    const nsAString& cleanSource = Substring(stripComments.result().Elements(), stripComments.length());
+    if (!ValidateGLSLString(cleanSource, "compileShader"))
+        return;
+
+    // shaderSource() already checks that the source stripped of comments is in the
+    // 7-bit ASCII range, so we can skip the NS_IsAscii() check.
+    NS_LossyConvertUTF16toASCII sourceCString(cleanSource);
+    if (gl->WorkAroundDriverBugs()) {
+        const uint32_t maxSourceLength = 0x3ffff;
+        if (sourceCString.Length() > maxSourceLength)
+            return ErrorInvalidValue("compileShader: source has more than %d characters",
+                                     maxSourceLength);
+    }
+
+    // Detect versions that require bypassing of ANGLE shader compiler.
+    static const char* bypassPrefixSearch[] = { "#version proto-200", "#version 200 webgl", "#version 300 es" };
+
+    int offset = 0;
+    int match = 0;
+    for (; match < 3; match++) {
+        offset = sourceCString.Find(bypassPrefixSearch[match], false, 0, -1);
+        if (offset != -1)
+            break;
+    }
+
+    const bool bypassANGLE = IsWebGL2() && (match != 3);
+    if (!bypassANGLE) {
+        CompileShaderANGLE(shader);
+    } else {
+        nsCString versionLessShader;
+        sourceCString.Mid(versionLessShader, offset + strlen(bypassPrefixSearch[match]), -1);
+        CompileShaderBypass(shader, versionLessShader);
+    }
+}
+
+void
+WebGLContext::CompileShaderANGLE(WebGLShader* shader)
+{
     shader->SetCompileStatus(false);
 
     // nothing to do if the validator is disabled
@@ -3262,59 +3328,6 @@ WebGLContext::CompileShader(WebGLShader* shader)
                                      maxSourceLength);
     }
 
-    const char* s = sourceCString.get();
-
-#define WEBGL2_BYPASS_ANGLE
-#ifdef WEBGL2_BYPASS_ANGLE
-    /*
-     * The bypass don't bring a full support for GLSL ES 3.0, but the main purpose
-     * is to natively bring gl_InstanceID (to do instanced rendering) and gl_FragData
-     *
-     * To remove the bypass code, just comment #define WEBGL2_BYPASS_ANGLE above
-     *
-     * To bypass angle, the context must be a WebGL 2 and the shader must have the
-     * following line at the very top :
-     *      #version proto-200
-     *
-     * In this case, byPassANGLE == true and here is what we do :
-     *  We create two shader source code:
-     *    - one for the driver, that enable GL_EXT_gpu_shader4
-     *    - one for the angle compilor, to get informations about vertex attributes
-     *      and uniforms
-     */
-    static const char* bypassPrefixSearch = "#version proto-200";
-    static const char* bypassANGLEPrefix[2] = {"precision mediump float;\n"
-                                               "#define gl_VertexID 0\n"
-                                               "#define gl_InstanceID 0\n",
-
-                                               "precision mediump float;\n"
-                                               "#extension GL_EXT_draw_buffers : enable\n"
-                                               "#define gl_PrimitiveID 0\n"};
-
-    const bool bypassANGLE = IsWebGL2() && (strstr(s, bypassPrefixSearch) != 0);
-
-    const char* angleShaderCode = s;
-    nsTArray<char> bypassANGLEShaderCode;
-    nsTArray<char> bypassDriverShaderCode;
-
-    if (bypassANGLE) {
-        const int bypassStage = (shader->ShaderType() == LOCAL_GL_FRAGMENT_SHADER) ? 1 : 0;
-        const char* originalShader = strstr(s, bypassPrefixSearch) + strlen(bypassPrefixSearch);
-        int originalShaderSize = strlen(s) - (originalShader - s);
-        int bypassShaderCodeSize = originalShaderSize + 4096 + 1;
-
-        bypassANGLEShaderCode.SetLength(bypassShaderCodeSize);
-        strcpy(bypassANGLEShaderCode.Elements(), bypassANGLEPrefix[bypassStage]);
-        strcat(bypassANGLEShaderCode.Elements(), originalShader);
-
-        bypassDriverShaderCode.SetLength(bypassShaderCodeSize);
-        strcpy(bypassDriverShaderCode.Elements(), "#extension GL_EXT_gpu_shader4 : enable\n");
-        strcat(bypassDriverShaderCode.Elements(), originalShader);
-
-        angleShaderCode = bypassANGLEShaderCode.Elements();
-    }
-#endif
-
     compiler = ShConstructCompiler(shader->ShaderType(),
                                    SH_WEBGL_SPEC,
                                    targetShaderSourceLanguage,
@@ -3360,11 +3373,8 @@ WebGLContext::CompileShader(WebGLShader* shader)
     }
 #endif
 
-#ifdef WEBGL2_BYPASS_ANGLE
-    if (!ShCompile(compiler, &angleShaderCode, 1, compileOptions)) {
-#else
+    const char* s = sourceCString.get();
     if (!ShCompile(compiler, &s, 1, compileOptions)) {
-#endif
         size_t lenWithNull = 0;
         ShGetInfo(compiler, SH_INFO_LOG_LENGTH, &lenWithNull);
 
@@ -3385,6 +3395,149 @@ WebGLContext::CompileShader(WebGLShader* shader)
         return;
     }
 
+    size_t num_attributes = 0;
+    ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTES, &num_attributes);
+    size_t num_uniforms = 0;
+    ShGetInfo(compiler, SH_ACTIVE_UNIFORMS, &num_uniforms);
+    size_t attrib_max_length = 0;
+    ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTE_MAX_LENGTH, &attrib_max_length);
+    size_t uniform_max_length = 0;
+    ShGetInfo(compiler, SH_ACTIVE_UNIFORM_MAX_LENGTH, &uniform_max_length);
+    size_t mapped_max_length = 0;
+    ShGetInfo(compiler, SH_MAPPED_NAME_MAX_LENGTH, &mapped_max_length);
+
+    shader->mAttribMaxNameLength = attrib_max_length;
+    shader->mAttributes.Clear();
+    shader->mUniforms.Clear();
+    shader->mUniformInfos.Clear();
+
+    nsAutoArrayPtr<char> attribute_name(new char[attrib_max_length+1]);
+    nsAutoArrayPtr<char> uniform_name(new char[uniform_max_length+1]);
+    nsAutoArrayPtr<char> mapped_name(new char[mapped_max_length+1]);
+
+    for (size_t i = 0; i < num_uniforms; i++) {
+        size_t length;
+        int size;
+        sh::GLenum type;
+        ShPrecisionType precision;
+        int staticUse;
+        ShGetVariableInfo(compiler, SH_ACTIVE_UNIFORMS, (int)i,
+                          &length, &size, &type,
+                          &precision, &staticUse,
+                          uniform_name,
+                          mapped_name);
+
+        shader->mUniforms.AppendElement(WebGLMappedIdentifier(
+                                        nsDependentCString(uniform_name),
+                                        nsDependentCString(mapped_name)));
+
+        // we need uniform info to validate uniform setter calls
+        char mappedNameLength = strlen(mapped_name);
+        char mappedNameLastChar = mappedNameLength > 1
+                                  ? mapped_name[mappedNameLength - 1]
+                                  : 0;
+        shader->mUniformInfos.AppendElement(WebGLUniformInfo(
+                                                size,
+                                                mappedNameLastChar == ']',
+                                                type));
+    }
+
+    for (size_t i = 0; i < num_attributes; i++) {
+        size_t length;
+        int size;
+        sh::GLenum type;
+        ShPrecisionType precision;
+        int staticUse;
+        ShGetVariableInfo(compiler, SH_ACTIVE_ATTRIBUTES, (int)i,
+                          &length, &size, &type,
+                          &precision, &staticUse,
+                          attribute_name,
+                          mapped_name);
+        shader->mAttributes.AppendElement(WebGLMappedIdentifier(
+                                          nsDependentCString(attribute_name),
+                                          nsDependentCString(mapped_name)));
+    }
+
+    size_t lenWithNull = 0;
+    ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &lenWithNull);
+    MOZ_ASSERT(lenWithNull >= 1);
+    size_t len = lenWithNull - 1;
+
+    nsAutoCString translatedSrc;
+    translatedSrc.SetLength(len); // Allocates len+1, for the null-term.
+    ShGetObjectCode(compiler, translatedSrc.BeginWriting());
+
+    CopyASCIItoUTF16(translatedSrc, shader->mTranslatedSource);
+
+    const GLuint shadername = shader->GLName();
+    const char* ts = translatedSrc.get();
+    gl->fShaderSource(shadername, 1, &ts, nullptr);
+
+    shader->SetTranslationSuccess();
+
+    ShDestruct(compiler);
+
+    gl->fCompileShader(shadername);
+    GLint ok;
+    gl->fGetShaderiv(shadername, LOCAL_GL_COMPILE_STATUS, &ok);
+    shader->SetCompileStatus(ok);
+}
+
+void
+WebGLContext::CompileShaderBypass(WebGLShader* shader, const nsCString& shaderSource)
+{
+    /*
+     * The bypass don't bring a full support for GLSL ES 3.0, but the main purpose
+     * is to natively bring gl_InstanceID (to do instanced rendering) and gl_FragData
+     *
+     * To remove the bypass code, just comment #define WEBGL2_BYPASS_ANGLE above
+     *
+     * To bypass angle, the context must be a WebGL 2 and the shader must have the
+     * following line at the very top :
+     *      #version proto-200
+     *
+     * In this case, byPassANGLE == true and here is what we do :
+     *  We create two shader source code:
+     *    - one for the driver, that enable GL_EXT_gpu_shader4
+     *    - one for the angle compilor, to get informations about vertex attributes
+     *      and uniforms
+     */
+/*
+    static const char* bypassPrefix[2] = { // Vertex Shader
+                                           "precision mediump float;\n"
+                                           "#define gl_VertexID 0\n"
+                                           "#define gl_InstanceID 0\n",
+                                           // Fragment Shader
+                                           "precision mediump float;\n"
+                                           "#extension GL_EXT_draw_buffers : enable\n"
+                                           "#define gl_PrimitiveID 0\n" };
+
+    const int bypassStage = (shader->ShaderType() == LOCAL_GL_FRAGMENT_SHADER) ? 1 : 0;
+*/
+
+    nsCString bypassShader = NS_LITERAL_CSTRING("#version 330\n") + shaderSource;
+    shader->SetCompileStatus(false);
+    shader->SetTranslationSuccess();
+    shader->SetBypassANGLE();
+
+    const GLuint shadername = shader->GLName();
+    const char* s = bypassShader.get();
+
+    MakeContextCurrent();
+    gl->fShaderSource(shadername, 1, (const GLchar**) &s, nullptr);
+    gl->fCompileShader(shadername);
+    GLint ok;
+    gl->fGetShaderiv(shadername, LOCAL_GL_COMPILE_STATUS, &ok);
+    shader->SetCompileStatus(ok);
+
+    if (ok == LOCAL_GL_FALSE) {
+        GLint maxLength = 0;
+        gl->fGetShaderiv(shadername, LOCAL_GL_INFO_LOG_LENGTH, &maxLength);
+
+        // The maxLength includes the NULL character
+        UniquePtr<GLchar[]> infoLog(new GLchar[maxLength]);
+        gl->fGetShaderInfoLog(shadername, maxLength, &maxLength, &infoLog[0]);
+/*
     size_t num_attributes = 0;
     ShGetInfo(compiler, SH_ACTIVE_ATTRIBUTES, &num_attributes);
     size_t num_uniforms = 0;
@@ -3453,34 +3606,8 @@ WebGLContext::CompileShader(WebGLShader* shader)
     ShGetInfo(compiler, SH_OBJECT_CODE_LENGTH, &lenWithNull);
     MOZ_ASSERT(lenWithNull >= 1);
     size_t len = lenWithNull - 1;
-
-    nsAutoCString translatedSrc;
-    translatedSrc.SetLength(len); // Allocates len+1, for the null-term.
-    ShGetObjectCode(compiler, translatedSrc.BeginWriting());
-
-    CopyASCIItoUTF16(translatedSrc, shader->mTranslatedSource);
-
-    const char* ts = translatedSrc.get();
-
-#ifdef WEBGL2_BYPASS_ANGLE
-    if (bypassANGLE) {
-        const char* driverShaderCode = bypassDriverShaderCode.Elements();
-        gl->fShaderSource(shadername, 1, (const GLchar**) &driverShaderCode, nullptr);
-    } else {
-        gl->fShaderSource(shadername, 1, &ts, nullptr);
+*/
     }
-#else
-    gl->fShaderSource(shadername, 1, &ts, nullptr);
-#endif
-
-    shader->SetTranslationSuccess();
-
-    ShDestruct(compiler);
-
-    gl->fCompileShader(shadername);
-    GLint ok;
-    gl->fGetShaderiv(shadername, LOCAL_GL_COMPILE_STATUS, &ok);
-    shader->SetCompileStatus(ok);
 }
 
 void

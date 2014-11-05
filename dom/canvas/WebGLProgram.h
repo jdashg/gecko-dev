@@ -120,6 +120,8 @@ protected:
         DeleteOnce();
     }
 
+    void UpdateShaderInfo(WebGLShader* shader);
+
     GLuint mGLName;
     bool mLinkStatus;
     // attached shaders of the program object
