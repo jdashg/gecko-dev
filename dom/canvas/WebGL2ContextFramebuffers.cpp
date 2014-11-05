@@ -494,8 +494,10 @@ WebGL2Context::ReadBuffer(GLenum mode)
 }
 
 void
-WebGL2Context::RenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat,
+WebGL2Context::RenderbufferStorageMultisample(GLenum target, GLsizei samples,
+                                              GLenum internalFormat,
                                               GLsizei width, GLsizei height)
 {
-    MOZ_CRASH("Not Implemented.");
+    RenderbufferStorage_base("renderbufferStorageMultisample", target, samples,
+                              internalFormat, width, height);
 }

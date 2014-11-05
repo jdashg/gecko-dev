@@ -203,6 +203,7 @@ WebGLContextOptions::WebGLContextOptions()
 WebGLContext::WebGLContext()
     : WebGLContextUnchecked(nullptr)
     , mBypassShaderValidation(false)
+    , mGLMaxSamples(1)
     , mNeedsFakeNoAlpha(false)
 {
     mGeneration = 0;
