@@ -1422,6 +1422,10 @@ protected:
 
     uint32_t mMaxFramebufferColorAttachments;
 
+    GLenum LastColorAttachment() const {
+        return LOCAL_GL_COLOR_ATTACHMENT0 + mMaxFramebufferColorAttachments - 1;
+    }
+
     bool ValidateFramebufferTarget(GLenum target, const char* const info);
 
     WebGLRefPtr<WebGLFramebuffer> mBoundDrawFramebuffer;

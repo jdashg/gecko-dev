@@ -1721,6 +1721,7 @@ WebGLContext::GetSurfaceSnapshot(bool* out_premultAlpha)
     {
         ScopedBindFramebuffer autoFB(gl, 0);
         ClearBackbufferIfNeeded();
+        // TODO: Save, override, then restore glReadBuffer if present.
         ReadPixelsIntoDataSurface(gl, surf);
     }
 

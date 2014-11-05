@@ -1970,33 +1970,28 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         return rv.Throw(NS_ERROR_OUT_OF_MEMORY);
     }
 
-    bool isSourceTypeFloat = false;
-    if (mBoundReadFramebuffer &&
-        mBoundReadFramebuffer->ColorAttachmentCount() &&
-        mBoundReadFramebuffer->ColorAttachment(0).IsDefined())
-    {
-        isSourceTypeFloat = mBoundReadFramebuffer->ColorAttachment(0).IsReadableFloat();
+    MakeContextCurrent();
+
+    bool isSourceTypeFloat;
+    if (mBoundReadFramebuffer) {
+        TexInternalFormat srcFormat;
+        if (!mBoundReadFramebuffer->ValidateForRead("readPixels", &srcFormat))
+            return;
+
+        MOZ_ASSERT(srcFormat != LOCAL_GL_NONE);
+        TexType type = TypeFromInternalFormat(srcFormat);
+        isSourceTypeFloat = (type == LOCAL_GL_FLOAT ||
+                             type == LOCAL_GL_HALF_FLOAT);
+    } else {
+        ClearBackbufferIfNeeded();
+
+        isSourceTypeFloat = false;
     }
 
     if (isReadTypeFloat != isSourceTypeFloat)
         return ErrorInvalidOperation("readPixels: Invalid type floatness");
 
     // Check the format and type params to assure they are an acceptable pair (as per spec)
-    MakeContextCurrent();
-
-    if (mBoundReadFramebuffer) {
-        // prevent readback of arbitrary video memory through uninitialized renderbuffers!
-        if (!mBoundReadFramebuffer->CheckAndInitializeAttachments())
-            return ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
-
-        GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
-        if (!mBoundReadFramebuffer->HasCompletePlanes(readPlaneBits)) {
-            return ErrorInvalidOperation("readPixels: Read source attachment doesn't have the"
-                                         " correct color/depth/stencil type.");
-        }
-    } else {
-      ClearBackbufferIfNeeded();
-    }
 
     bool isFormatAndTypeValid = false;
 
