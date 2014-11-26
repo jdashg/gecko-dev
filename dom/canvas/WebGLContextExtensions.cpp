@@ -160,6 +160,10 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
             return WebGLExtensionFragDepth::IsSupported(this);
         case WebGLExtensionID::EXT_shader_texture_lod:
             return gl->IsExtensionSupported(GLContext::EXT_shader_texture_lod);
+        case WebGLExtensionID::EXT_color_buffer_half_float:
+            return WebGLExtensionColorBufferHalfFloat::IsSupported(this);
+        case WebGLExtensionID::WEBGL_color_buffer_float:
+            return WebGLExtensionColorBufferFloat::IsSupported(this);
         default:
             // For warnings-as-errors.
             break;
@@ -167,10 +171,6 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
 
     if (Preferences::GetBool("webgl.enable-draft-extensions", false) || IsWebGL2()) {
         switch (ext) {
-            case WebGLExtensionID::EXT_color_buffer_half_float:
-                return WebGLExtensionColorBufferHalfFloat::IsSupported(this);
-            case WebGLExtensionID::WEBGL_color_buffer_float:
-                return WebGLExtensionColorBufferFloat::IsSupported(this);
             default:
                 // For warnings-as-errors.
                 break;
