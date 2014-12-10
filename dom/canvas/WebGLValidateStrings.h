@@ -27,7 +27,12 @@
 #ifndef WEBGL_VALIDATE_STRINGS_H_
 #define WEBGL_VALIDATE_STRINGS_H_
 
+#include "nsString.h"
+#include "nsTArray.h"
+
 namespace mozilla {
+
+class WebGLContext;
 
 // The following code was taken from the WebKit WebGL implementation,
 // which can be found here:
