@@ -115,8 +115,6 @@ WebGLContext::CreateShaderValidator(GLenum shaderType) const
     // If underlying GLES doesn't have highp in frag shaders, it should complain anyways.
     resources.FragmentPrecisionHigh = mDisableFragHighP ? 0 : 1;
 
-    //resources.HashFunction = IdentifierHashFunc;
-
     if (gl->WorkAroundDriverBugs()) {
 #ifdef XP_MACOSX
         if (gl->Vendor() == gl::GLVendor::NVIDIA) {

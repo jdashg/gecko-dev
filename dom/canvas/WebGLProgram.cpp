@@ -264,6 +264,8 @@ WebGLProgram::BindAttribLocation(GLuint loc, const nsAString& name)
 void
 WebGLProgram::DetachShader(WebGLShader* shader)
 {
+    MOZ_ASSERT(shader);
+
     WebGLRefPtr<WebGLShader>* shaderSlot;
     switch (shader->mType) {
     case LOCAL_GL_VERTEX_SHADER:
@@ -324,7 +326,7 @@ WebGLProgram::GetActiveUniform(GLuint index) const
         return nullptr;
     }
 
-    nsRefPtr<WebGLActiveInfo> ret =  activeList[index];
+    nsRefPtr<WebGLActiveInfo> ret = activeList[index];
     return ret.forget();
 }
 

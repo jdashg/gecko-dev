@@ -1331,8 +1331,9 @@ WebGLContext::GetProgramInfoLog(WebGLProgram* prog, nsAString& retval)
     if (!ValidateObject("getProgramInfoLog: program", prog))
         return;
 
-    retval.SetIsVoid(false);
     prog->GetProgramInfoLog(&retval);
+
+    retval.SetIsVoid(false);
 }
 
 // here we have to support all pnames with both int and float params.
@@ -2842,6 +2843,8 @@ WebGLContext::GetShaderInfoLog(WebGLShader* shader, nsAString& retval)
         return;
 
     shader->GetShaderInfoLog(&retval);
+
+    out->SetIsVoid(false);
 }
 
 already_AddRefed<WebGLShaderPrecisionFormat>

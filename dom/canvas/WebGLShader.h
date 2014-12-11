@@ -42,7 +42,7 @@ public:
     void GetShaderTranslatedSource(nsAString* out) const;
     void ShaderSource(const nsAString& source);
 
-    // Util
+    // Util funcs
     bool CanLinkTo(const WebGLShader* prev, nsCString* const out_log) const;
     size_t CalcNumSamplerUniforms() const;
     void BindAttribLocation(GLuint prog, const nsCString& userName, GLuint index) const;
@@ -55,7 +55,7 @@ public:
         return mTranslationSuccessful && mCompilationSuccessful;
     }
 
-    // Other
+    // Other funcs
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
     void Delete();
 

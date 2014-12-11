@@ -134,6 +134,7 @@ private:
 
 public:
     const GLuint mGLName;
+
 private:
     WebGLRefPtr<WebGLShader> mVertShader;
     WebGLRefPtr<WebGLShader> mFragShader;

@@ -235,7 +235,6 @@ WebGLShader::GetShaderInfoLog(nsAString* out) const
 {
     const nsCString& log = !mTranslationSuccessful ? mValidationLog
                                                    : mCompilationLog;
-    out->SetIsVoid(false);
     CopyASCIItoUTF16(log, *out);
 }
 

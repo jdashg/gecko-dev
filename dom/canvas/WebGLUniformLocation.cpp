@@ -31,7 +31,7 @@ WebGLUniformLocation::ValidateForProgram(WebGLProgram* prog, WebGLContext* webgl
     // Check the weak-pointer.
     if (!mLinkInfo) {
         webgl->ErrorInvalidOperation("%s: This uniform location is obsolete because its"
-                                     " program has been relinked successfully.",
+                                     " program has been successfully relinked.",
                                      funcName);
         return false;
     }
@@ -224,7 +224,7 @@ WebGLUniformLocation::GetUniform(JSContext* js, WebGLContext* webgl) const
             for (uint8_t i = 0; i < kMaxElemSize; i++)
                 boolBuffer[i] = buffer[i];
 
-            JS::Rooted<JS::Value> val(js);
+            JS::RootedValue val(js);
             // Be careful: we don't want to convert all of |uv|!
             if (!dom::ToJSValue(js, boolBuffer, elemSize, &val)) {
                 webgl->ErrorOutOfMemory("getUniform: out of memory");
