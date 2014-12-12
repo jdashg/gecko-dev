@@ -32,7 +32,7 @@ ParseName(const nsCString& name, nsDependentCString* const out_baseName,
 {
     int32_t indexEnd = name.RFind("]");
     if (indexEnd == -1 ||
-        indexEnd != name.Length() - 1)
+        (uint32_t)indexEnd != name.Length() - 1)
     {
         out_baseName->Rebind(name.BeginReading(), name.Length());
         *out_isArray = false;

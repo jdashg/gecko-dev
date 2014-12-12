@@ -52,11 +52,8 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gl;
 using namespace mozilla::gfx;
-
-static bool BaseTypeAndSizeFromUniformType(GLenum uType, GLenum* baseType,
-                                           GLint* unitSize);
+using namespace mozilla::gl;
 
 const WebGLRectangleObject*
 WebGLContext::CurValidFBRectObject() const
@@ -2844,7 +2841,7 @@ WebGLContext::GetShaderInfoLog(WebGLShader* shader, nsAString& retval)
 
     shader->GetShaderInfoLog(&retval);
 
-    out->SetIsVoid(false);
+    retval.SetIsVoid(false);
 }
 
 already_AddRefed<WebGLShaderPrecisionFormat>
@@ -3409,77 +3406,6 @@ WebGLContext::RestoreContext()
 
     ForceRestoreContext();
 }
-
-bool
-BaseTypeAndSizeFromUniformType(GLenum uType, GLenum* baseType, GLint* unitSize)
-{
-    switch (uType) {
-        case LOCAL_GL_INT:
-        case LOCAL_GL_INT_VEC2:
-        case LOCAL_GL_INT_VEC3:
-        case LOCAL_GL_INT_VEC4:
-        case LOCAL_GL_SAMPLER_2D:
-        case LOCAL_GL_SAMPLER_CUBE:
-            *baseType = LOCAL_GL_INT;
-            break;
-        case LOCAL_GL_FLOAT:
-        case LOCAL_GL_FLOAT_VEC2:
-        case LOCAL_GL_FLOAT_VEC3:
-        case LOCAL_GL_FLOAT_VEC4:
-        case LOCAL_GL_FLOAT_MAT2:
-        case LOCAL_GL_FLOAT_MAT3:
-        case LOCAL_GL_FLOAT_MAT4:
-            *baseType = LOCAL_GL_FLOAT;
-            break;
-        case LOCAL_GL_BOOL:
-        case LOCAL_GL_BOOL_VEC2:
-        case LOCAL_GL_BOOL_VEC3:
-        case LOCAL_GL_BOOL_VEC4:
-            *baseType = LOCAL_GL_BOOL; // pretend these are int
-            break;
-        default:
-            return false;
-    }
-
-    switch (uType) {
-        case LOCAL_GL_INT:
-        case LOCAL_GL_FLOAT:
-        case LOCAL_GL_BOOL:
-        case LOCAL_GL_SAMPLER_2D:
-        case LOCAL_GL_SAMPLER_CUBE:
-            *unitSize = 1;
-            break;
-        case LOCAL_GL_INT_VEC2:
-        case LOCAL_GL_FLOAT_VEC2:
-        case LOCAL_GL_BOOL_VEC2:
-            *unitSize = 2;
-            break;
-        case LOCAL_GL_INT_VEC3:
-        case LOCAL_GL_FLOAT_VEC3:
-        case LOCAL_GL_BOOL_VEC3:
-            *unitSize = 3;
-            break;
-        case LOCAL_GL_INT_VEC4:
-        case LOCAL_GL_FLOAT_VEC4:
-        case LOCAL_GL_BOOL_VEC4:
-            *unitSize = 4;
-            break;
-        case LOCAL_GL_FLOAT_MAT2:
-            *unitSize = 4;
-            break;
-        case LOCAL_GL_FLOAT_MAT3:
-            *unitSize = 9;
-            break;
-        case LOCAL_GL_FLOAT_MAT4:
-            *unitSize = 16;
-            break;
-        default:
-            return false;
-    }
-
-    return true;
-}
-
 
 WebGLTexelFormat
 mozilla::GetWebGLTexelFormat(TexInternalFormat effectiveInternalFormat)
