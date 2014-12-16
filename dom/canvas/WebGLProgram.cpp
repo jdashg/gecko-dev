@@ -27,14 +27,14 @@ namespace mozilla {
  *     `out_index`: <not written>
  */
 static bool
-ParseName(const nsCString& name, nsDependentCString* const out_baseName,
+ParseName(const nsCString& name, nsCString* const out_baseName,
           bool* const out_isArray, size_t* const out_arrayIndex)
 {
     int32_t indexEnd = name.RFind("]");
     if (indexEnd == -1 ||
         (uint32_t)indexEnd != name.Length() - 1)
     {
-        out_baseName->Rebind(name.BeginReading(), name.Length());
+        *out_baseName = name;
         *out_isArray = false;
         return true;
     }
@@ -48,7 +48,7 @@ ParseName(const nsCString& name, nsDependentCString* const out_baseName,
     if (indexLen == 0)
         return false;
 
-    nsDependentCString indexStr(name.BeginReading() + indexStart, indexLen);
+    const nsAutoCString indexStr(Substring(name, indexStart, indexLen));
 
     nsresult errorcode;
     int32_t indexNum = indexStr.ToInteger(&errorcode);
@@ -58,7 +58,7 @@ ParseName(const nsCString& name, nsDependentCString* const out_baseName,
     if (indexNum < 0)
         return false;
 
-    out_baseName->Rebind(name.BeginReading(), indexOpenBracket);
+    *out_baseName = StringHead(name, indexOpenBracket);
     *out_isArray = true;
     *out_arrayIndex = indexNum;
     return true;
@@ -94,6 +94,9 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
     if (maxUniformLenWithNull < 1)
         maxUniformLenWithNull = 1;
 
+    printf_stderr("maxAttribLenWithNull: %d\n", maxAttribLenWithNull);
+    printf_stderr("maxUniformLenWithNull: %d\n", maxUniformLenWithNull);
+
     // Attribs
 
     GLuint numActiveAttribs = 0;
@@ -102,12 +105,14 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 
     for (GLuint i = 0; i < numActiveAttribs; i++) {
         nsAutoCString mappedName;
-        mappedName.SetLength(maxAttribLenWithNull - 1);
+        mappedName.SetLength(maxAttribLenWithNull - 1 + 10);
+
         GLsizei lengthWithoutNull = 0;
         GLint elemCount = 0; // `size`
         GLenum elemType = 0; // `type`
         gl->fGetActiveAttrib(prog->mGLName, i, mappedName.Length()+1, &lengthWithoutNull,
                              &elemCount, &elemType, mappedName.BeginWriting());
+
         mappedName.SetLength(lengthWithoutNull);
 
         // Collect ActiveInfos:
@@ -116,7 +121,11 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
         // path.
         nsDependentCString userName;
         if (!prog->FindAttribUserNameByMappedName(mappedName, &userName))
-            userName.Rebind(mappedName.BeginReading());
+            userName.Rebind(mappedName, 0);
+
+        printf_stderr("[attrib %i] %s/%s\n", i, mappedName.BeginReading(),
+                      userName.BeginReading());
+        printf_stderr("    lengthWithoutNull: %d\n", lengthWithoutNull);
 
         const bool isArray = false;
         AddActiveInfo(elemCount, elemType, isArray, userName, mappedName,
@@ -138,7 +147,8 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 
     for (GLuint i = 0; i < numActiveUniforms; i++) {
         nsAutoCString mappedName;
-        mappedName.SetLength(maxUniformLenWithNull - 1);
+        mappedName.SetLength(maxUniformLenWithNull - 1 + 10);
+
         GLsizei lengthWithoutNull = 0;
         GLint elemCount = 0; // `size`
         GLenum elemType = 0; // `type`
@@ -147,15 +157,20 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 
         mappedName.SetLength(lengthWithoutNull);
 
-        nsDependentCString baseMappedName;
+        nsAutoCString baseMappedName;
         bool isArray;
         size_t arrayIndex;
         if (!ParseName(mappedName, &baseMappedName, &isArray, &arrayIndex))
             MOZ_CRASH("Failed to parse `mappedName` received from driver.");
 
-        nsCString baseUserName;
+        nsAutoCString baseUserName;
         if (!prog->FindUniformUserNameByMappedName(baseMappedName, &baseUserName))
             baseUserName = baseMappedName;
+
+        printf_stderr("[uniform %i] %s/%i/%s/%s\n", i, mappedName.BeginReading(),
+                      (int)isArray, baseMappedName.BeginReading(),
+                      baseUserName.BeginReading());
+        printf_stderr("    lengthWithoutNull: %d\n", lengthWithoutNull);
 
         AddActiveInfo(elemCount, elemType, isArray, baseUserName, baseMappedName,
                       &info->activeUniforms, &info->uniformMap);
@@ -442,7 +457,7 @@ WebGLProgram::GetUniformLocation(const nsAString& userName_wide) const
     nsAutoCString mappedName(baseMappedName);
     if (isArray) {
         mappedName.AppendLiteral("[");
-        mappedName.AppendInt(arrayIndex);
+        mappedName.AppendInt(uint32_t(arrayIndex));
         mappedName.AppendLiteral("]");
     }
 

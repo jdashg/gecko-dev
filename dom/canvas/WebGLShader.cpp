@@ -189,8 +189,8 @@ WebGLShader::ShaderSource(const nsAString& source)
     }
     // HACK
 
-    mSource.Assign(source);
-    mCleanSource.Assign(sourceCString);
+    mSource = source;
+    mCleanSource = sourceCString;
 }
 
 void
