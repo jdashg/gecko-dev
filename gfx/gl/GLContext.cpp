@@ -157,8 +157,7 @@ static const char *sExtensionNames[] = {
     "GL_OES_texture_half_float",
     "GL_OES_texture_half_float_linear",
     "GL_OES_texture_npot",
-    "GL_OES_vertex_array_object",
-    nullptr
+    "GL_OES_vertex_array_object"
 };
 
 static bool

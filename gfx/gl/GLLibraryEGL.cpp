@@ -35,8 +35,7 @@ static const char *sEGLExtensionNames[] = {
     "EGL_EXT_create_context_robustness",
     "EGL_KHR_image",
     "EGL_KHR_fence_sync",
-    "EGL_ANDROID_native_fence_sync",
-    nullptr
+    "EGL_ANDROID_native_fence_sync"
 };
 
 #if defined(ANDROID)
