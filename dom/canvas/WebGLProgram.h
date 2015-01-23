@@ -33,10 +33,12 @@ struct LinkedProgramInfo MOZ_FINAL
     WebGLProgram* const prog;
     std::vector<nsRefPtr<WebGLActiveInfo>> activeAttribs;
     std::vector<nsRefPtr<WebGLActiveInfo>> activeUniforms;
+    std::vector<nsRefPtr<WebGLActiveInfo>> tfVaryings;
 
     // Needed for Get{Attrib,Uniform}Location. The keys for these are non-mapped
     // user-facing `GLActiveInfo::name`s, without any final "[0]".
     std::map<nsCString, const WebGLActiveInfo*> attribMap;
+    std::map<nsCString, const WebGLActiveInfo*> tfVaryingMap;
     std::map<nsCString, const WebGLActiveInfo*> uniformMap;
 
     // Needed for draw call validation.
@@ -49,6 +51,17 @@ struct LinkedProgramInfo MOZ_FINAL
     {
         auto itr = attribMap.find(baseUserName);
         if (itr == attribMap.end())
+            return false;
+
+        *out_activeInfo = itr->second;
+        return true;
+    }
+
+    bool FindTFVarying(const nsCString& baseUserName,
+                       const WebGLActiveInfo** const out_activeInfo) const
+    {
+        auto itr = tfVaryingMap.find(baseUserName);
+        if (itr == tfVaryingMap.end())
             return false;
 
         *out_activeInfo = itr->second;
@@ -102,8 +115,11 @@ public:
     GLint GetAttribLocation(const nsAString& name) const;
     void GetProgramInfoLog(nsAString* const out) const;
     JS::Value GetProgramParameter(GLenum pname) const;
+    already_AddRefed<WebGLActiveInfo> GetTransformFeedbackVarying(GLuint index) const;
     already_AddRefed<WebGLUniformLocation> GetUniformLocation(const nsAString& name) const;
     bool LinkProgram();
+    void TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
+                                   GLenum bufferMode);
     bool UseProgram() const;
     void ValidateProgram() const;
 
@@ -111,6 +127,8 @@ public:
 
     bool FindAttribUserNameByMappedName(const nsACString& mappedName,
                                         nsDependentCString* const out_userName) const;
+    bool FindTFVaryingUserNameByMappedName(const nsACString& mappedName,
+                                           nsDependentCString* const out_userName) const;
     bool FindUniformByMappedName(const nsACString& mappedName,
                                  nsCString* const out_userName,
                                  bool* const out_isArray) const;
@@ -140,7 +158,13 @@ public:
 private:
     WebGLRefPtr<WebGLShader> mVertShader;
     WebGLRefPtr<WebGLShader> mFragShader;
+
     std::map<nsCString, GLuint> mBoundAttribLocs;
+
+    size_t mTFVaryingCount;
+    UniquePtr<nsAutoCString[]> mTFVaryingUserNames;
+    GLenum mTFVaryingBufferMode;
+
     nsCString mLinkLog;
     RefPtr<const webgl::LinkedProgramInfo> mMostRecentLinkInfo;
 };

@@ -294,6 +294,9 @@ ShaderValidator::CalcNumSamplerUniforms() const
     return accum;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// Finding userName by mappedName.
+
 // Attribs cannot be structs or arrays, and neither can vertex inputs in ES3.
 // Therefore, attrib names are always simple.
 bool
@@ -312,13 +315,13 @@ ShaderValidator::FindAttribUserNameByMappedName(const std::string& mappedName,
 }
 
 bool
-ShaderValidator::FindAttribMappedNameByUserName(const std::string& userName,
-                                                const std::string** const out_mappedName) const
+ShaderValidator::FindTFVaryingUserNameByMappedName(const std::string& mappedName,
+                                                   const std::string** const out_userName) const
 {
-    const std::vector<sh::Attribute>& attribs = *ShGetAttributes(mHandle);
-    for (auto itr = attribs.begin(); itr != attribs.end(); ++itr) {
-        if (itr->name == userName) {
-            *out_mappedName = &(itr->mappedName);
+    const std::vector<sh::Varying>& varyings = *ShGetVaryings(mHandle);
+    for (auto itr = varyings.begin(); itr != varyings.end(); ++itr) {
+        if (itr->mappedName == mappedName) {
+            *out_userName = &(itr->name);
             return true;
         }
     }
@@ -340,6 +343,39 @@ ShaderValidator::FindUniformByMappedName(const std::string& mappedName,
 
         *out_isArray = found->isArray();
         return true;
+    }
+
+    return false;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// Finding mappedName by userName.
+
+bool
+ShaderValidator::FindAttribMappedNameByUserName(const std::string& userName,
+                                                const std::string** const out_mappedName) const
+{
+    const std::vector<sh::Attribute>& attribs = *ShGetAttributes(mHandle);
+    for (auto itr = attribs.begin(); itr != attribs.end(); ++itr) {
+        if (itr->name == userName) {
+            *out_mappedName = &(itr->mappedName);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+ShaderValidator::FindTFVaryingMappedNameByUserName(const std::string& userName,
+                                                   const std::string** const out_mappedName) const
+{
+    const std::vector<sh::Varying>& varyings = *ShGetVaryings(mHandle);
+    for (auto itr = varyings.begin(); itr != varyings.end(); ++itr) {
+        if (itr->name == userName) {
+            *out_mappedName = &(itr->mappedName);
+            return true;
+        }
     }
 
     return false;

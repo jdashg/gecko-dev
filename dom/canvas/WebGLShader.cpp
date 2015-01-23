@@ -329,6 +329,22 @@ WebGLShader::FindAttribUserNameByMappedName(const nsACString& mappedName,
 }
 
 bool
+WebGLShader::FindTFVaryingUserNameByMappedName(const nsACString& mappedName,
+                                               nsDependentCString* const out_userName) const
+{
+    if (!mValidator)
+        return false;
+
+    const std::string mappedNameStr(mappedName.BeginReading());
+    const std::string* userNameStr;
+    if (!mValidator->FindTFVaryingUserNameByMappedName(mappedNameStr, &userNameStr))
+        return false;
+
+    out_userName->Rebind(userNameStr->c_str());
+    return true;
+}
+
+bool
 WebGLShader::FindUniformByMappedName(const nsACString& mappedName,
                                      nsCString* const out_userName,
                                      bool* const out_isArray) const
@@ -343,6 +359,30 @@ WebGLShader::FindUniformByMappedName(const nsACString& mappedName,
 
     *out_userName = userNameStr.c_str();
     return true;
+}
+
+void
+WebGLShader::SpecifyTransformFeedbackVaryings(GLuint prog, size_t count,
+                                              const UniquePtr<nsAutoCString[]>& varyings,
+                                              GLenum bufferMode) const
+{
+    UniquePtr<const GLchar*[]> charVaryings(new const GLchar*[count]);
+
+    for (size_t i = 0; i < count; i++) {
+        charVaryings[i] = varyings[i].BeginReading();
+
+        if (mValidator) {
+            const std::string userNameStr = varyings[i].BeginReading();
+            const std::string* mappedNameStr;
+            if (mValidator->FindTFVaryingMappedNameByUserName(userNameStr,
+                                                              &mappedNameStr))
+            {
+                charVaryings[i] = mappedNameStr->c_str();
+            }
+        }
+    }
+
+    mContext->gl->fTransformFeedbackVaryings(prog, count, charVaryings.get(), bufferMode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

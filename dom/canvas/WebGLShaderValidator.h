@@ -43,15 +43,20 @@ public:
     bool CanLinkTo(const ShaderValidator* prev, nsCString* const out_log) const;
     size_t CalcNumSamplerUniforms() const;
 
+    // Finding userName by mappedName.
     bool FindAttribUserNameByMappedName(const std::string& mappedName,
                                         const std::string** const out_userName) const;
-
-    bool FindAttribMappedNameByUserName(const std::string& userName,
-                                        const std::string** const out_mappedName) const;
-
+    bool FindTFVaryingUserNameByMappedName(const std::string& mappedName,
+                                           const std::string** const out_userName) const;
     bool FindUniformByMappedName(const std::string& mappedName,
                                  std::string* const out_userName,
                                  bool* const out_isArray) const;
+
+    // Finding mappedName by userName.
+    bool FindAttribMappedNameByUserName(const std::string& userName,
+                                        const std::string** const out_mappedName) const;
+    bool FindTFVaryingMappedNameByUserName(const std::string& userName,
+                                           const std::string** const out_mappedName) const;
 };
 
 } // namespace webgl

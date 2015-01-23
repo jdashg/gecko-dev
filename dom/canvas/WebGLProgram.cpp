@@ -204,6 +204,48 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
                       baseMappedName, &info->activeUniforms, &info->uniformMap);
     }
 
+    // Transform Feedback Varyings
+
+    if (gl->IsSupported(gl::GLFeature::transform_feedback2)) {
+        GLuint maxTFVaryingLenWithNull = 0;
+        gl->fGetProgramiv(prog->mGLName, LOCAL_GL_TRANSFORM_FEEDBACK_VARYING_MAX_LENGTH,
+                          (GLint*)&maxTFVaryingLenWithNull);
+        if (maxTFVaryingLenWithNull < 1)
+            maxTFVaryingLenWithNull = 1;
+
+        GLuint numTFVaryings = 0;
+        gl->fGetProgramiv(prog->mGLName, LOCAL_GL_TRANSFORM_FEEDBACK_VARYINGS,
+                          (GLint*)&numTFVaryings);
+
+        for (GLuint i = 0; i < numTFVaryings; i++) {
+            nsAutoCString mappedName;
+            mappedName.SetLength(maxTFVaryingLenWithNull - 1);
+
+            GLsizei lengthWithoutNull = 0;
+            GLint elemCount = 0; // `size`
+            GLenum elemType = 0; // `type`
+            gl->fGetTransformFeedbackVarying(prog->mGLName, i, mappedName.Length()+1,
+                                             &lengthWithoutNull, &elemCount, &elemType,
+                                             mappedName.BeginWriting());
+
+            mappedName.SetLength(lengthWithoutNull);
+
+            nsDependentCString userName;
+            if (!prog->FindTFVaryingUserNameByMappedName(mappedName, &userName))
+                userName.Rebind(mappedName, 0);
+
+#ifdef DUMP_SHADERVAR_MAPPINGS
+            printf_stderr("[tf varying %i] %s/%s\n", i, mappedName.BeginReading(),
+                          userName.BeginReading());
+            printf_stderr("    lengthWithoutNull: %d\n", lengthWithoutNull);
+#endif
+
+            const bool isArray = false;
+            AddActiveInfo(prog->Context(), elemCount, elemType, isArray, userName,
+                          mappedName, &info->tfVaryings, &info->tfVaryingMap);
+        }
+    }
+
     return info.forget();
 }
 
@@ -227,6 +269,7 @@ CreateProgram(gl::GLContext* gl)
 WebGLProgram::WebGLProgram(WebGLContext* webgl)
     : WebGLContextBoundObject(webgl)
     , mGLName(CreateProgram(webgl->GL()))
+    , mTFVaryingCount(0)
 {
     mContext->mPrograms.insertBack(this);
 }
@@ -472,6 +515,26 @@ WebGLProgram::GetProgramParameter(GLenum pname) const
     }
 }
 
+already_AddRefed<WebGLActiveInfo>
+WebGLProgram::GetTransformFeedbackVarying(GLuint index) const
+{
+    if (!mMostRecentLinkInfo) {
+        nsRefPtr<WebGLActiveInfo> ret = WebGLActiveInfo::CreateInvalid(mContext);
+        return ret.forget();
+    }
+
+    const auto& activeList = mMostRecentLinkInfo->tfVaryings;
+
+    if (index >= activeList.size()) {
+        mContext->ErrorInvalidValue("`index` (%i) must be less than %s (%i).", index,
+                                    "TRANSFORM_FEEDBACK_VARYINGS", activeList.size());
+        return nullptr;
+    }
+
+    nsRefPtr<WebGLActiveInfo> ret =  activeList[index];
+    return ret.forget();
+}
+
 already_AddRefed<WebGLUniformLocation>
 WebGLProgram::GetUniformLocation(const nsAString& userName_wide) const
 {
@@ -562,10 +625,18 @@ WebGLProgram::LinkProgram()
     // Bind the attrib locations.
     // This can't be done trivially, because we have to deal with mapped attrib names.
     for (auto itr = mBoundAttribLocs.begin(); itr != mBoundAttribLocs.end(); ++itr) {
-        const nsCString& name = itr->first;
+        const nsCString& userName = itr->first;
         GLuint index = itr->second;
 
-        mVertShader->BindAttribLocation(mGLName, name, index);
+        mVertShader->BindAttribLocation(mGLName, userName, index);
+    }
+
+    // Specify transform feedback varyings.
+    // Again, we only have userNames, and we need to call using mappedNames.
+    if (mTFVaryingCount) {
+        mVertShader->SpecifyTransformFeedbackVaryings(mGLName, mTFVaryingCount,
+                                                      mTFVaryingUserNames,
+                                                      mTFVaryingBufferMode);
     }
 
     if (LinkAndUpdate())
@@ -586,6 +657,20 @@ WebGLProgram::LinkProgram()
     }
 
     return false;
+}
+
+void
+WebGLProgram::TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
+                                        GLenum bufferMode)
+{
+    mTFVaryingCount = varyings.Length();
+
+    mTFVaryingUserNames.reset(new nsAutoCString[mTFVaryingCount]);
+    for (size_t i = 0; i < mTFVaryingCount; i++) {
+        LossyCopyUTF16toASCII(varyings[i], mTFVaryingUserNames[i]);
+    }
+
+    mTFVaryingBufferMode = bufferMode;
 }
 
 bool
@@ -664,6 +749,16 @@ WebGLProgram::FindAttribUserNameByMappedName(const nsACString& mappedName,
                                              nsDependentCString* const out_userName) const
 {
     if (mVertShader->FindAttribUserNameByMappedName(mappedName, out_userName))
+        return true;
+
+    return false;
+}
+
+bool
+WebGLProgram::FindTFVaryingUserNameByMappedName(const nsACString& mappedName,
+                                                nsDependentCString* const out_userName) const
+{
+    if (mVertShader->FindTFVaryingUserNameByMappedName(mappedName, out_userName))
         return true;
 
     return false;
