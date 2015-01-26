@@ -1,0 +1,188 @@
+<html>
+  <head>
+    <meta charset='UTF-8'>
+    <script src='/tests/SimpleTest/SimpleTest.js'></script>
+    <link rel='stylesheet' href='/tests/SimpleTest/test.css'>
+  </head>
+  <body>
+<script id='vs' type='x-shader/x-vertex'>
+
+attribute vec2 aVertCoord;
+
+void main(void) {
+  gl_Position = vec4(aVertCoord, 0.1, 1.0);
+}
+
+</script>
+<script id='fs' type='x-shader/x-fragment'>
+
+precision mediump float; // 💩
+
+uniform vec4 uFragColor;
+
+void main(void) {
+  gl_FragColor = uFragColor;
+}
+
+</script>
+<script id='vs-tex' type='x-shader/x-vertex'>
+
+#define USE_TEX_ALPHA
+
+attribute vec2 aVertCoord;
+uniform sampler2D uZCoordTex;
+
+void main(void) {
+  vec2 texCoord = (aVertCoord + 1.0) / 2.0;
+  vec4 vals = texture2D(uZCoordTex, texCoord);
+#ifdef USE_TEX_ALPHA
+  float z = vals.a;
+#else
+  //float z = (texCoord.x + texCoord.y) / 2.0;
+#endif
+  z = 1.0 - z * 2.0;
+  gl_Position = vec4(aVertCoord, z, 1.0);
+}
+
+</script>
+<script id='fs-tex' type='x-shader/x-fragment'>
+
+precision mediump float; // 💩
+
+uniform vec4 uFragColor;
+
+void main(void) {
+  gl_FragColor = uFragColor;
+}
+
+</script>
+
+<canvas id='c' width='200' height='200'></canvas>
+
+<script>
+
+function GetGLSLByElemId(elemId) {
+  var elem = document.getElementById(elemId);
+  if (!elem)
+    throw 'Bad `elemId`: ' + elemId;
+
+  return elem.innerHTML.trim();
+}
+
+function ProgramByElemIds(gl, vsId, fsId, attribBindLocations) {
+  var vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, GetGLSLByElemId(vsId));
+  gl.compileShader(vs);
+
+  var fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, GetGLSLByElemId(fsId));
+  gl.compileShader(fs);
+
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+
+  if (attribBindLocations) {
+    for (var name in attribBindLocations) {
+      var loc = attribBindLocations[name];
+      gl.bindAttribLocation(prog, loc, name);
+    }
+  }
+
+  gl.linkProgram(prog);
+
+  var success = gl.getProgramParameter(prog, gl.LINK_STATUS);
+  if (success)
+    return prog;
+
+  console.log('Error linking program for \'' + vsId + '\' and \'' + fsId + '\'.');
+  console.log('\nLink log: ' + gl.getProgramInfoLog(prog));
+  console.log('\nVert shader log: ' + gl.getShaderInfoLog(vs));
+  console.log('\nFrag shader log: ' + gl.getShaderInfoLog(fs));
+  return null;
+}
+
+// Give ourselves a scope to return early from:
+(function() {
+  var canvas = document.getElementById('c');
+  var attribs = {
+    antialias: false,
+    alpha: true,
+    depth: true,
+  };
+  var gl = canvas.getContext('experimental-webgl', attribs);
+  if (!gl) {
+    todo(false, 'WebGL2 is unavailable.');
+    return;
+  }
+
+  var maxVertShaderTexUnits = gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS);
+  if (maxVertShaderTexUnits < 1) {
+    ok(true, 'Texture sampling is unsupported in vertex shaders.');
+    return;
+  }
+
+  gl.enable(gl.DEPTH_TEST);
+  //gl.enable(gl.BLEND);
+  gl.disable(gl.BLEND);
+
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clearDepth(1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  var attribBindLocations = { aVertCoord: 0 };
+
+  var baseProg = ProgramByElemIds(gl, 'vs', 'fs', attribBindLocations);
+  var texProg = ProgramByElemIds(gl, 'vs-tex', 'fs-tex', attribBindLocations);
+  ok(baseProg && texProg, 'Programs link.');
+  if (!baseProg || !texProg)
+    return;
+
+  var points = new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+     1,  1,
+  ]);
+
+  var buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
+
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  var colors = new Uint8Array([
+    32, 255,   0,   0,
+    32, 255,  85,  85,
+    32, 255, 170, 170,
+    32, 255, 255, 255,
+  ]);
+
+  var tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, colors);
+
+  gl.useProgram(baseProg);
+  gl.uniform4f(gl.getUniformLocation(baseProg, 'uFragColor'), 0.0, 0.0, 1.0, 1.0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.useProgram(texProg);
+  gl.uniform4f(gl.getUniformLocation(texProg, 'uFragColor'), 0.0, 1.0, 0.0, 1.0);
+  gl.uniform1i(gl.getUniformLocation(texProg, 'uZCoordTex'), 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  error = gl.getError();
+  ok(error == 0, 'Should be no errors.');
+
+  ok(true, 'TEST COMPLETE');
+})();
+
+</script>
+
+  </body>
+</html>

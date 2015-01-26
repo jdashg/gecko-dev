@@ -1,0 +1,198 @@
+<html>
+  <head>
+    <meta charset='UTF-8'>
+    <script src='/tests/SimpleTest/SimpleTest.js'></script>
+    <link rel='stylesheet' href='/tests/SimpleTest/test.css'>
+  </head>
+  <body bgcolor="gray">
+<script id='vs-gen' type='x-shader/x-vertex'>
+
+attribute vec2 aVertCoord;
+varying vec4 vFragColor;
+
+void main(void) {
+  vec2 texCoord = aVertCoord * 0.5 + 0.5;
+  float foo = (texCoord.x + texCoord.y) / 2.0;
+  vFragColor = vec4(1.0, 0.0, 1.0, foo);
+  //vFragColor = vec4(foo, 0.0, 0.0, 1.0);
+
+  gl_Position = vec4(aVertCoord, 0.0, 1.0);
+}
+
+</script>
+<script id='fs-gen' type='x-shader/x-fragment'>
+
+precision mediump float; // 💩
+
+varying vec4 vFragColor;
+
+void main(void) {
+  gl_FragColor = vFragColor.rgba;
+}
+
+</script>
+<script id='vs-swap' type='x-shader/x-vertex'>
+
+attribute vec2 aVertCoord;
+varying vec2 vTexCoord;
+
+void main(void) {
+  vTexCoord = aVertCoord * 0.5 + 0.5;
+  gl_Position = vec4(aVertCoord, 0.0, 1.0);
+}
+
+</script>
+<script id='fs-swap' type='x-shader/x-fragment'>
+
+precision mediump float; // 💩
+
+uniform sampler2D uTexUnit;
+varying vec2 vTexCoord;
+
+void main(void) {
+  gl_FragColor = texture2D(uTexUnit, vTexCoord).rgab;
+  //gl_FragColor = vec4(vTexCoord, 0.0, 1.0);
+  //gl_FragColor = texture2D(uTexUnit, vTexCoord);
+}
+
+</script>
+
+<canvas id='c' width='200' height='200'></canvas>
+
+<script>
+
+function GetGLSLByElemId(elemId) {
+  var elem = document.getElementById(elemId);
+  if (!elem)
+    throw 'Bad `elemId`: ' + elemId;
+
+  return elem.innerHTML.trim();
+}
+
+function ProgramByElemIds(gl, vsId, fsId, attribBindLocations) {
+  var vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, GetGLSLByElemId(vsId));
+  gl.compileShader(vs);
+
+  var fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, GetGLSLByElemId(fsId));
+  gl.compileShader(fs);
+
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+
+  if (attribBindLocations) {
+    for (var name in attribBindLocations) {
+      var loc = attribBindLocations[name];
+      gl.bindAttribLocation(prog, loc, name);
+    }
+  }
+
+  gl.linkProgram(prog);
+
+  var success = gl.getProgramParameter(prog, gl.LINK_STATUS);
+  if (success)
+    return prog;
+
+  console.log('Error linking program for \'' + vsId + '\' and \'' + fsId + '\'.');
+  console.log('\nLink log: ' + gl.getProgramInfoLog(prog));
+  console.log('\nVert shader log: ' + gl.getShaderInfoLog(vs));
+  console.log('\nFrag shader log: ' + gl.getShaderInfoLog(fs));
+  return null;
+}
+
+// Give ourselves a scope to return early from:
+(function() {
+  var canvas = document.getElementById('c');
+  var attribs = {
+    antialias: false,
+    alpha: false,
+    depth: true,
+  };
+  var gl = canvas.getContext('experimental-webgl', attribs);
+  if (!gl) {
+    todo(false, 'WebGL2 is unavailable.');
+    return;
+  }
+
+  var maxVertShaderTexUnits = gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS);
+  if (maxVertShaderTexUnits < 1) {
+    ok(true, 'Texture sampling is unsupported in vertex shaders.');
+    return;
+  }
+
+  gl.enable(gl.DEPTH_TEST);
+  //gl.enable(gl.BLEND);
+  gl.disable(gl.BLEND);
+
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clearDepth(1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  var attribBindLocations = { aVertCoord: 0 };
+
+  var genProg = ProgramByElemIds(gl, 'vs-gen', 'fs-gen', attribBindLocations);
+  var swapProg = ProgramByElemIds(gl, 'vs-swap', 'fs-swap', attribBindLocations);
+  ok(genProg && swapProg, 'Programs link.');
+  if (!genProg || !swapProg)
+    return;
+
+  var points = new Float32Array([
+    -1, -1,
+     1, -1,
+    -1,  1,
+     1,  1,
+  ]);
+
+  var buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
+
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+  //////////////////////////////////////
+  // Pass 1
+
+  var tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  var texData = new Uint8Array([
+    255, 0, 255, 255,
+      0, 0, 255, 0,
+      0, 0, 255, 0,
+    255, 0, 255, 255,
+  ]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, texData);
+
+  var fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+  //gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.useProgram(genProg);
+  //gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  //////////////////////////////////////
+  // Pass 2
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.useProgram(swapProg);
+  gl.uniform1i(gl.getUniformLocation(swapProg, 'uTexUnit'), 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  error = gl.getError();
+  ok(error == 0, 'Should be no errors.');
+
+  ok(true, 'TEST COMPLETE');
+})();
+
+</script>
+
+  </body>
+</html>
