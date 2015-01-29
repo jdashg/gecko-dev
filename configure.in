@@ -3540,11 +3540,12 @@ dnl ========================================================
 dnl Multiprocess Firefox Nightly Testing UI
 dnl To be removed in Bug 1003313
 dnl ========================================================
-if test -n "$NIGHTLY_BUILD"; then
-    E10S_TESTING_ONLY=1
-    AC_DEFINE(E10S_TESTING_ONLY)
-fi
+dnl if test -n "$NIGHTLY_BUILD"; then
+dnl     E10S_TESTING_ONLY=1
+dnl     AC_DEFINE(E10S_TESTING_ONLY)
+dnl fi
 
+E10S_TESTING_ONLY=0
 AC_SUBST(E10S_TESTING_ONLY)
 
 dnl ========================================================
