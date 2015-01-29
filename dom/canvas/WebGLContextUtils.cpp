@@ -474,7 +474,7 @@ WebGLContext::GenerateWarning(const char* fmt, va_list ap)
     char buf[1024];
     PR_vsnprintf(buf, 1024, fmt, ap);
 
-    // no need to print to stderr, as JS_ReportWarning takes care of this for us.
+    printf_stderr("WebGL: %s\n", buf);
 
     AutoJSContext cx;
     JS_ReportWarning(cx, "WebGL: %s", buf);
