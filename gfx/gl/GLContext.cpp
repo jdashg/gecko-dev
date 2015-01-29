@@ -501,6 +501,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     mInitialized = LoadSymbols(&symbols[0], trygl, prefix);
     MakeCurrent();
     if (mInitialized) {
+        MOZ_ASSERT(mProfile != ContextProfile::Unknown);
         uint32_t version = 0;
         ParseGLVersion(this, &version);
 
