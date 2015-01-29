@@ -45,7 +45,8 @@ public:
       caps.preserve = false;
       caps.bpp16 = false;
       nsRefPtr<GLContext> context = GLContextProvider::CreateOffscreen(
-        gfxIntSize(gCompWidth, gCompHeight), caps);
+        gfxIntSize(gCompWidth, gCompHeight), caps,
+        mozilla::gl::ContextProfile::OpenGLCompatibility);
       return context.forget().take();
     }
     return nullptr;
@@ -264,4 +265,3 @@ TEST(Gfx, CompositorSimpleTree)
     EXPECT_TRUE(CompositeAndCompare(layerManager, refDT));
   }
 }
-

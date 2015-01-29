@@ -515,7 +515,8 @@ CreateHeadlessNativeGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         return nullptr;
     }
 
-    nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless();
+    nsRefPtr<GLContext> gl =
+        gl::GLContextProvider::CreateHeadless(ContextProfile::OpenGLCore);
     if (!gl) {
         webgl->GenerateWarning("Error during native OpenGL init.");
         return nullptr;
@@ -543,7 +544,7 @@ CreateHeadlessANGLE(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
         return nullptr;
     }
 
-    gl = gl::GLContextProviderEGL::CreateHeadless();
+    gl = gl::GLContextProviderEGL::CreateHeadless(ContextProfile::OpenGLCore);
     if (!gl) {
         webgl->GenerateWarning("Error during ANGLE OpenGL init.");
         return nullptr;
@@ -561,7 +562,7 @@ CreateHeadlessEGL(bool forceEnabled, const nsCOMPtr<nsIGfxInfo>& gfxInfo,
     nsRefPtr<GLContext> gl;
 
 #ifdef ANDROID
-    gl = gl::GLContextProviderEGL::CreateHeadless();
+    gl = gl::GLContextProviderEGL::CreateHeadless(ContextProfile::OpenGLCore);
     if (!gl) {
         webgl->GenerateWarning("Error during EGL OpenGL init.");
         return nullptr;

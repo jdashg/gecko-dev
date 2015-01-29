@@ -607,7 +607,7 @@ CreateWindowOffscreenContext()
 }
 
 already_AddRefed<GLContext>
-GLContextProviderWGL::CreateHeadless()
+GLContextProviderWGL::CreateHeadless(ContextProfile profile)
 {
     if (!sWGLLib.EnsureInitialized()) {
         return nullptr;
@@ -641,9 +641,10 @@ GLContextProviderWGL::CreateHeadless()
 
 already_AddRefed<GLContext>
 GLContextProviderWGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
+                                      const SurfaceCaps& caps,
+                                      ContextProfile profile)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless();
+    nsRefPtr<GLContext> glContext = CreateHeadless(profile);
     if (!glContext)
         return nullptr;
 

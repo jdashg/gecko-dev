@@ -247,22 +247,24 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 }
 
 static already_AddRefed<GLContextCGL>
-CreateOffscreenFBOContext(bool aShare = true)
+CreateOffscreenFBOContext(ContextProfile profile)
 {
     if (!sCGLLibrary.EnsureInitialized()) {
         return nullptr;
     }
 
-    ContextProfile profile = ContextProfile::OpenGLCore;
-    NSOpenGLContext* context = CreateWithFormat(kAttribs_offscreen_coreProfile);
+    NSOpenGLContext* context = nullptr;
+
+    if (profile == ContextProfile::OpenGLCore)
+        context = CreateWithFormat(kAttribs_offscreen_coreProfile);
+
     if (!context) {
         profile = ContextProfile::OpenGLCompatibility;
         context = CreateWithFormat(kAttribs_offscreen);
     }
 
-    if (!context) {
+    if (!context)
         return nullptr;
-    }
 
     SurfaceCaps dummyCaps = SurfaceCaps::Any();
     nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context, true, profile);
@@ -271,23 +273,25 @@ CreateOffscreenFBOContext(bool aShare = true)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderCGL::CreateHeadless()
+GLContextProviderCGL::CreateHeadless(ContextProfile profile)
 {
-    nsRefPtr<GLContextCGL> glContext = CreateOffscreenFBOContext();
-    if (!glContext)
+    nsRefPtr<GLContextCGL> gl;
+    gl = CreateOffscreenFBOContext(profile);
+    if (!gl)
         return nullptr;
 
-    if (!glContext->Init())
+    if (!gl->Init())
         return nullptr;
 
-    return glContext.forget();
+    return gl.forget();
 }
 
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateOffscreen(const gfxIntSize& size,
-                                      const SurfaceCaps& caps)
+                                      const SurfaceCaps& caps,
+                                      ContextProfile profile)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless();
+    nsRefPtr<GLContext> glContext = CreateHeadless(profile);
     if (!glContext->InitOffscreen(ToIntSize(size), caps))
         return nullptr;
 
@@ -308,7 +312,7 @@ GLContextProviderCGL::GetGlobalContext()
         // than 16x16 in size; also 16x16 is POT so that we can do
         // a FBO with it on older video cards.  A FBO context for
         // sharing is preferred since it has no associated target.
-        gGlobalContext = CreateOffscreenFBOContext(false);
+        gGlobalContext = CreateOffscreenFBOContext(ContextProfile::OpenGLCompatibility);
         if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nullptr;

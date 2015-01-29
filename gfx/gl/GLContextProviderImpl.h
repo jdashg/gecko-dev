@@ -11,6 +11,8 @@
 #error GL_CONTEXT_PROVIDER_NAME not defined
 #endif
 
+#include "GLContextTypes.h"
+
 class GL_CONTEXT_PROVIDER_NAME
 {
 public:
@@ -58,11 +60,12 @@ public:
      */
     static already_AddRefed<GLContext>
     CreateOffscreen(const gfxIntSize& size,
-                    const SurfaceCaps& caps);
+                    const SurfaceCaps& caps,
+                    ContextProfile profile);
 
     // Just create a context. We'll add offscreen stuff ourselves.
     static already_AddRefed<GLContext>
-    CreateHeadless();
+    CreateHeadless(ContextProfile profile);
 
     /**
      * Create wrapping Gecko GLContext for external gl context.
