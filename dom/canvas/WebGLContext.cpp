@@ -203,6 +203,7 @@ WebGLContextOptions::WebGLContextOptions()
 WebGLContext::WebGLContext()
     : WebGLContextUnchecked(nullptr)
     , mBypassShaderValidation(false)
+    , mGLMaxSamples(1)
     , mNeedsFakeNoAlpha(false)
 {
     mGeneration = 0;
@@ -1717,6 +1718,7 @@ WebGLContext::GetSurfaceSnapshot(bool* out_premultAlpha)
     {
         ScopedBindFramebuffer autoFB(gl, 0);
         ClearBackbufferIfNeeded();
+        // TODO: Save, override, then restore glReadBuffer if present.
         ReadPixelsIntoDataSurface(gl, surf);
     }
 
