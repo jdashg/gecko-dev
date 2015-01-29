@@ -1960,6 +1960,14 @@ WebGLContext::InitAndValidateGL()
     mDefaultVertexArray->mAttribs.SetLength(mGLMaxVertexAttribs);
     mBoundVertexArray = mDefaultVertexArray;
 
+    // Core profiles don't provide a default VBO. (Well this appears to be the
+    // behaviour exhibited on Mac OSX OpenGL core contexts.)
+    if (gl->IsCoreProfile()) {
+        MakeContextCurrent();
+        mDefaultVertexArray->GenVertexArray();
+        mDefaultVertexArray->BindVertexArray();
+    }
+
     if (mLoseContextOnMemoryPressure)
         mContextObserver->RegisterMemoryPressureEvent();
 
