@@ -79,13 +79,11 @@ private:
 
 CGLLibrary sCGLLibrary;
 
-GLContextCGL::GLContextCGL(
-                  const SurfaceCaps& caps,
-                  GLContext *shareContext,
-                  NSOpenGLContext *context,
-                  bool isOffscreen)
-    : GLContext(caps, shareContext, isOffscreen),
-      mContext(context)
+GLContextCGL::GLContextCGL(const SurfaceCaps& caps,
+                           NSOpenGLContext* context,
+                           bool isOffscreen)
+    : GLContext(caps, nullptr, isOffscreen)
+    , mContext(context)
 {
     SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
 }
@@ -181,13 +179,6 @@ GLContextCGL::SwapBuffers()
   return true;
 }
 
-
-static GLContextCGL *
-GetGlobalContextCGL()
-{
-    return static_cast<GLContextCGL*>(GLContextProviderCGL::GetGlobalContext());
-}
-
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateWrappingExisting(void*, void*)
 {
@@ -197,11 +188,9 @@ GLContextProviderCGL::CreateWrappingExisting(void*, void*)
 already_AddRefed<GLContext>
 GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 {
-    GLContextCGL *shareContext = GetGlobalContextCGL();
-
     NSOpenGLContext *context = [[NSOpenGLContext alloc]
-                                initWithFormat:sCGLLibrary.PixelFormat()
-                                shareContext:(shareContext ? shareContext->mContext : NULL)];
+                                initWithFormat: sCGLLibrary.PixelFormat()
+                                shareContext: NULL];
     if (!context) {
         return nullptr;
     }
@@ -212,7 +201,6 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
     nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps,
-                                                        shareContext,
                                                         context);
     if (!glContext->Init()) {
         return nullptr;
@@ -228,21 +216,15 @@ CreateOffscreenFBOContext(bool aShare = true)
         return nullptr;
     }
 
-    GLContextCGL *shareContext = aShare ? GetGlobalContextCGL() : nullptr;
-    if (aShare && !shareContext) {
-        // if there is no share context, then we can't use FBOs.
-        return nullptr;
-    }
-
-    NSOpenGLContext *context = [[NSOpenGLContext alloc]
-                                initWithFormat:sCGLLibrary.PixelFormat()
-                                shareContext:shareContext ? shareContext->GetNSOpenGLContext() : NULL];
+    NSOpenGLContext* context = [[NSOpenGLContext alloc]
+                                initWithFormat: sCGLLibrary.PixelFormat()
+                                shareContext: NULL];
     if (!context) {
         return nullptr;
     }
 
     SurfaceCaps dummyCaps = SurfaceCaps::Any();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, shareContext, context, true);
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context, true);
 
     return glContext.forget();
 }
@@ -299,7 +281,7 @@ GLContextProviderCGL::GetGlobalContext()
 void
 GLContextProviderCGL::Shutdown()
 {
-  gGlobalContext = nullptr;
+    gGlobalContext = nullptr;
 }
 
 } /* namespace gl */
