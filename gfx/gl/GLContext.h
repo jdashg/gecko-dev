@@ -104,6 +104,7 @@ enum class GLFeature {
     get_integer_indexed,
     get_integer64_indexed,
     get_query_object_iv,
+    get_string_indexed,
     gpu_shader4,
     instanced_arrays,
     instanced_non_arrays,
@@ -459,6 +460,7 @@ public:
         return mAvailableExtensions[aKnownExtension];
     }
 
+protected:
     void MarkExtensionUnsupported(GLExtensions aKnownExtension) {
         mAvailableExtensions[aKnownExtension] = 0;
     }
@@ -467,42 +469,6 @@ public:
         mAvailableExtensions[aKnownExtension] = 1;
     }
 
-public:
-    template<size_t N>
-    static void InitializeExtensionsBitSet(std::bitset<N>& extensionsBitset,
-                                           const char* extStr,
-                                           const char** extList)
-    {
-        char* exts = ::strdup(extStr);
-
-        if (ShouldSpew())
-            printf_stderr("Extensions: %s\n", exts);
-
-        char* cur = exts;
-        bool done = false;
-        while (!done) {
-            char* space = strchr(cur, ' ');
-            if (space) {
-                *space = '\0';
-            } else {
-                done = true;
-            }
-
-            for (int i = 0; extList[i]; ++i) {
-                if (PL_strcasecmp(cur, extList[i]) == 0) {
-                    if (ShouldSpew())
-                        printf_stderr("Found extension %s\n", cur);
-                    extensionsBitset[i] = true;
-                }
-            }
-
-            cur = space + 1;
-        }
-
-        free(exts);
-    }
-
-protected:
     std::bitset<Extensions_Max> mAvailableExtensions;
 
 // -----------------------------------------------------------------------------
@@ -3183,6 +3149,17 @@ public:
     }
 
 // -----------------------------------------------------------------------------
+// get_string_indexed
+
+    const GLubyte* fGetStringi(GLenum name, GLuint index) {
+        BEFORE_GL_CALL;
+        ASSERT_SYMBOL_PRESENT(fGetStringi);
+        const GLubyte* ret = mSymbols.fGetStringi(name, index);
+        AFTER_GL_CALL;
+        return ret;
+    }
+
+// -----------------------------------------------------------------------------
 // Constructor
 protected:
     explicit GLContext(const SurfaceCaps& caps,
@@ -3580,6 +3557,8 @@ protected:
 
     void InitExtensions();
 
+    std::vector<nsACString*> mDriverExtensionList;
+
     GLint mViewportRect[4];
     GLint mScissorRect[4];
 
@@ -3698,10 +3677,55 @@ protected:
 public:
     void FlushIfHeavyGLCallsSinceLastFlush();
     static bool ShouldSpew();
+    static bool ShouldDumpExts();
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);
 
+void SplitByChar(const nsACString& str, const char delim,
+                 std::vector<nsACString*>* out);
+
+template<size_t N>
+bool
+MarkBitfieldByString(const nsACString& str, const char* markStrList[],
+                     std::bitset<N>& markList)
+{
+    for (size_t i = 0; i < N; i++) {
+        if (str.Equals(markStrList[i])) {
+            markList[i] = 1;
+            return true;
+        }
+    }
+    return false;
+}
+
+template<size_t N>
+void
+MarkBitfieldByStrings(const std::vector<nsACString*> strList,
+                      bool dumpStrings, const char* markStrList[],
+                      std::bitset<N>& markList)
+{
+    for (auto itr = strList.begin(); itr != strList.end(); ++itr) {
+        const nsACString& str = **itr;
+        const bool wasMarked = MarkBitfieldByString(str, markStrList,
+                                                    markList);
+        if (dumpStrings) {
+            nsCString nullTermed(str);
+            printf_stderr("  %s%s\n", nullTermed.BeginReading(),
+                          wasMarked ? "(*)" : "");
+        }
+    }
+}
+
+template<typename C>
+void
+DeleteAndClearIterable(C& cont)
+{
+    for(auto itr = cont.begin(); itr != cont.end(); ++itr) {
+        delete *itr;
+    }
+    cont.clear();
+}
 
 } /* namespace gl */
 } /* namespace mozilla */

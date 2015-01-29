@@ -190,7 +190,7 @@ static const NSOpenGLPixelFormatAttribute kAttribs_offscreen[] = {
 };
 
 static const NSOpenGLPixelFormatAttribute kAttribs_offscreen_coreProfile[] = {
-    NSOpenGLPFAPixelBuffer,
+    NSOpenGLPFAAccelerated,
     NSOpenGLPFAOpenGLProfile, NSOpenGLProfileVersion3_2Core,
     0
 };
@@ -200,6 +200,9 @@ CreateWithFormat(const NSOpenGLPixelFormatAttribute* attribs)
 {
     NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc]
                                    initWithAttributes:attribs];
+
+    if (!format)
+        return nullptr;
 
     NSOpenGLContext* context = [[NSOpenGLContext alloc] initWithFormat:format
                                 shareContext:nullptr];

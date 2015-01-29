@@ -15,6 +15,7 @@
 #include "GeckoProfiler.h"
 
 #include <bitset>
+#include <vector>
 
 #if defined(XP_WIN)
 
@@ -142,6 +143,7 @@ public:
     }
 
 protected:
+    std::vector<nsACString*> mDriverExtensionList;
     std::bitset<Extensions_Max> mAvailableExtensions;
 
 public:
@@ -614,4 +616,3 @@ extern GLLibraryEGL sEGLLibrary;
 } /* namespace mozilla */
 
 #endif /* GLLIBRARYEGL_H_ */
-
