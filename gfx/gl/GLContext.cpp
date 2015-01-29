@@ -1476,10 +1476,13 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         // We're ready for final setup.
         fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
-        if (mCaps.any)
-            DetermineCaps();
+        // TODO: Remove SurfaceCaps::any
+        if (mCaps.any) {
+            mCaps.any = false;
+            mCaps.color = true;
+            mCaps.alpha = false;
+        }
 
-        UpdatePixelFormat();
         UpdateGLFormats(mCaps);
 
         mTexGarbageBin = new TextureGarbageBin(this);
@@ -1734,68 +1737,6 @@ GLContext::ListHasExtension(const GLubyte *extensions, const char *extension)
         start = terminator;
     }
     return false;
-}
-
-void
-GLContext::DetermineCaps()
-{
-    PixelBufferFormat format = QueryPixelFormat();
-
-    SurfaceCaps caps;
-    caps.color = !!format.red && !!format.green && !!format.blue;
-    caps.bpp16 = caps.color && format.ColorBits() == 16;
-    caps.alpha = !!format.alpha;
-    caps.depth = !!format.depth;
-    caps.stencil = !!format.stencil;
-    caps.antialias = format.samples > 1;
-    caps.preserve = true;
-
-    mCaps = caps;
-}
-
-PixelBufferFormat
-GLContext::QueryPixelFormat()
-{
-    PixelBufferFormat format;
-
-    ScopedBindFramebuffer autoFB(this, 0);
-
-    fGetIntegerv(LOCAL_GL_RED_BITS  , &format.red  );
-    fGetIntegerv(LOCAL_GL_GREEN_BITS, &format.green);
-    fGetIntegerv(LOCAL_GL_BLUE_BITS , &format.blue );
-    fGetIntegerv(LOCAL_GL_ALPHA_BITS, &format.alpha);
-
-    fGetIntegerv(LOCAL_GL_DEPTH_BITS, &format.depth);
-    fGetIntegerv(LOCAL_GL_STENCIL_BITS, &format.stencil);
-
-    fGetIntegerv(LOCAL_GL_SAMPLES, &format.samples);
-
-    return format;
-}
-
-void
-GLContext::UpdatePixelFormat()
-{
-    PixelBufferFormat format = QueryPixelFormat();
-#ifdef MOZ_GL_DEBUG
-    if (mProfile != ContextProfile::OpenGLCore) {
-        const SurfaceCaps& caps = Caps();
-        MOZ_ASSERT(!caps.any, "Did you forget to DetermineCaps()?");
-
-        MOZ_ASSERT(caps.color == !!format.red);
-        MOZ_ASSERT(caps.color == !!format.green);
-        MOZ_ASSERT(caps.color == !!format.blue);
-
-        // These we either must have if they're requested, or
-        // we can have if they're not.
-        MOZ_ASSERT(caps.alpha == !!format.alpha || !caps.alpha);
-        MOZ_ASSERT(caps.depth == !!format.depth || !caps.depth);
-        MOZ_ASSERT(caps.stencil == !!format.stencil || !caps.stencil);
-
-        MOZ_ASSERT(caps.antialias == (format.samples > 1));
-    }
-#endif
-    mPixelFormat = new PixelBufferFormat(format);
 }
 
 GLFormats
