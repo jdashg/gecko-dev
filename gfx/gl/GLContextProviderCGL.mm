@@ -66,11 +66,12 @@ CGLLibrary sCGLLibrary;
 
 GLContextCGL::GLContextCGL(const SurfaceCaps& caps,
                            NSOpenGLContext* context,
-                           bool isOffscreen)
+                           bool isOffscreen,
+                           ContextProfile profile)
     : GLContext(caps, nullptr, isOffscreen)
     , mContext(context)
 {
-    SetProfileVersion(ContextProfile::OpenGLCompatibility, 210);
+    SetProfileVersion(profile, 210);
 }
 
 GLContextCGL::~GLContextCGL()
@@ -231,7 +232,8 @@ GLContextProviderCGL::CreateForWindow(nsIWidget *aWidget)
     [context setValues:&opaque forParameter:NSOpenGLCPSurfaceOpacity];
 
     SurfaceCaps caps = SurfaceCaps::ForRGBA();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps, context);
+    ContextProfile profile = ContextProfile::OpenGLCompatibility;
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(caps, context, false, profile);
     if (!glContext->Init()) {
         glContext = nullptr;
         [context release];
@@ -248,13 +250,19 @@ CreateOffscreenFBOContext(bool aShare = true)
         return nullptr;
     }
 
-    NSOpenGLContext* context = CreateWithFormat(kAttribs_offscreen);
+    ContextProfile profile = ContextProfile::OpenGLCore;
+    NSOpenGLContext* context = CreateWithFormat(kAttribs_offscreen_coreProfile);
+    if (!context) {
+        profile = ContextProfile::OpenGLCompatibility;
+        context = CreateWithFormat(kAttribs_offscreen);
+    }
+
     if (!context) {
         return nullptr;
     }
 
     SurfaceCaps dummyCaps = SurfaceCaps::Any();
-    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context, true);
+    nsRefPtr<GLContextCGL> glContext = new GLContextCGL(dummyCaps, context, true, profile);
 
     return glContext.forget();
 }
