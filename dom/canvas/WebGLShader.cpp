@@ -88,7 +88,7 @@ TranslateWithoutValidation(const nsACString& sourceNS, bool isWebGL2,
     }
 
     std::string reversionedSource = source;
-    reversionedSource.erase(versionStrStart, versionStrLen);
+    reversionedSource.erase(versionStrStart, versionStrLen-1);
 
     switch (glesslVersion) {
     case 100:
