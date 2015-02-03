@@ -317,8 +317,6 @@ GLContext::~GLContext() {
         ReportOutstandingNames();
     }
 #endif
-
-    DeleteAndClearIterable(mDriverExtensionList);
 }
 
 /*static*/ void
@@ -1605,15 +1603,19 @@ GLContext::InitExtensions()
 {
     MOZ_ASSERT(IsCurrent());
 
+    std::vector<nsCString> driverExtensionList;
+
     if (IsFeatureProvidedByCoreSymbols(GLFeature::get_string_indexed)) {
         GLuint count = 0;
         GetUIntegerv(LOCAL_GL_NUM_EXTENSIONS, &count);
         for (GLuint i = 0; i < count; i++) {
             // This is UTF-8.
-            const char* rawExt = (const char*)fGetStringi(LOCAL_GL_EXTENSIONS,
-                                                          i);
-            nsACString* ext = new nsDependentCString(rawExt);
-            mDriverExtensionList.push_back(ext);
+            const char* rawExt = (const char*)fGetStringi(LOCAL_GL_EXTENSIONS, i);
+
+            // We CANNOT use nsDependentCString here, because the spec doesn't guarantee
+            // that the pointers returned are different, only that their contents are.
+            // On Flame, each of these index string queries returns the same address.
+            driverExtensionList.push_back(nsCString(rawExt));
         }
     } else {
         MOZ_ALWAYS_TRUE(!fGetError());
@@ -1622,18 +1624,18 @@ GLContext::InitExtensions()
 
         if (rawExts) {
             nsDependentCString exts(rawExts);
-            SplitByChar(exts, ' ', &mDriverExtensionList);
+            SplitByChar(exts, ' ', &driverExtensionList);
         }
     }
 
     const bool shouldDumpExts = ShouldDumpExts();
     if (shouldDumpExts) {
-        printf_stderr("%i GL driver extensions:\n",
-                      (uint32_t)mDriverExtensionList.size());
+        printf_stderr("%i GL driver extensions: (*: recognized)\n",
+                      (uint32_t)driverExtensionList.size());
     }
 
-    MarkBitfieldByStrings(mDriverExtensionList, shouldDumpExts, sExtensionNames,
-                          mAvailableExtensions);
+    MarkBitfieldByStrings(driverExtensionList, shouldDumpExts, sExtensionNames,
+                          &mAvailableExtensions);
 
     if (WorkAroundDriverBugs()) {
         if (Vendor() == GLVendor::Qualcomm) {
@@ -2410,7 +2412,8 @@ GLContext::FlushIfHeavyGLCallsSinceLastFlush()
 /*static*/ bool
 GLContext::ShouldDumpExts()
 {
-    return PR_GetEnv("MOZ_GL_DUMP_EXTS");
+    static bool ret = PR_GetEnv("MOZ_GL_DUMP_EXTS");
+    return ret;
 }
 
 bool
@@ -2440,13 +2443,12 @@ DoesStringMatch(const char* aString, const char *aWantedString)
 /*static*/ bool
 GLContext::ShouldSpew()
 {
-    static bool spew = PR_GetEnv("MOZ_GL_SPEW");
-    return spew;
+    static bool ret = PR_GetEnv("MOZ_GL_SPEW");
+    return ret;
 }
 
 void
-SplitByChar(const nsACString& str, const char delim,
-            std::vector<nsACString*>* out)
+SplitByChar(const nsACString& str, const char delim, std::vector<nsCString>* const out)
 {
     uint32_t start = 0;
     while (true) {
@@ -2455,15 +2457,15 @@ SplitByChar(const nsACString& str, const char delim,
             break;
 
         uint32_t len = (uint32_t)end - start;
-        nsACString* substr = new nsDependentCSubstring(str, start, len);
-        out->push_back(substr);
+        nsDependentCSubstring substr(str, start, len);
+        out->push_back(nsCString(substr));
 
         start = end + 1;
         continue;
     }
 
-    nsACString* substr = new nsDependentCSubstring(str, start);
-    out->push_back(substr);
+    nsDependentCSubstring substr(str, start);
+    out->push_back(nsCString(substr));
 }
 
 } /* namespace gl */

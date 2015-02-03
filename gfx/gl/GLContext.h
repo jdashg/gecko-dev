@@ -3545,8 +3545,6 @@ protected:
 
     void InitExtensions();
 
-    std::vector<nsACString*> mDriverExtensionList;
-
     GLint mViewportRect[4];
     GLint mScissorRect[4];
 
@@ -3671,16 +3669,16 @@ public:
 bool DoesStringMatch(const char* aString, const char *aWantedString);
 
 void SplitByChar(const nsACString& str, const char delim,
-                 std::vector<nsACString*>* out);
+                 std::vector<nsCString>* const out);
 
 template<size_t N>
 bool
 MarkBitfieldByString(const nsACString& str, const char* (&markStrList)[N],
-                     std::bitset<N>& markList)
+                     std::bitset<N>* const out_markList)
 {
     for (size_t i = 0; i < N; i++) {
         if (str.Equals(markStrList[i])) {
-            markList[i] = 1;
+            (*out_markList)[i] = 1;
             return true;
         }
     }
@@ -3689,30 +3687,17 @@ MarkBitfieldByString(const nsACString& str, const char* (&markStrList)[N],
 
 template<size_t N>
 void
-MarkBitfieldByStrings(const std::vector<nsACString*> strList,
+MarkBitfieldByStrings(const std::vector<nsCString>& strList,
                       bool dumpStrings, const char* (&markStrList)[N],
-                      std::bitset<N>& markList)
+                      std::bitset<N>* const out_markList)
 {
     for (auto itr = strList.begin(); itr != strList.end(); ++itr) {
-        const nsACString& str = **itr;
+        const nsACString& str = *itr;
         const bool wasMarked = MarkBitfieldByString(str, markStrList,
-                                                    markList);
-        if (dumpStrings) {
-            nsCString nullTermed(str);
-            printf_stderr("  %s%s\n", nullTermed.BeginReading(),
-                          wasMarked ? "(*)" : "");
-        }
+                                                    out_markList);
+        if (dumpStrings)
+            printf_stderr("  %s%s\n", str.BeginReading(), wasMarked ? "(*)" : "");
     }
-}
-
-template<typename C>
-void
-DeleteAndClearIterable(C& cont)
-{
-    for(auto itr = cont.begin(); itr != cont.end(); ++itr) {
-        delete *itr;
-    }
-    cont.clear();
 }
 
 } /* namespace gl */

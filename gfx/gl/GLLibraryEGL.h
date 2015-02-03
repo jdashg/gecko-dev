@@ -143,7 +143,6 @@ public:
     }
 
 protected:
-    std::vector<nsACString*> mDriverExtensionList;
     std::bitset<Extensions_Max> mAvailableExtensions;
 
 public:
