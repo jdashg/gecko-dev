@@ -3180,18 +3180,16 @@ protected:
     virtual bool MakeCurrentImpl(bool aForce) = 0;
 
 public:
-#ifdef MOZ_GL_DEBUG
     static void StaticInit() {
         PR_NewThreadPrivateIndex(&sCurrentGLContextTLS, nullptr);
     }
-#endif
 
     bool MakeCurrent(bool aForce = false) {
         if (IsDestroyed()) {
             return false;
         }
-#ifdef MOZ_GL_DEBUG
-    PR_SetThreadPrivate(sCurrentGLContextTLS, this);
+        if (this == (GLContext*) PR_GetThreadPrivate(sCurrentGLContextTLS))
+            return true;
 
     // XXX this assertion is disabled because it's triggering on Mac;
     // we need to figure out why and reenable it.
@@ -3203,8 +3201,11 @@ public:
         NS_ASSERTION(IsOwningThreadCurrent(),
                      "MakeCurrent() called on different thread than this context was created on!");
 #endif
-#endif
-        return MakeCurrentImpl(aForce);
+        bool success = MakeCurrentImpl(aForce);
+        if (success)
+            PR_SetThreadPrivate(sCurrentGLContextTLS, this);
+
+        return success;
     }
 
     virtual bool Init() = 0;
@@ -3380,14 +3381,12 @@ protected:
 
     GLContextSymbols mSymbols;
 
-#ifdef MOZ_GL_DEBUG
     // GLDebugMode will check that we don't send call
     // to a GLContext that isn't current on the current
     // thread.
     // Store the current context when binding to thread local
     // storage to support DebugMode on an arbitrary thread.
     static unsigned sCurrentGLContextTLS;
-#endif
 
     UniquePtr<GLBlitHelper> mBlitHelper;
     UniquePtr<GLReadTexImageHelper> mReadTexImageHelper;

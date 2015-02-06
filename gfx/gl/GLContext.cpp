@@ -49,10 +49,7 @@ namespace gl {
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 
-#ifdef MOZ_GL_DEBUG
 unsigned GLContext::sCurrentGLContextTLS = -1;
-#endif
-
 uint32_t GLContext::sDebugMode = 0;
 
 
