@@ -2468,5 +2468,72 @@ SplitByChar(const nsACString& str, const char delim, std::vector<nsCString>* con
     out->push_back(nsCString(substr));
 }
 
+void
+GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
+{
+    MOZ_ASSERT(src && dest);
+    MOZ_ASSERT(dest->GetSize() == src->mSize);
+    MOZ_ASSERT(dest->GetFormat() == (src->mHasAlpha ? SurfaceFormat::B8G8R8A8
+                                                    : SurfaceFormat::B8G8R8X8));
+
+    MakeCurrent();
+
+    SharedSurface* prev = GetLockedSurface();
+
+    const bool needsSwap = src != prev;
+    if (needsSwap) {
+        if (prev)
+            prev->UnlockProd();
+        src->LockProd();
+    }
+
+    GLuint tempFB = 0;
+
+    {
+        ScopedBindFramebuffer autoFB(this);
+
+        // Even though we're reading. We're doing it on
+        // the producer side. So we call ProducerAcquire
+        // instead of ConsumerAcquire.
+        src->ProducerAcquire();
+
+        if (src->mAttachType == AttachmentType::Screen) {
+            fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+        } else {
+            fGenFramebuffers(1, &tempFB);
+            fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, tempFB);
+
+            switch (src->mAttachType) {
+            case AttachmentType::GLTexture:
+                fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                                      src->ProdTextureTarget(), src->ProdTexture(), 0);
+                break;
+            case AttachmentType::GLRenderbuffer:
+                fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                                         LOCAL_GL_RENDERBUFFER, src->ProdRenderbuffer());
+                break;
+            default:
+                MOZ_CRASH("bad `src->mAttachType`.");
+            }
+
+            DebugOnly<GLenum> status = fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+            MOZ_ASSERT(status == LOCAL_GL_FRAMEBUFFER_COMPLETE);
+        }
+
+        ReadPixelsIntoDataSurface(this, dest);
+
+        src->ProducerRelease();
+    }
+
+    if (tempFB)
+        fDeleteFramebuffers(1, &tempFB);
+
+    if (needsSwap) {
+        src->UnlockProd();
+        if (prev)
+            prev->LockProd();
+    }
+}
+
 } /* namespace gl */
 } /* namespace mozilla */

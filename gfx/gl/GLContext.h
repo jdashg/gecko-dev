@@ -1990,6 +1990,8 @@ public:
     }
 
 private:
+    friend class SharedSurface;
+
     void raw_fBindFramebuffer(GLenum target, GLuint framebuffer) {
         BEFORE_GL_CALL;
         mSymbols.fBindFramebuffer(target, framebuffer);
@@ -3664,6 +3666,7 @@ public:
     void FlushIfHeavyGLCallsSinceLastFlush();
     static bool ShouldSpew();
     static bool ShouldDumpExts();
+    void Readback(SharedSurface* src, gfx::DataSourceSurface* dest);
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);
