@@ -9,7 +9,6 @@
 #include "GLTypes.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace layers {

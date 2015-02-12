@@ -7,6 +7,7 @@
 
 #include "GLContext.h"
 #include "WebGLContextUtils.h"
+#include "WebGLFramebuffer.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -231,7 +232,7 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
             return;
         }
     } else {
-        dstSamples = gl->Screen()->Samples();
+        dstSamples = Screen()->Samples();
 
         // TODO: Don't hardcode these.
         dstColorFormat = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
@@ -373,17 +374,17 @@ WebGL2Context::InvalidateFramebuffer(GLenum target, const dom::Sequence<GLenum>&
         return;
 
     const WebGLFramebuffer* fb;
-    bool isDefaultFB;
+    bool isScreenDefaultFB;
     switch (target) {
     case LOCAL_GL_FRAMEBUFFER:
     case LOCAL_GL_DRAW_FRAMEBUFFER:
         fb = mBoundDrawFramebuffer;
-        isDefaultFB = gl->Screen()->IsDrawFramebufferDefault();
+        isScreenDefaultFB = Screen()->IsDrawFramebufferDefault();
         break;
 
     case LOCAL_GL_READ_FRAMEBUFFER:
         fb = mBoundReadFramebuffer;
-        isDefaultFB = gl->Screen()->IsReadFramebufferDefault();
+        isScreenDefaultFB = Screen()->IsReadFramebufferDefault();
         break;
 
     default:
@@ -398,7 +399,8 @@ WebGL2Context::InvalidateFramebuffer(GLenum target, const dom::Sequence<GLenum>&
         }
     }
 
-    if (!fb && !isDefaultFB) {
+    const bool isFBDefault = (!fb && isScreenDefaultFB);
+    if (isFBDefault) {
         dom::Sequence<GLenum> tmpAttachments;
         TranslateDefaultAttachments(attachments, &tmpAttachments);
         gl->fInvalidateFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements());
@@ -420,17 +422,17 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
         return;
 
     const WebGLFramebuffer* fb;
-    bool isDefaultFB;
+    bool isScreenDefaultFB;
     switch (target) {
     case LOCAL_GL_FRAMEBUFFER:
     case LOCAL_GL_DRAW_FRAMEBUFFER:
         fb = mBoundDrawFramebuffer;
-        isDefaultFB = gl->Screen()->IsDrawFramebufferDefault();
+        isScreenDefaultFB = Screen()->IsDrawFramebufferDefault();
         break;
 
     case LOCAL_GL_READ_FRAMEBUFFER:
         fb = mBoundReadFramebuffer;
-        isDefaultFB = gl->Screen()->IsReadFramebufferDefault();
+        isScreenDefaultFB = Screen()->IsReadFramebufferDefault();
         break;
 
     default:
@@ -445,7 +447,8 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
         }
     }
 
-    if (!fb && !isDefaultFB) {
+    const bool isFBDefault = (!fb && isScreenDefaultFB);
+    if (isFBDefault) {
         dom::Sequence<GLenum> tmpAttachments;
         TranslateDefaultAttachments(attachments, &tmpAttachments);
         gl->fInvalidateSubFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements(),

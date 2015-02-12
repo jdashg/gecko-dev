@@ -71,12 +71,7 @@ public:
         AssureBlitted();
     }
 
-    GLsizei Samples() const {
-        if (!mDraw)
-            return 1;
-
-        return mDraw->mSamples;
-    }
+    GLsizei Samples() const;
 
     const RefPtr<ShSurfHandle>& Back() const;
 
@@ -94,6 +89,9 @@ public:
 
     GLuint DrawFB() const;
     GLuint ReadFB() const;
+
+    bool IsDrawFramebufferDefault() const;
+    bool IsReadFramebufferDefault() const;
 
 private:
     void AssureBlitted();

@@ -20,7 +20,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/gfx/Point.h"
-#include "mozilla/TypedEnum.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WeakPtr.h"
 #include <queue>
@@ -38,8 +37,7 @@ class GLContext;
 class SurfaceFactory;
 class ShSurfHandle;
 
-
-MOZ_BEGIN_ENUM_CLASS(SharedSurfaceType, uint8_t)
+enum class SharedSurfaceType : uint8_t {
     Unknown = 0,
 
     Basic,
@@ -52,17 +50,16 @@ MOZ_BEGIN_ENUM_CLASS(SharedSurfaceType, uint8_t)
     IOSurface,
 
     Max
-MOZ_END_ENUM_CLASS(SharedSurfaceType)
+};
 
-MOZ_BEGIN_ENUM_CLASS(AttachmentType, uint8_t)
+enum class AttachmentType : uint8_t {
     Screen = 0,
 
     GLTexture,
     GLRenderbuffer,
 
     Max
-MOZ_END_ENUM_CLASS(AttachmentType)
-
+};
 
 class SharedSurface
 {

@@ -7,6 +7,7 @@
 
 #include "GLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLContext.h"
 #include "WebGLShader.h"
 #include "WebGLUniformLocation.h"
@@ -230,6 +231,11 @@ WebGLProgram::WebGLProgram(WebGLContext* webgl)
     , mGLName(CreateProgram(webgl->GL()))
 {
     mContext->mPrograms.insertBack(this);
+}
+
+WebGLProgram::~WebGLProgram()
+{
+    DeleteOnce();
 }
 
 void

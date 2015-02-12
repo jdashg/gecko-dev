@@ -529,8 +529,7 @@ ReadPixel(SharedSurface* src)
         ScopedPackAlignment autoAlign(gl, 4);
 
         UniquePtr<uint8_t[]> bytes(new uint8_t[4]);
-        gl->raw_fReadPixels(0, 0, 1, 1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE,
-                            bytes.get());
+        gl->fReadPixels(0, 0, 1, 1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, bytes.get());
         memcpy(&pixel, bytes.get(), 4);
     }
 

@@ -46,6 +46,7 @@
 #include <queue>
 #include "ScopedGLHelpers.h"
 #include "WebGL1Context.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLBuffer.h"
 #include "WebGLContextLossHandler.h"
 #include "WebGLContextUtils.h"

@@ -35,6 +35,7 @@ private:
 public:
     const SurfaceCaps mCaps;
     const gfx::IntSize mSize;
+    const GLsizei mSamples;
     const GLuint mFB;
 private:
     const GLuint mColorMSRB;
@@ -44,6 +45,7 @@ private:
     ScreenDrawBuffer(GLContext& gl,
                      const SurfaceCaps& caps,
                      const gfx::IntSize& size,
+                     GLsizei samples,
                      GLuint fb,
                      GLuint colorMSRB,
                      GLuint depthRB,
@@ -51,6 +53,7 @@ private:
         : mGL(gl)
         , mCaps(caps)
         , mSize(size)
+        , mSamples(samples)
         , mFB(fb)
         , mColorMSRB(colorMSRB)
         , mDepthRB(depthRB)
@@ -397,6 +400,15 @@ const RefPtr<ShSurfHandle>&
 GLScreenBuffer::Back() const
 {
     return mRead->SurfHandle();
+}
+
+GLsizei
+GLScreenBuffer::Samples() const
+{
+    if (!mDraw)
+        return 1;
+
+    return mDraw->mSamples;
 }
 
 const gfx::IntSize&

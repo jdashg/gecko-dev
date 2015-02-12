@@ -141,9 +141,7 @@ public:
     virtual JSObject* WrapObject(JSContext* js) MOZ_OVERRIDE;
 
 private:
-    ~WebGLProgram() {
-        DeleteOnce();
-    }
+    ~WebGLProgram();
 
     bool LinkAndUpdate();
 

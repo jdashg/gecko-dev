@@ -14,12 +14,8 @@
 #include "mozilla/WeakPtr.h"
 
 #include "GLDefs.h"
-#include "WebGLActiveInfo.h"
 #include "WebGLContextUnchecked.h"
 #include "WebGLObjectModel.h"
-#include "WebGLRenderbuffer.h"
-#include "WebGLTexture.h"
-#include "WebGLShaderValidator.h"
 #include "WebGLStrongTypes.h"
 #include <stdarg.h>
 
@@ -102,6 +98,7 @@ class GLScreenBuffer;
 
 namespace webgl {
 struct LinkedProgramInfo;
+class ShaderValidator;
 }
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
@@ -668,7 +665,7 @@ public:
         if (!tex)
             return ErrorInvalidOperation("texSubImage2D: no texture bound on active texture unit");
 
-        const TexInternalFormat internalformat = EffectiveFormatForTexImage(tex,
+        const TexInternalFormat internalFormat = EffectiveFormatForTexImage(tex,
                                                                             texImageTarget,
                                                                             level);
 
