@@ -758,6 +758,9 @@ ReadBuffer::Size() const
 void
 ReadBuffer::SetReadBuffer(GLenum userMode) const
 {
+    if (!mGL->IsSupported(GLFeature::read_buffer))
+        return;
+
     GLenum internalMode;
 
     switch (userMode) {
