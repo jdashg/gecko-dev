@@ -501,11 +501,8 @@ WebGLFramebuffer::FramebufferTexture2D(FBAttachment attachPoint,
     MOZ_ASSERT(mContext->mBoundDrawFramebuffer == this ||
                mContext->mBoundReadFramebuffer == this);
 
-    if (!mContext->ValidateObjectAllowNull("framebufferTexture2D: texture",
-                                           tex))
-    {
+    if (!mContext->ValidateObjectAllowNull("framebufferTexture2D: texture", tex))
         return;
-    }
 
     if (tex) {
         bool isTexture2D = tex->Target() == LOCAL_GL_TEXTURE_2D;
@@ -515,11 +512,6 @@ WebGLFramebuffer::FramebufferTexture2D(FBAttachment attachPoint,
                                             " texture and texture target.");
             return;
         }
-    }
-
-    if (level != 0) {
-        mContext->ErrorInvalidValue("framebufferTexture2D: Level must be 0.");
-        return;
     }
 
     /* Get the requested attachment. If result is NULL, attachment is invalid
