@@ -1811,7 +1811,9 @@ WebGLContext::InitAndValidateGL()
         gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
-        gl->fGetIntegerv(LOCAL_GL_MAX_SAMPLES, (GLint*)&mGLMaxSamples);
+
+        if (!gl->GetPotentialInteger(LOCAL_GL_MAX_SAMPLES, (GLint*)&mGLMaxSamples))
+            mGLMaxSamples = 1;
     }
 
     // Calculate log2 of mGLMaxTextureSize and mGLMaxCubeMapTextureSize
