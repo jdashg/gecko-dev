@@ -334,10 +334,10 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
     mUsingGDIFonts = false;
 
-    /* 
-     * Initialize COM 
-     */ 
-    CoInitialize(nullptr); 
+    /*
+     * Initialize COM
+     */
+    CoInitialize(nullptr);
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     RegisterStrongMemoryReporter(new GfxD2DSurfaceReporter());
@@ -368,9 +368,9 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 
     mozilla::gfx::Factory::D2DCleanup();
 
-    /* 
-     * Uninitialize COM 
-     */ 
+    /*
+     * Uninitialize COM
+     */
     CoUninitialize();
 }
 
@@ -1003,7 +1003,7 @@ gfxWindowsPlatform::CreateFontGroup(const FontFamilyList& aFontFamilyList,
     return new gfxFontGroup(aFontFamilyList, aStyle, aUserFontSet);
 }
 
-gfxFontEntry* 
+gfxFontEntry*
 gfxWindowsPlatform::LookupLocalFont(const nsAString& aFontName,
                                     uint16_t aWeight,
                                     int16_t aStretch,
@@ -1015,7 +1015,7 @@ gfxWindowsPlatform::LookupLocalFont(const nsAString& aFontName,
                                                                     aItalic);
 }
 
-gfxFontEntry* 
+gfxFontEntry*
 gfxWindowsPlatform::MakePlatformFont(const nsAString& aFontName,
                                      uint16_t aWeight,
                                      int16_t aStretch,
@@ -1129,7 +1129,7 @@ gfxWindowsPlatform::UseClearTypeAlways()
     return mUseClearTypeAlways;
 }
 
-void 
+void
 gfxWindowsPlatform::GetDLLVersion(char16ptr_t aDLLPath, nsAString& aVersion)
 {
     DWORD versInfoSize, vers[4] = {0};
@@ -1137,18 +1137,18 @@ gfxWindowsPlatform::GetDLLVersion(char16ptr_t aDLLPath, nsAString& aVersion)
     aVersion.AssignLiteral(MOZ_UTF16("0.0.0.0"));
     versInfoSize = GetFileVersionInfoSizeW(aDLLPath, nullptr);
     nsAutoTArray<BYTE,512> versionInfo;
-    
+
     if (versInfoSize == 0 ||
         !versionInfo.AppendElements(uint32_t(versInfoSize)))
     {
         return;
     }
 
-    if (!GetFileVersionInfoW(aDLLPath, 0, versInfoSize, 
+    if (!GetFileVersionInfoW(aDLLPath, 0, versInfoSize,
            LPBYTE(versionInfo.Elements())))
     {
         return;
-    } 
+    }
 
     UINT len = 0;
     VS_FIXEDFILEINFO *fileInfo = nullptr;
@@ -1160,7 +1160,7 @@ gfxWindowsPlatform::GetDLLVersion(char16ptr_t aDLLPath, nsAString& aVersion)
         return;
     }
 
-    DWORD fileVersMS = fileInfo->dwFileVersionMS; 
+    DWORD fileVersMS = fileInfo->dwFileVersionMS;
     DWORD fileVersLS = fileInfo->dwFileVersionLS;
 
     vers[0] = HIWORD(fileVersMS);
@@ -1173,7 +1173,7 @@ gfxWindowsPlatform::GetDLLVersion(char16ptr_t aDLLPath, nsAString& aVersion)
     aVersion.Assign(NS_ConvertUTF8toUTF16(buf));
 }
 
-void 
+void
 gfxWindowsPlatform::GetCleartypeParams(nsTArray<ClearTypeParameterInfo>& aParams)
 {
     HKEY  hKey, subKey;
@@ -1245,7 +1245,7 @@ gfxWindowsPlatform::GetCleartypeParams(nsTArray<ClearTypeParameterInfo>& aParams
                 foundData = true;
                 ctinfo.clearTypeLevel = value;
             }
-      
+
             size = sizeof(value);
             subrv = RegQueryValueExW(subKey, L"EnhancedContrastLevel",
                                      nullptr, &type, (LPBYTE)&value, &size);
@@ -1285,7 +1285,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
         clearTextFontCaches = false;
     }
 
-    if (clearTextFontCaches) {    
+    if (clearTextFontCaches) {
         gfxFontCache *fc = gfxFontCache::GetCache();
         if (fc) {
             fc->Flush();
@@ -1443,14 +1443,12 @@ gfxWindowsPlatform::GetD3D9DeviceManager()
   return mDeviceManager;
 }
 
-ID3D11Device*
+const mozilla::RefPtr<ID3D11Device>&
 gfxWindowsPlatform::GetD3D11Device()
 {
-  if (mD3D11DeviceInitialized) {
-    return mD3D11Device;
+  if (!mD3D11DeviceInitialized) {
+    InitD3D11Devices();
   }
-
-  InitD3D11Devices();
 
   return mD3D11Device;
 }
