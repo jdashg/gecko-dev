@@ -1489,7 +1489,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
 
         MOZ_ASSERT(IsCurrent());
 
-        if (/*DebugMode() &&*/ IsExtensionSupported(KHR_debug)) {
+        if (DebugMode() && IsExtensionSupported(KHR_debug)) {
             fEnable(LOCAL_GL_DEBUG_OUTPUT);
             fEnable(LOCAL_GL_DEBUG_OUTPUT_SYNCHRONOUS);
             fDebugMessageCallback(&StaticDebugCallback, (void*)this);
