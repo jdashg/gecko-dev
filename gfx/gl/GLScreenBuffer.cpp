@@ -431,26 +431,30 @@ GLScreenBuffer::Attach(SharedSurface* surf, const gfx::IntSize& size)
 }
 
 bool
-GLScreenBuffer::Swap(const gfx::IntSize& size)
+GLScreenBuffer::Swap(const gfx::IntSize& size, bool discardCurrent)
 {
     RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
     if (!newBack)
         return false;
 
-    if (!Attach(newBack->Surf(), size))
+    newBack->Surf()->ProducerAcquire();
+
+    if (!Attach(newBack->Surf(), size)) {
+        newBack->Surf()->ProducerRelease();
         return false;
+    }
     // Attach was successful.
+    
+    if (mBack)
+        mBack->Surf()->ProducerRelease();
+
+    if (discardCurrent) {
+        mBack = newBack;
+        return true;
+    }
 
     mFront = mBack;
     mBack = newBack;
-
-    // Fence before copying.
-    if (mFront) {
-        mFront->Surf()->ProducerRelease();
-    }
-    if (mBack) {
-        mBack->Surf()->ProducerAcquire();
-    }
 
     if (ShouldPreserveBuffer() &&
         mFront &&
@@ -485,21 +489,7 @@ GLScreenBuffer::PublishFrame(const gfx::IntSize& size)
 bool
 GLScreenBuffer::Resize(const gfx::IntSize& size)
 {
-    RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
-    if (!newBack)
-        return false;
-
-    if (!Attach(newBack->Surf(), size))
-        return false;
-
-    if (mBack)
-        mBack->Surf()->ProducerRelease();
-
-    mBack = newBack;
-
-    mBack->Surf()->ProducerAcquire();
-
-    return true;
+    return Swap(size, true);
 }
 
 bool
