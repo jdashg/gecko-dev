@@ -2138,40 +2138,47 @@ private:
         return ret;
     }
 
+#undef MOZ_GL_ALLOC_STATS
+#ifdef MOZ_GL_ALLOC_STATS
     int32_t mCountVB;
     int32_t mCountRB;
     int32_t mCountTex;
     int32_t mCountFB;
 
     static MOZ_NEVER_INLINE void AdjustObjectCount(const char* desc, int32_t diff, int32_t* const out_count);
+#endif
 
     void raw_fGenBuffers(GLsizei n, GLuint* names) {
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("vb", n, &mCountVB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fGenBuffers(n, names);
         AFTER_GL_CALL;
     }
 
     void raw_fGenFramebuffers(GLsizei n, GLuint* names) {
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("fb", n, &mCountFB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fGenFramebuffers(n, names);
         AFTER_GL_CALL;
     }
 
     void raw_fGenRenderbuffers(GLsizei n, GLuint* names) {
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("rb", n, &mCountRB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fGenRenderbuffers(n, names);
         AFTER_GL_CALL;
     }
 
     void raw_fGenTextures(GLsizei n, GLuint* names) {
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("tex", n, &mCountTex);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fGenTextures(n, names);
         AFTER_GL_CALL;
@@ -2229,8 +2236,9 @@ private:
             if (names[i])
               nameSet.insert(names[i]);
         }
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("vb", -(int32_t)nameSet.size(), &mCountVB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fDeleteBuffers(n, names);
         AFTER_GL_CALL;
@@ -2242,9 +2250,9 @@ private:
             if (names[i])
               nameSet.insert(names[i]);
         }
-
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("fb", -(int32_t)nameSet.size(), &mCountFB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fDeleteFramebuffers(n, names);
         AFTER_GL_CALL;
@@ -2256,8 +2264,9 @@ private:
             if (names[i])
               nameSet.insert(names[i]);
         }
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("rb", -(int32_t)nameSet.size(), &mCountRB);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fDeleteRenderbuffers(n, names);
         AFTER_GL_CALL;
@@ -2269,8 +2278,9 @@ private:
             if (names[i])
               nameSet.insert(names[i]);
         }
+#ifdef MOZ_GL_ALLOC_STATS
         AdjustObjectCount("tex", -(int32_t)nameSet.size(), &mCountTex);
-
+#endif
         BEFORE_GL_CALL;
         mSymbols.fDeleteTextures(n, names);
         AFTER_GL_CALL;
