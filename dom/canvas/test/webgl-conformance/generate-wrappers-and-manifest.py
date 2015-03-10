@@ -16,6 +16,7 @@ MANIFEST_OUTPUT_FILEPATH = '../_webgl-conformance.ini'
 ERRATA_FILEPATH = 'mochitest-errata.ini'
 BASE_TEST_LIST_FILENAME = '00_test_list.txt'
 FILE_PATH_PREFIX = os.path.basename(os.getcwd()) # 'webgl-conformance'
+CONFORMANCE_SUITE_VERSION = '1.0.3'
 
 SUPPORT_DIRS = [
     'conformance',
@@ -53,6 +54,46 @@ def GetTestList():
 ##############################
 # Internals
 
+def ParseSemanticVersion(verStr):
+    split = verStr.split('.')
+
+    try:
+        verArr = [int(x) for x in split]
+    except ValueError:
+        raise Exception('Bad version string: ' + verStr)
+
+    return verArr
+
+
+def CompareInt(a, b):
+    if a < b:
+        return -1
+    if a > b:
+        return 1
+    return 0
+
+
+def CompareSemanticVersions(a, b):
+    aArr = ParseSemanticVersion(a)
+    bArr = ParseSemanticVersion(b)
+
+    while len(aArr) < len(bArr):
+        aArr.append(0)
+
+    while len(bArr) < len(aArr):
+        bArr.append(0)
+
+    assert len(aArr) == len(bArr)
+    for i in range(len(aArr)):
+        ret = CompareInt(aArr[i], bArr[i])
+        if ret == 0:
+            continue
+
+        return ret
+
+    return 0
+
+
 def AccumTests(path, listFile, out_testList):
     listFilePath = os.path.join(path, listFile)
     assert os.path.exists(listFilePath), 'Bad `listFilePath`: ' + listFilePath
@@ -68,22 +109,55 @@ def AccumTests(path, listFile, out_testList):
                 continue
             if strippedLine.startswith('#'):
                 continue
-            if strippedLine.startswith('--'):
+
+            split = strippedLine.split(' ')
+            shouldUse = True
+            while split[0].startswith('--'):
+                if split[0] == "--min-version":
+                    minVersion = split[1]
+                    split = split[2:]
+
+                    if CompareSemanticVersions(CONFORMANCE_SUITE_VERSION, minVersion) < 0:
+                        shouldUse = False
+
+                    continue
+
+                if split[0] == "--max-version":
+                    maxVersion = split[1]
+                    split = split[2:]
+
+                    if CompareSemanticVersions(CONFORMANCE_SUITE_VERSION, maxVersion) > 0:
+                        shouldUse = False
+
+                    continue
+
+                if split[0] == "--slow":
+                    # Just ignore this for now.
+                    split = split[1:]
+                    continue
+
+                assert False, 'Unrecognized flag \'{}\' on line: {}'.format(split[0],
+                                                                            line)
+
+            if not shouldUse:
                 continue
 
-            split = line.rsplit('.', 1)
+            assert len(split) == 1, 'Too many parts left for line: ' + line
+            testfile = split[0]
+
+            split = testfile.rsplit('.', 1)
             assert len(split) == 2, 'Bad split for `line`: ' + line
             (name, ext) = split
 
             if ext == 'html':
-                newTestFilePath = os.path.join(path, line)
+                newTestFilePath = os.path.join(path, testfile)
                 newTestFilePath = newTestFilePath.replace(os.sep, '/')
                 out_testList.append(newTestFilePath)
                 continue
 
             assert ext == 'txt', 'Bad `ext` on `line`: ' + line
 
-            split = line.rsplit('/', 1)
+            split = testfile.rsplit('/', 1)
             nextListFile = split[-1]
             nextPath = ''
             if len(split) != 1:
@@ -152,8 +226,7 @@ class TemplateShellSpan:
         if self.isLiteralSpan:
             return self.span
 
-        assert (self.span in templateDict,
-                '\'' + self.span + '\' not in dict!')
+        assert self.span in templateDict, '\'' + self.span + '\' not in dict!'
 
         filling = templateDict[self.span]
 
