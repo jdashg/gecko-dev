@@ -35,7 +35,8 @@
 <script type="application/x-javascript">
 var wtu = WebGLTestUtils;
 var defaultImgUrl = "http://mashable.com/wp-content/uploads/2008/08/thunderbird-logo-64x64.png";
-var localImgUrl = "../../resources/thunderbird-logo-64x64.png";
+var relPathBase = "../../../";
+var localImgUrl = "conformance/resources/thunderbird-logo-64x64.png";
 
 Tests.autoinit = false; // Prevents the test from running until the image is loaded
 
@@ -127,7 +128,7 @@ Tests.testTexImage2DNonSOP = function(gl) {
 Tests.endUnit = function(gl) {
 }
 
-wtu.setupImageForCrossOriginTest("#i2", defaultImgUrl, localImgUrl, initTests);
+wtu.setupImageForCrossOriginTest("#i2", defaultImgUrl, relPathBase, localImgUrl, initTests);
 </script>
 <script id="identity-flip-vert" type="x-shader/x-vertex">
 attribute vec3 Vertex;

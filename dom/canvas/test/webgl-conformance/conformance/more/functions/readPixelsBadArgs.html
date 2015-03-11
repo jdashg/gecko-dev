@@ -35,7 +35,8 @@
 <script type="application/x-javascript">
 var wtu = WebGLTestUtils;
 var defaultImgUrl = "http://www.opengl.org/img/opengl_logo.jpg";
-var localImgUrl = "../../resources/opengl_logo.jpg";
+var relPathBase = "../../../";
+var localImgUrl = "conformance/resources/opengl_logo.jpg";
 
 Tests.autoinit = false; // Prevents the test from running until the image is loaded
 
@@ -115,7 +116,7 @@ Tests.testReadPixelsSOPCanvas = function(gl) {
 Tests.endUnit = function(gl) {
 }
 
-wtu.setupImageForCrossOriginTest("#i", defaultImgUrl, localImgUrl, initTests);
+wtu.setupImageForCrossOriginTest("#i", defaultImgUrl, relPathBase, localImgUrl, initTests);
 </script>
 </head><body>
 <canvas id="gl" width="16" height="16"></canvas>
