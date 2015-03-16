@@ -56,6 +56,12 @@ ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
                SH_REGENERATE_STRUCT_NAMES;
     }
 
+#ifdef XP_LINUX
+    if (gl->WorkAroundDriverBugs()) {
+        options |= SH_SCALARIZE_VEC_AND_MAT_CONSTRUCTOR_ARGS;
+    }
+#endif
+
 #ifndef XP_MACOSX
     // We want to do this everywhere, but to do this on Mac, we need
     // to do it only on Mac OSX > 10.6 as this causes the shader
