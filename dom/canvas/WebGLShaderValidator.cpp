@@ -56,7 +56,7 @@ ChooseValidatorCompileOptions(const ShBuiltInResources& resources,
                SH_REGENERATE_STRUCT_NAMES;
     }
 
-#ifdef XP_LINUX
+#if defined(XP_LINUX) || defined(XP_MACOSX)
     if (gl->WorkAroundDriverBugs()) {
         options |= SH_SCALARIZE_VEC_AND_MAT_CONSTRUCTOR_ARGS;
     }
