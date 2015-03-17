@@ -749,8 +749,6 @@ bool
 WebGLContext::ResizeBackbuffer(uint32_t requestedWidth,
                                uint32_t requestedHeight)
 {
-    MOZ_ASSERT(!IsContextLost());
-
     uint32_t width = requestedWidth;
     uint32_t height = requestedHeight;
 
