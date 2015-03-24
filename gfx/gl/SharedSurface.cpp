@@ -12,6 +12,8 @@
 #include "nsThreadUtils.h"
 #include "ScopedGLHelpers.h"
 #include "SharedSurfaceGL.h"
+#include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/TextureClientSharedSurface.h"
 
 namespace mozilla {
 namespace gl {
@@ -32,12 +34,9 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
         dest->mAttachType == AttachmentType::Screen)
     {
         // Here, we actually need to blit through a temp surface, so let's make one.
-        UniquePtr<SharedSurface_GLTexture> tempSurf;
-        tempSurf = SharedSurface_GLTexture::Create(gl,
-                                                   gl,
-                                                   factory->mFormats,
-                                                   src->mSize,
-                                                   factory->mCaps.alpha);
+        UniquePtr<SharedSurface_Basic> tempSurf;
+        tempSurf = SharedSurface_Basic::Create(gl, factory->mFormats, src->mSize,
+                                               factory->mCaps.alpha);
 
         ProdCopy(src, tempSurf.get(), factory);
         ProdCopy(tempSurf.get(), dest, factory);
@@ -262,8 +261,6 @@ SharedSurface::PollSync_ContentThread()
     return PollSync_ContentThread_Impl();
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory
 
@@ -301,10 +298,12 @@ ChooseBufferBits(const SurfaceCaps& caps,
     }
 }
 
-SurfaceFactory::SurfaceFactory(GLContext* gl,
-                               SharedSurfaceType type,
-                               const SurfaceCaps& caps)
-    : mGL(gl)
+SurfaceFactory::SurfaceFactory(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                               const layers::TextureFlags& flags, GLContext* gl,
+                               SharedSurfaceType type, const SurfaceCaps& caps)
+    : mAllocator(allocator)
+    , mFlags(flags)
+    , mGL(gl)
     , mCaps(caps)
     , mType(type)
     , mFormats(gl->ChooseGLFormats(caps))
@@ -314,51 +313,40 @@ SurfaceFactory::SurfaceFactory(GLContext* gl,
 
 SurfaceFactory::~SurfaceFactory()
 {
-    while (!mScraps.Empty()) {
-        mScraps.Pop();
+    while (!mRecyclePool.Empty()) {
+        mRecyclePool.Pop();
     }
 }
 
-UniquePtr<SharedSurface>
-SurfaceFactory::NewSharedSurface(const gfx::IntSize& size)
+TemporaryRef<layers::SharedSurfaceTextureClient>
+SurfaceFactory::NewTexClient(const gfx::IntSize& size)
 {
-    // Attempt to reuse an old surface.
-    while (!mScraps.Empty()) {
-        UniquePtr<SharedSurface> cur = mScraps.Pop();
+    while (!mRecyclePool.Empty()) {
+        RefPtr<layers::SharedSurfaceTextureClient> next = mRecyclePool.Pop();
 
-        if (cur->mSize == size)
-            return Move(cur);
-
-        // Let `cur` be destroyed as it falls out of scope, if it wasn't
-        // moved.
+        if (next->Surf()->mSize == size)
+            return next.forget();
     }
 
-    return CreateShared(size);
-}
-
-TemporaryRef<ShSurfHandle>
-SurfaceFactory::NewShSurfHandle(const gfx::IntSize& size)
-{
-    auto surf = NewSharedSurface(size);
+    UniquePtr<SharedSurface> surf = Move(CreateShared(size));
     if (!surf)
         return nullptr;
 
-    // Before next use, wait until SharedSurface's buffer
-    // is no longer being used.
-    surf->WaitForBufferOwnership();
-
-    return MakeAndAddRef<ShSurfHandle>(this, Move(surf));
+    return MakeAndAddRef<layers::SharedSurfaceTextureClient>(mAllocator, mFlags, Move(surf));
 }
 
-// Auto-deletes surfs of the wrong type.
 void
-SurfaceFactory::Recycle(UniquePtr<SharedSurface> surf)
+SurfaceFactory::Recycle(layers::SharedSurfaceTextureClient* texClient)
 {
-    MOZ_ASSERT(surf);
+    MOZ_ASSERT(texClient);
 
-    if (surf->mType == mType) {
-        mScraps.Push(Move(surf));
+    if (texClient->Surf()->mType == mType) {
+        RefPtr<layers::SharedSurfaceTextureClient> texClientRef = texClient;
+        mRecyclePool.Push(texClientRef);
     }
+
+    // If the type doesn't match, fall through without taking a strong ref, and let it
+    // destruct.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

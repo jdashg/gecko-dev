@@ -4,11 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SharedSurfaceANGLE.h"
-#include "GLContextEGL.h"
-#include "GLLibraryEGL.h"
 
 #include <d3d11.h>
 #include "gfxWindowsPlatform.h"
+#include "GLContextEGL.h"
+#include "GLLibraryEGL.h"
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
 
 namespace mozilla {
 namespace gl {
@@ -253,6 +254,16 @@ SharedSurface_ANGLEShareHandle::PollSync_ContentThread_Impl()
     return PollSync();
 }
 
+bool
+SharedSurface_ANGLEShareHandle::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
+{
+    gfx::SurfaceFormat format = mHasAlpha ? gfx::SurfaceFormat::B8G8R8A8
+                                          : gfx::SurfaceFormat::B8G8R8X8;
+    *out_descriptor = layers::SurfaceDescriptorD3D10((WindowsHandle)mShareHandle, format,
+                                                     mSize);
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Factory
 
@@ -388,7 +399,8 @@ ChooseConfig(GLContext* gl, GLLibraryEGL* egl, const SurfaceCaps& caps)
 }
 
 /*static*/ UniquePtr<SurfaceFactory_ANGLEShareHandle>
-SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl,
+SurfaceFactory_ANGLEShareHandle::Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                        const layers::TextureFlags& flags, GLContext* gl,
                                         const SurfaceCaps& caps)
 {
     GLLibraryEGL* egl = &sEGLLibrary;
@@ -401,7 +413,7 @@ SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl,
 
     bool success;
     typedef SurfaceFactory_ANGLEShareHandle ptrT;
-    UniquePtr<ptrT> ret( new ptrT(gl, egl, caps, &success) );
+    UniquePtr<ptrT> ret( new ptrT(allocator, flags, gl, egl, caps, &success) );
 
     if (!success)
         return nullptr;
@@ -409,11 +421,13 @@ SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl,
     return Move(ret);
 }
 
-SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
+SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                                 const layers::TextureFlags& flags,
+                                                                 GLContext* gl,
                                                                  GLLibraryEGL* egl,
                                                                  const SurfaceCaps& caps,
                                                                  bool* const out_success)
-    : SurfaceFactory(gl, SharedSurfaceType::EGLSurfaceANGLE, caps)
+    : SurfaceFactory(allocator, flags, gl, SharedSurfaceType::EGLSurfaceANGLE, caps)
     , mProdGL(gl)
     , mEGL(egl)
 {

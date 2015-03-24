@@ -21,6 +21,7 @@
 #include "ScopedGLHelpers.h"
 #include "gfx2DGlue.h"
 #include "../layers/ipc/ShadowLayers.h"
+#include "mozilla/layers/TextureClientSharedSurface.h"
 
 namespace mozilla {
 namespace gl {
@@ -72,6 +73,24 @@ GLScreenBuffer::Create(GLContext* gl,
     ret.reset( new GLScreenBuffer(gl, caps, Move(factory)) );
     return Move(ret);
 }
+
+GLScreenBuffer::GLScreenBuffer(GLContext* gl,
+                               const SurfaceCaps& caps,
+                               UniquePtr<SurfaceFactory> factory)
+    : mGL(gl)
+    , mCaps(caps)
+    , mFactory(Move(factory))
+    , mNeedsBlit(true)
+    , mUserReadBufferMode(LOCAL_GL_BACK)
+    , mUserDrawFB(0)
+    , mUserReadFB(0)
+    , mInternalDrawFB(0)
+    , mInternalReadFB(0)
+#ifdef DEBUG
+    , mInInternalMode_DrawFB(true)
+    , mInInternalMode_ReadFB(true)
+#endif
+{ }
 
 GLScreenBuffer::~GLScreenBuffer()
 {
@@ -465,7 +484,7 @@ GLScreenBuffer::Attach(SharedSurface* surf, const gfx::IntSize& size)
 bool
 GLScreenBuffer::Swap(const gfx::IntSize& size)
 {
-    RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
+    RefPtr<SharedSurfaceTextureClient> newBack = mFactory->NewTexClient(size);
     if (!newBack)
         return false;
 
@@ -522,7 +541,7 @@ GLScreenBuffer::PublishFrame(const gfx::IntSize& size)
 bool
 GLScreenBuffer::Resize(const gfx::IntSize& size)
 {
-    RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
+    RefPtr<SharedSurfaceTextureClient> newBack = mFactory->NewTexClient(size);
     if (!newBack)
         return false;
 

@@ -77,6 +77,8 @@ public:
     // Implementation-specific functions below:
     // Returns texture and target
     void AcquireConsumerTexture(GLContext* consGL, GLuint* out_texture, GLuint* out_target);
+
+    virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) override;
 };
 
 
@@ -86,16 +88,18 @@ class SurfaceFactory_EGLImage
 {
 public:
     // Fallible:
-    static UniquePtr<SurfaceFactory_EGLImage> Create(GLContext* prodGL,
+    static UniquePtr<SurfaceFactory_EGLImage> Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                     const layers::TextureFlags& flags,
+                                                     GLContext* prodGL,
                                                      const SurfaceCaps& caps);
 
 protected:
     const EGLContext mContext;
 
-    SurfaceFactory_EGLImage(GLContext* prodGL,
-                            EGLContext context,
-                            const SurfaceCaps& caps)
-        : SurfaceFactory(prodGL, SharedSurfaceType::EGLImageShare, caps)
+    SurfaceFactory_EGLImage(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                            const layers::TextureFlags& flags, GLContext* prodGL,
+                            EGLContext context, const SurfaceCaps& caps)
+        : SurfaceFactory(allocator, flags, prodGL, SharedSurfaceType::EGLImageShare, caps)
         , mContext(context)
     {}
 

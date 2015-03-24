@@ -20,8 +20,6 @@
 #include "mozilla/gfx/Logging.h"        // for gfxDebug
 #include "mozilla/layers/TextureClientOGL.h"
 #include "mozilla/layers/PTextureChild.h"
-#include "SharedSurface.h"
-#include "GLContext.h"
 #include "mozilla/gfx/DataSurfaceHelpers.h" // for CreateDataSourceSurfaceByCloning
 #include "nsPrintfCString.h"            // for nsPrintfCString
 #include "LayersLogging.h"              // for AppendToString
@@ -913,32 +911,6 @@ BufferTextureClient::GetLockedData() const
   MOZ_ASSERT(serializer.IsValid());
 
   return serializer.GetData();
-}
-
-////////////////////////////////////////////////////////////////////////
-// SharedSurfaceTextureClient
-
-SharedSurfaceTextureClient::SharedSurfaceTextureClient(ISurfaceAllocator* aAllocator,
-                                                       TextureFlags aFlags,
-                                                       gl::SharedSurface* surf)
-  : TextureClient(aAllocator, aFlags)
-  , mIsLocked(false)
-  , mSurf(surf)
-  , mGL(mSurf->mGL)
-{
-  AddFlags(TextureFlags::DEALLOCATE_CLIENT);
-}
-
-SharedSurfaceTextureClient::~SharedSurfaceTextureClient()
-{
-  // the data is owned externally.
-}
-
-bool
-SharedSurfaceTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
-{
-  aOutDescriptor = SharedSurfaceDescriptor((uintptr_t)mSurf);
-  return true;
 }
 
 TemporaryRef<SyncObject>

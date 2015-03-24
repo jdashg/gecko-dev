@@ -170,18 +170,29 @@ SharedSurface_IOSurface::~SharedSurface_IOSurface()
     }
 }
 
+bool
+SharedSurface_IOSurface::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
+{
+    bool isOpaque = !mHasAlpha;
+    *out_descriptor = layers::SurfaceDescriptorMacIOSurface(mIOSurf->GetIOSurfaceID(),
+                                                            mIOSurf->GetContentsScaleFactor(),
+                                                            isOpaque);
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory_IOSurface
 
 /*static*/ UniquePtr<SurfaceFactory_IOSurface>
-SurfaceFactory_IOSurface::Create(GLContext* gl,
+SurfaceFactory_IOSurface::Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                 const layers::TextureFlags& flags, GLContext* gl,
                                  const SurfaceCaps& caps)
 {
     gfx::IntSize maxDims(MacIOSurface::GetMaxWidth(),
                          MacIOSurface::GetMaxHeight());
 
     typedef SurfaceFactory_IOSurface ptrT;
-    UniquePtr<ptrT> ret( new ptrT(gl, caps, maxDims) );
+    UniquePtr<ptrT> ret( new ptrT(allocator, flags, gl, caps, maxDims) );
     return Move(ret);
 }
 

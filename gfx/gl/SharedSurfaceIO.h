@@ -16,11 +16,21 @@ namespace gl {
 
 class SharedSurface_IOSurface : public SharedSurface
 {
+private:
+    const RefPtr<MacIOSurface> mIOSurf;
+    GLuint mProdTex;
+
 public:
     static UniquePtr<SharedSurface_IOSurface> Create(const RefPtr<MacIOSurface>& ioSurf,
                                                      GLContext* gl,
                                                      bool hasAlpha);
 
+private:
+    SharedSurface_IOSurface(const RefPtr<MacIOSurface>& ioSurf,
+                            GLContext* gl, const gfx::IntSize& size,
+                            bool hasAlpha);
+
+public:
     ~SharedSurface_IOSurface();
 
     virtual void LockProdImpl() override { }
@@ -57,31 +67,26 @@ public:
         return true;
     }
 
-private:
-    SharedSurface_IOSurface(const RefPtr<MacIOSurface>& ioSurf,
-                            GLContext* gl, const gfx::IntSize& size,
-                            bool hasAlpha);
-
-    RefPtr<MacIOSurface> mIOSurf;
-    GLuint mProdTex;
+    virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) override;
 };
 
 class SurfaceFactory_IOSurface : public SurfaceFactory
 {
 public:
     // Infallible.
-    static UniquePtr<SurfaceFactory_IOSurface> Create(GLContext* gl,
+    static UniquePtr<SurfaceFactory_IOSurface> Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                      const layers::TextureFlags& flags,
+                                                      GLContext* gl,
                                                       const SurfaceCaps& caps);
 protected:
     const gfx::IntSize mMaxDims;
 
-    SurfaceFactory_IOSurface(GLContext* gl,
-                             const SurfaceCaps& caps,
-                             const gfx::IntSize& maxDims)
-        : SurfaceFactory(gl, SharedSurfaceType::IOSurface, caps)
+    SurfaceFactory_IOSurface(const RefPtr<layers::ISurfaceAllocator>& allocator,
+                             const layers::TextureFlags& flags, GLContext* gl,
+                             const SurfaceCaps& caps, const gfx::IntSize& maxDims)
+        : SurfaceFactory(allocator, flags, gl, SharedSurfaceType::IOSurface, caps)
         , mMaxDims(maxDims)
-    {
-    }
+    { }
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override;
 };

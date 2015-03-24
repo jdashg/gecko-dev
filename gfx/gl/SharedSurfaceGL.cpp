@@ -39,40 +39,36 @@ SharedSurface_Basic::Create(GLContext* gl,
         return Move(ret);
     }
 
-    SurfaceFormat format = SurfaceFormat::B8G8R8X8;
-    switch (formats.color_texInternalFormat) {
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGB8:
-        if (formats.color_texType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
-            format = SurfaceFormat::R5G6B5;
-        else
-            format = SurfaceFormat::B8G8R8X8;
-        break;
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_RGBA8:
-    case LOCAL_GL_BGRA:
-    case LOCAL_GL_BGRA8_EXT:
-        format = SurfaceFormat::B8G8R8A8;
-        break;
-    default:
-        MOZ_CRASH("Unhandled Tex format.");
-    }
+    bool ownsTex = true;
+    ret.reset( new SharedSurface_Basic(gl, size, hasAlpha, tex, ownsTex) );
+    return Move(ret);
+}
 
-    ret.reset( new SharedSurface_Basic(gl, size, hasAlpha, format, tex) );
+
+/*static*/ UniquePtr<SharedSurface_Basic>
+SharedSurface_Basic::Wrap(GLContext* gl,
+                          const IntSize& size,
+                          bool hasAlpha,
+                          GLuint tex)
+{
+    bool ownsTex = false;
+    UniquePtr<SharedSurface_Basic> ret( new SharedSurface_Basic(gl, size, hasAlpha, tex,
+                                                                ownsTex) );
     return Move(ret);
 }
 
 SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                                          const IntSize& size,
                                          bool hasAlpha,
-                                         SurfaceFormat format,
-                                         GLuint tex)
+                                         GLuint tex,
+                                         bool ownsTex)
     : SharedSurface(SharedSurfaceType::Basic,
                     AttachmentType::GLTexture,
                     gl,
                     size,
                     hasAlpha)
     , mTex(tex)
+    , mOwnsTex(ownsTex)
     , mFB(0)
 {
     mGL->MakeCurrent();
@@ -97,13 +93,22 @@ SharedSurface_Basic::~SharedSurface_Basic()
     if (mFB)
         mGL->fDeleteFramebuffers(1, &mFB);
 
-    mGL->fDeleteTextures(1, &mTex);
+    if (mOwnsTex)
+        mGL->fDeleteTextures(1, &mTex);
 }
+
+////////////////////////////////////////////////////////////////////////
+
+SurfaceFactory_Basic::SurfaceFactory_Basic(GLContext* gl, const SurfaceCaps& caps)
+    : SurfaceFactory(nullptr, layers::TextureFlags::NO_FLAGS, gl,
+                     SharedSurfaceType::Basic, caps)
+{ }
 
 ////////////////////////////////////////////////////////////////////////
 // SharedSurface_GLTexture
 
-/*static*/ UniquePtr<SharedSurface_GLTexture>
+/*
+UniquePtr<SharedSurface_GLTexture>
 SharedSurface_GLTexture::Create(GLContext* prodGL,
                                 GLContext* consGL,
                                 const GLFormats& formats,
@@ -241,6 +246,7 @@ SharedSurface_GLTexture::ConsTexture(GLContext* consGL)
 
     return mTex;
 }
+*/
 
 } /* namespace gfx */
 } /* namespace mozilla */

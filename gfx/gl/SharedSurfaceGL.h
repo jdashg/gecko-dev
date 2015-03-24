@@ -38,6 +38,11 @@ public:
                                                  const gfx::IntSize& size,
                                                  bool hasAlpha);
 
+    static UniquePtr<SharedSurface_Basic> Wrap(GLContext* gl,
+                                               const gfx::IntSize& size,
+                                               bool hasAlpha,
+                                               GLuint tex);
+
     static SharedSurface_Basic* Cast(SharedSurface* surf) {
         MOZ_ASSERT(surf->mType == SharedSurfaceType::Basic);
 
@@ -46,13 +51,14 @@ public:
 
 protected:
     const GLuint mTex;
+    const bool mOwnsTex;
     GLuint mFB;
 
     SharedSurface_Basic(GLContext* gl,
                         const gfx::IntSize& size,
                         bool hasAlpha,
-                        gfx::SurfaceFormat format,
-                        GLuint tex);
+                        GLuint tex,
+                        bool ownsTex);
 
 public:
     virtual ~SharedSurface_Basic();
@@ -67,15 +73,18 @@ public:
     virtual GLuint ProdTexture() override {
         return mTex;
     }
+
+    virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) override {
+        MOZ_CRASH("don't do this");
+        return false;
+    }
 };
 
 class SurfaceFactory_Basic
     : public SurfaceFactory
 {
 public:
-    SurfaceFactory_Basic(GLContext* gl, const SurfaceCaps& caps)
-        : SurfaceFactory(gl, SharedSurfaceType::Basic, caps)
-    {}
+    SurfaceFactory_Basic(GLContext* gl, const SurfaceCaps& caps);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {
         bool hasAlpha = mReadCaps.alpha;
@@ -83,7 +92,7 @@ public:
     }
 };
 
-
+/*
 // Using shared GL textures:
 class SharedSurface_GLTexture
     : public SharedSurface
@@ -151,6 +160,7 @@ public:
     }
 };
 
+
 class SurfaceFactory_GLTexture
     : public SurfaceFactory
 {
@@ -175,6 +185,7 @@ public:
         return SharedSurface_GLTexture::Create(mGL, mConsGL, mFormats, size, hasAlpha);
     }
 };
+*/
 
 } /* namespace gfx */
 } /* namespace mozilla */
