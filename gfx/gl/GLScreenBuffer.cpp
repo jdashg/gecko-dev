@@ -40,35 +40,13 @@ GLScreenBuffer::Create(GLContext* gl,
         return Move(ret);
     }
 
-    UniquePtr<SurfaceFactory> factory;
 
-#ifdef MOZ_WIDGET_GONK
-    /* On B2G, we want a Gralloc factory, and we want one right at the start */
-    layers::ISurfaceAllocator* allocator = caps.surfaceAllocator;
-    if (!factory &&
-        allocator &&
-        XRE_GetProcessType() != GeckoProcessType_Default)
-    {
-        layers::TextureFlags flags = layers::TextureFlags::DEALLOCATE_CLIENT |
-                                     layers::TextureFlags::ORIGIN_BOTTOM_LEFT;
-        if (!caps.premultAlpha) {
-            flags |= layers::TextureFlags::NON_PREMULTIPLIED;
-        }
+    layers::TextureFlags flags = layers::TextureFlags::ORIGIN_BOTTOM_LEFT;
+    if (!caps.premultAlpha) {
+        flags |= layers::TextureFlags::NON_PREMULTIPLIED;
+    }
 
-        factory = MakeUnique<SurfaceFactory_Gralloc>(gl, caps, flags,
-                                                     allocator);
-    }
-#endif
-#ifdef XP_MACOSX
-    /* On OSX, we want an IOSurface factory, and we want one right at the start */
-    if (!factory) {
-        factory = SurfaceFactory_IOSurface::Create(gl, caps);
-    }
-#endif
-
-    if (!factory) {
-        factory = MakeUnique<SurfaceFactory_Basic>(gl, caps);
-    }
+    UniquePtr<SurfaceFactory> factory = MakeUnique<SurfaceFactory_Basic>(gl, caps, flags);
 
     ret.reset( new GLScreenBuffer(gl, caps, Move(factory)) );
     return Move(ret);

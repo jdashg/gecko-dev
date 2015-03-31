@@ -399,9 +399,9 @@ ChooseConfig(GLContext* gl, GLLibraryEGL* egl, const SurfaceCaps& caps)
 }
 
 /*static*/ UniquePtr<SurfaceFactory_ANGLEShareHandle>
-SurfaceFactory_ANGLEShareHandle::Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                        const layers::TextureFlags& flags, GLContext* gl,
-                                        const SurfaceCaps& caps)
+SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl, const SurfaceCaps& caps,
+                                        const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                        const layers::TextureFlags& flags)
 {
     GLLibraryEGL* egl = &sEGLLibrary;
     if (!egl)
@@ -413,7 +413,7 @@ SurfaceFactory_ANGLEShareHandle::Create(const RefPtr<layers::ISurfaceAllocator>&
 
     bool success;
     typedef SurfaceFactory_ANGLEShareHandle ptrT;
-    UniquePtr<ptrT> ret( new ptrT(allocator, flags, gl, egl, caps, &success) );
+    UniquePtr<ptrT> ret( new ptrT(gl, caps, allocator, flags, egl, &success) );
 
     if (!success)
         return nullptr;
@@ -421,13 +421,13 @@ SurfaceFactory_ANGLEShareHandle::Create(const RefPtr<layers::ISurfaceAllocator>&
     return Move(ret);
 }
 
-SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                                                 const layers::TextureFlags& flags,
-                                                                 GLContext* gl,
-                                                                 GLLibraryEGL* egl,
+SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
                                                                  const SurfaceCaps& caps,
+                                                                 const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                                 const layers::TextureFlags& flags,
+                                                                 GLLibraryEGL* egl,
                                                                  bool* const out_success)
-    : SurfaceFactory(allocator, flags, gl, SharedSurfaceType::EGLSurfaceANGLE, caps)
+    : SurfaceFactory(SharedSurfaceType::EGLSurfaceANGLE, gl, caps, allocator, flags)
     , mProdGL(gl)
     , mEGL(egl)
 {

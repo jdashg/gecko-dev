@@ -88,20 +88,21 @@ class SurfaceFactory_EGLImage
 {
 public:
     // Fallible:
-    static UniquePtr<SurfaceFactory_EGLImage> Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                                     const layers::TextureFlags& flags,
-                                                     GLContext* prodGL,
-                                                     const SurfaceCaps& caps);
+    static UniquePtr<SurfaceFactory_EGLImage> Create(GLContext* prodGL,
+                                                     const SurfaceCaps& caps,
+                                                     const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                     const layers::TextureFlags& flags);
 
 protected:
     const EGLContext mContext;
 
-    SurfaceFactory_EGLImage(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                            const layers::TextureFlags& flags, GLContext* prodGL,
-                            EGLContext context, const SurfaceCaps& caps)
-        : SurfaceFactory(allocator, flags, prodGL, SharedSurfaceType::EGLImageShare, caps)
+    SurfaceFactory_EGLImage(GLContext* prodGL, const SurfaceCaps& caps,
+                            const RefPtr<layers::ISurfaceAllocator>& allocator,
+                            const layers::TextureFlags& flags,
+                            EGLContext context)
+        : SurfaceFactory(SharedSurfaceType::EGLImageShare, prodGL, caps, allocator, flags)
         , mContext(context)
-    {}
+    { }
 
 public:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {

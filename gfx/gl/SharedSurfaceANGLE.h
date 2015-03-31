@@ -96,15 +96,15 @@ protected:
     EGLConfig mConfig;
 
 public:
-    static UniquePtr<SurfaceFactory_ANGLEShareHandle> Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                                             const layers::TextureFlags& flags,
-                                                             GLContext* gl,
-                                                             const SurfaceCaps& caps);
+    static UniquePtr<SurfaceFactory_ANGLEShareHandle> Create(GLContext* gl,
+                                                             const SurfaceCaps& caps,
+                                                             const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                                             const layers::TextureFlags& flags);
 
 protected:
-    SurfaceFactory_ANGLEShareHandle(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                    const layers::TextureFlags& flags, GLContext* gl,
-                                    GLLibraryEGL* egl, const SurfaceCaps& caps,
+    SurfaceFactory_ANGLEShareHandle(GLContext* gl, const SurfaceCaps& caps,
+                                    const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                    const layers::TextureFlags& flags, GLLibraryEGL* egl,
                                     bool* const out_success);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {

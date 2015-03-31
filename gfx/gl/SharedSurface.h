@@ -222,20 +222,20 @@ public:
     // with SupportsWeakPtr. (bug 1049278)
     MOZ_DECLARE_WEAKREFERENCE_TYPENAME(SurfaceFactory)
 
-    const RefPtr<layers::ISurfaceAllocator> mAllocator;
-    const layers::TextureFlags mFlags;
+    const SharedSurfaceType mType;
     GLContext* const mGL;
     const SurfaceCaps mCaps;
-    const SharedSurfaceType mType;
+    const RefPtr<layers::ISurfaceAllocator> mAllocator;
+    const layers::TextureFlags mFlags;
     const GLFormats mFormats;
 
 protected:
     SurfaceCaps mDrawCaps;
     SurfaceCaps mReadCaps;
 
-    SurfaceFactory(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                   const layers::TextureFlags& flags, GLContext* gl,
-                   SharedSurfaceType type, const SurfaceCaps& caps);
+    SurfaceFactory(SharedSurfaceType type, GLContext* gl, const SurfaceCaps& caps,
+                   const RefPtr<layers::ISurfaceAllocator>& allocator,
+                   const layers::TextureFlags& flags);
 
 public:
     virtual ~SurfaceFactory();

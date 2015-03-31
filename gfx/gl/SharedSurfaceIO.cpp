@@ -6,8 +6,9 @@
 #include "SharedSurfaceIO.h"
 
 #include "GLContextCGL.h"
-#include "mozilla/gfx/MacIOSurface.h"
 #include "mozilla/DebugOnly.h"
+#include "mozilla/gfx/MacIOSurface.h"
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
 #include "ScopedGLHelpers.h"
 
 namespace mozilla {
@@ -184,15 +185,15 @@ SharedSurface_IOSurface::ToSurfaceDescriptor(layers::SurfaceDescriptor* const ou
 // SurfaceFactory_IOSurface
 
 /*static*/ UniquePtr<SurfaceFactory_IOSurface>
-SurfaceFactory_IOSurface::Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                 const layers::TextureFlags& flags, GLContext* gl,
-                                 const SurfaceCaps& caps)
+SurfaceFactory_IOSurface::Create(GLContext* gl, const SurfaceCaps& caps,
+                                 const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                 const layers::TextureFlags& flags)
 {
     gfx::IntSize maxDims(MacIOSurface::GetMaxWidth(),
                          MacIOSurface::GetMaxHeight());
 
     typedef SurfaceFactory_IOSurface ptrT;
-    UniquePtr<ptrT> ret( new ptrT(allocator, flags, gl, caps, maxDims) );
+    UniquePtr<ptrT> ret( new ptrT(gl, caps, allocator, flags, maxDims) );
     return Move(ret);
 }
 

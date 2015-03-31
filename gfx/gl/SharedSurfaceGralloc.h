@@ -80,14 +80,10 @@ public:
 class SurfaceFactory_Gralloc
     : public SurfaceFactory
 {
-protected:
-    const layers::TextureFlags mFlags;
-    RefPtr<layers::ISurfaceAllocator> mAllocator;
-
 public:
-    SurfaceFactory_Gralloc(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                           const layers::TextureFlags& flags, GLContext* prodGL,
-                           const SurfaceCaps& caps);
+    SurfaceFactory_Gralloc(GLContext* prodGL, const SurfaceCaps& caps,
+                           const RefPtr<layers::ISurfaceAllocator>& allocator,
+                           const layers::TextureFlags& flags);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {
         bool hasAlpha = mReadCaps.alpha;

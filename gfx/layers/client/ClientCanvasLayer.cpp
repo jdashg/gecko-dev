@@ -80,21 +80,18 @@ ClientCanvasLayer::Initialize(const Data& aData)
   UniquePtr<SurfaceFactory> factory;
 
   if (!gfxPrefs::WebGLForceLayersReadback()) {
-    switch (ClientManager()->AsShadowForwarder()->GetCompositorBackendType()) {
+    switch (forwarder->GetCompositorBackendType()) {
       case mozilla::layers::LayersBackend::LAYERS_OPENGL: {
 #if defined(XP_MACOSX)
-        factory = SurfaceFactory_IOSurface::Create(forwarder, mFlags, mGLContext, caps);
-#elseif defined(MOZ_WIDGET_GONK)
-        factory = MakeUnique<SurfaceFactory_Gralloc>(mGLContext,
-                                                     caps,
-                                                     mFlags,
-                                                     ClientManager()->AsShadowForwarder());
+        factory = SurfaceFactory_IOSurface::Create(mGLContext, caps, forwarder, mFlags);
+#elif defined(MOZ_WIDGET_GONK)
+        factory = MakeUnique<SurfaceFactory_Gralloc>(mGLContext, caps, forwarder, mFlags);
 #else
         if (mGLContext->GetContextType() == GLContextType::EGL) {
           bool isCrossProcess = (XRE_GetProcessType() != GeckoProcessType_Default);
           if (!isCrossProcess) {
-            factory = SurfaceFactory_EGLImage::Create(forwarder, mFlags, mGLContext,
-                                                      caps);
+            factory = SurfaceFactory_EGLImage::Create(mGLContext, caps, forwarder,
+                                                      mFlags);
           }
         }
 #endif
@@ -105,8 +102,8 @@ ClientCanvasLayer::Initialize(const Data& aData)
         if (mGLContext->IsANGLE() &&
             DoesD3D11TextureSharingWork(gfxWindowsPlatform::GetPlatform()->GetD3D11Device()))
         {
-          factory = SurfaceFactory_ANGLEShareHandle::Create(forwarder, mFlags,
-                                                            mGLContext, caps);
+          factory = SurfaceFactory_ANGLEShareHandle::Create(mGLContext, caps, forwarder,
+                                                            mFlags);
         }
 #endif
         break;
@@ -122,7 +119,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
     mFactory = Move(factory);
     if (!mFactory) {
       // Absolutely must have a factory here, so create a basic one
-      mFactory = MakeUnique<SurfaceFactory_Basic>(mGLContext, caps);
+      mFactory = MakeUnique<SurfaceFactory_Basic>(mGLContext, caps, mFlags);
     }
   } else {
     if (factory)

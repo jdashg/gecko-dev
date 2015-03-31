@@ -227,9 +227,9 @@ SharedSurface_EGLImage::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out
 ////////////////////////////////////////////////////////////////////////
 
 /*static*/ UniquePtr<SurfaceFactory_EGLImage>
-SurfaceFactory_EGLImage::Create(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                                const layers::TextureFlags& flags, GLContext* prodGL,
-                                const SurfaceCaps& caps)
+SurfaceFactory_EGLImage::Create(GLContext* prodGL, const SurfaceCaps& caps,
+                                const RefPtr<layers::ISurfaceAllocator>& allocator,
+                                const layers::TextureFlags& flags)
 {
     EGLContext context = GLContextEGL::Cast(prodGL)->GetEGLContext();
 
@@ -238,7 +238,7 @@ SurfaceFactory_EGLImage::Create(const RefPtr<layers::ISurfaceAllocator>& allocat
 
     GLLibraryEGL* egl = &sEGLLibrary;
     if (SharedSurface_EGLImage::HasExtensions(egl, prodGL)) {
-        ret.reset( new ptrT(allocator, flags, prodGL, context, caps) );
+        ret.reset( new ptrT(prodGL, caps, allocator, flags, context) );
     }
 
     return Move(ret);

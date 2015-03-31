@@ -298,14 +298,15 @@ ChooseBufferBits(const SurfaceCaps& caps,
     }
 }
 
-SurfaceFactory::SurfaceFactory(const RefPtr<layers::ISurfaceAllocator>& allocator,
-                               const layers::TextureFlags& flags, GLContext* gl,
-                               SharedSurfaceType type, const SurfaceCaps& caps)
-    : mAllocator(allocator)
-    , mFlags(flags)
+SurfaceFactory::SurfaceFactory(SharedSurfaceType type, GLContext* gl,
+                               const SurfaceCaps& caps,
+                               const RefPtr<layers::ISurfaceAllocator>& allocator,
+                               const layers::TextureFlags& flags)
+    : mType(type)
     , mGL(gl)
     , mCaps(caps)
-    , mType(type)
+    , mAllocator(allocator)
+    , mFlags(flags)
     , mFormats(gl->ChooseGLFormats(caps))
 {
     ChooseBufferBits(mCaps, &mDrawCaps, &mReadCaps);
