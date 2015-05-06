@@ -585,6 +585,10 @@ TextureClient::Finalize()
     // Null it before RemoveTexture calls to avoid invalid actor->mTextureClient
     // when calling TextureChild::ActorDestroy()
     actor->mTextureClient = nullptr;
+
+    // `actor->mWaitForRecycle` may not be null, as we may be being called from setting
+    // this RefPtr to null! Clearing it here will double-Release() it.
+
     // this will call ForceRemove in the right thread, using a sync proxy if needed
     if (actor->GetForwarder()) {
       actor->GetForwarder()->RemoveTexture(this);
