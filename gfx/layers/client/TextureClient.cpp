@@ -111,7 +111,7 @@ public:
 
   bool RecvCompositorRecycle() override
   {
-    RECYCLE_LOG("Receive recycle %p (%p)\n", mTextureClient, mWaitForRecycle.get());
+    RECYCLE_LOG("[CLIENT] Receive recycle %p (%p)\n", mTextureClient, mWaitForRecycle.get());
     mWaitForRecycle = nullptr;
     return true;
   }
@@ -119,7 +119,7 @@ public:
   void WaitForCompositorRecycle()
   {
     mWaitForRecycle = mTextureClient;
-    RECYCLE_LOG("Wait for recycle %p\n", mWaitForRecycle.get());
+    RECYCLE_LOG("[CLIENT] Wait for recycle %p\n", mWaitForRecycle.get());
     SendClientRecycle();
   }
 

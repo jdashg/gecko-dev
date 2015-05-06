@@ -31,12 +31,14 @@ class SharedSurfaceTextureClient : public TextureClient
 protected:
   const UniquePtr<gl::SharedSurface> mSurf;
   const WeakPtr<gl::SurfaceFactory> mFactory;
+  RefPtr<SharedSurfaceTextureClient> mRecyclingRef;
 
-public:
+  friend class gl::SurfaceFactory;
+
   SharedSurfaceTextureClient(ISurfaceAllocator* aAllocator, TextureFlags aFlags,
-                             UniquePtr<gl::SharedSurface> surf);
+                             UniquePtr<gl::SharedSurface> surf,
+                             gl::SurfaceFactory* factory);
 
-protected:
   ~SharedSurfaceTextureClient();
 
 public:
@@ -68,7 +70,7 @@ public:
     return mSurf.get();
   }
 
-  static void RecycleCallback(TextureClient* obj, void* closure);
+  void StopRecycling();
 };
 
 } // namespace layers

@@ -188,36 +188,6 @@ public:
     virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) = 0;
 };
 
-template<typename T>
-class RefPtrQueue
-{
-    std::queue<T*> mQueue;
-
-public:
-    ~RefPtrQueue() {
-        MOZ_ASSERT(Empty());
-    }
-
-    bool Empty() const {
-        return mQueue.empty();
-    }
-
-    void Push(RefPtr<T> val) {
-        T* p = val.forget().take();
-        mQueue.push(p);
-    }
-
-    TemporaryRef<T> Pop() {
-        if (Empty())
-            MOZ_CRASH("empty queue");
-
-        RefPtr<T> ret = TemporaryRef<T>(mQueue.front());
-        mQueue.pop();
-
-        return ret.forget();
-    }
-};
-
 class SurfaceFactory : public SupportsWeakPtr<SurfaceFactory>
 {
 public:
@@ -231,10 +201,10 @@ public:
     const RefPtr<layers::ISurfaceAllocator> mAllocator;
     const layers::TextureFlags mFlags;
     const GLFormats mFormats;
-
 protected:
     SurfaceCaps mDrawCaps;
     SurfaceCaps mReadCaps;
+    std::queue<RefPtr<layers::SharedSurfaceTextureClient>> mRecyclePool;
 
     SurfaceFactory(SharedSurfaceType type, GLContext* gl, const SurfaceCaps& caps,
                    const RefPtr<layers::ISurfaceAllocator>& allocator,
@@ -254,16 +224,15 @@ public:
 protected:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) = 0;
 
-    //std::queue<RefPtr<layers::SharedSurfaceTextureClient>> mRecyclePool;
-    RefPtrQueue<layers::SharedSurfaceTextureClient> mRecyclePool;
-
 public:
     UniquePtr<SharedSurface> NewSharedSurface(const gfx::IntSize& size);
     //TemporaryRef<ShSurfHandle> NewShSurfHandle(const gfx::IntSize& size);
     TemporaryRef<layers::SharedSurfaceTextureClient> NewTexClient(const gfx::IntSize& size);
 
+    static void RecycleCallback(layers::TextureClient* tc, void* /*closure*/);
+
     // Auto-deletes surfs of the wrong type.
-    void Recycle(layers::SharedSurfaceTextureClient* texClient);
+    bool Recycle(layers::SharedSurfaceTextureClient* texClient);
 };
 
 class ScopedReadbackFB

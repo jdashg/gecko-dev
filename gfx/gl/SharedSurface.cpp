@@ -315,40 +315,65 @@ SurfaceFactory::SurfaceFactory(SharedSurfaceType type, GLContext* gl,
 
 SurfaceFactory::~SurfaceFactory()
 {
-    while (!mRecyclePool.Empty()) {
-        mRecyclePool.Pop();
+    while (!mRecyclePool.empty()) {
+        RefPtr<layers::SharedSurfaceTextureClient> cur = mRecyclePool.front();
+        mRecyclePool.pop();
+
+        cur->StopRecycling();
     }
 }
 
 TemporaryRef<layers::SharedSurfaceTextureClient>
 SurfaceFactory::NewTexClient(const gfx::IntSize& size)
 {
-    while (!mRecyclePool.Empty()) {
-        RefPtr<layers::SharedSurfaceTextureClient> next = mRecyclePool.Pop();
+    while (!mRecyclePool.empty()) {
+        RefPtr<layers::SharedSurfaceTextureClient> cur = mRecyclePool.front();
+        mRecyclePool.pop();
 
-        if (next->Surf()->mSize == size)
-            return next.forget();
+        if (cur->Surf()->mSize == size) {
+            return cur.forget();
+        }
+
+        // Let it die.
+        cur->StopRecycling();
     }
 
     UniquePtr<SharedSurface> surf = Move(CreateShared(size));
     if (!surf)
         return nullptr;
 
-    return MakeAndAddRef<layers::SharedSurfaceTextureClient>(mAllocator, mFlags, Move(surf));
+    return MakeAndAddRef<layers::SharedSurfaceTextureClient>(mAllocator, mFlags, Move(surf), this);
 }
 
-void
+/*static*/ void
+SurfaceFactory::RecycleCallback(layers::TextureClient* tc, void* /*closure*/)
+{
+    MOZ_ASSERT(NS_IsMainThread());
+
+    layers::SharedSurfaceTextureClient* sstc = (layers::SharedSurfaceTextureClient*)tc;
+
+    if (sstc->mSurf->mCanRecycle && sstc->mFactory) {
+        if (sstc->mFactory->Recycle(sstc))
+            return;
+    }
+
+    // Did not recover the tex client. End the (re)cycle!
+    sstc->StopRecycling();
+}
+
+bool
 SurfaceFactory::Recycle(layers::SharedSurfaceTextureClient* texClient)
 {
     MOZ_ASSERT(texClient);
+    MOZ_ASSERT(texClient->mFactory == this);
 
-    if (texClient->Surf()->mType == mType) {
-        RefPtr<layers::SharedSurfaceTextureClient> texClientRef = texClient;
-        mRecyclePool.Push(texClientRef);
+    if (mRecyclePool.size() >= 2) {
+        return false;
     }
 
-    // If the type doesn't match, fall through without taking a strong ref, and let it
-    // destruct.
+    RefPtr<layers::SharedSurfaceTextureClient> texClientRef = texClient;
+    mRecyclePool.push(texClientRef);
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

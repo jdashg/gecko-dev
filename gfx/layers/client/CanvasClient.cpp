@@ -322,6 +322,8 @@ CanvasClientSharedSurface::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   auto gl = aLayer->mGLContext;
   gl->MakeCurrent();
 
+  RefPtr<TextureClient> newFront;
+
   if (aLayer->mGLFrontbuffer) {
     mShSurfClient = CloneSurface(aLayer->mGLFrontbuffer.get(), aLayer->mFactory.get());
     if (!mShSurfClient) {
@@ -336,7 +338,7 @@ CanvasClientSharedSurface::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   }
   MOZ_ASSERT(mShSurfClient);
 
-  mFront = mShSurfClient;
+  newFront = mShSurfClient;
 
   SharedSurface* surf = mShSurfClient->Surf();
 
@@ -355,15 +357,25 @@ CanvasClientSharedSurface::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     auto layersBackend = shadowForwarder->GetCompositorBackendType();
     mReadbackClient = TexClientFromReadback(surf, forwarder, flags, layersBackend);
 
-    mFront = mReadbackClient;
+    newFront = mReadbackClient;
+  } else {
+    mReadbackClient = nullptr;
   }
 
-  MOZ_ASSERT(mFront);
-  if (!mFront) {
+  MOZ_ASSERT(newFront);
+  if (!newFront) {
     // May happen in a release build in case of memory pressure.
     gfxCriticalError() << "Failed to allocate a TextureClient for SharedSurface Canvas. Size: " << aSize;
     return;
   }
+
+  if (mFront) {
+    if (mFront->GetFlags() & TextureFlags::RECYCLE) {
+      mFront->WaitForCompositorRecycle();
+    }
+  }
+
+  mFront = newFront;
 
   // Add the new TexClient.
   MOZ_ALWAYS_TRUE( AddTextureClient(mFront) );

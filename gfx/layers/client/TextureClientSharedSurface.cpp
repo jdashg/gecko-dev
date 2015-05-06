@@ -15,34 +15,33 @@
 namespace mozilla {
 namespace layers {
 
-/*static*/ void
-SharedSurfaceTextureClient::RecycleCallback(TextureClient* tc,
-                                            void* /*closure*/)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  tc->ClearRecycleCallback();
-
-  SharedSurfaceTextureClient* sstc = (SharedSurfaceTextureClient*)tc;
-
-  if (sstc->mFactory) {
-    sstc->mFactory->Recycle(sstc);
-  }
-}
-
 SharedSurfaceTextureClient::SharedSurfaceTextureClient(ISurfaceAllocator* aAllocator,
                                                        TextureFlags aFlags,
-                                                       UniquePtr<gl::SharedSurface> surf)
-  : TextureClient(aAllocator, aFlags)
+                                                       UniquePtr<gl::SharedSurface> surf,
+                                                       gl::SurfaceFactory* factory)
+  : TextureClient(aAllocator, aFlags | TextureFlags::RECYCLE)
   , mSurf(Move(surf))
+  , mFactory(factory)
+  , mRecyclingRef(this)
 {
-  AddFlags(TextureFlags::RECYCLE);
-  SetRecycleCallback(&SharedSurfaceTextureClient::RecycleCallback, nullptr);
+  // AtomicRefCountedWithFinalize is a little strange. It attempts to recycle when
+  // Release drops the ref count to 1. The idea is that the recycler holds a strong ref.
+  // Here, we want to keep it simple, and always have a recycle callback, but only recycle
+  // if the WeakPtr mFactory is still non-null. Therefore, we keep mRecyclingRef as ref to
+  // ourself! Call StopRecycling() to end the cycle.
+  mRecyclingRef->SetRecycleCallback(&gl::SurfaceFactory::RecycleCallback, nullptr);
 }
 
 SharedSurfaceTextureClient::~SharedSurfaceTextureClient()
 {
-  // Free the ShSurf.
+  // Free the ShSurf implicitly.
+
+  // Tricky issue! We will often call the dtor via Release via StopRecycling, where we
+  // null out mRecyclingRef. Right now, we call Release before actually clearing the
+  // value. This means the dtor will see that mRecyclingRef is non-null, and try to
+  // Release it, even though we're mid-Release! We need to clear mRecyclingRef so the dtor
+  // doesn't try to Release it.
+  mozilla::unused << mRecyclingRef.forget().take();
 }
 
 gfx::IntSize
@@ -55,6 +54,13 @@ bool
 SharedSurfaceTextureClient::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
 {
   return mSurf->ToSurfaceDescriptor(&aOutDescriptor);
+}
+
+void
+SharedSurfaceTextureClient::StopRecycling()
+{
+  mRecyclingRef->ClearRecycleCallback();
+  mRecyclingRef = nullptr;
 }
 
 } // namespace layers
