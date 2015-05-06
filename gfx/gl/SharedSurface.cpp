@@ -202,20 +202,21 @@ SharedSurface::SharedSurface(SharedSurfaceType type,
                              AttachmentType attachType,
                              GLContext* gl,
                              const gfx::IntSize& size,
-                             bool hasAlpha)
+                             bool hasAlpha,
+                             bool canRecycle)
     : mType(type)
     , mAttachType(attachType)
     , mGL(gl)
     , mSize(size)
     , mHasAlpha(hasAlpha)
+    , mCanRecycle(canRecycle)
     , mIsLocked(false)
     , mIsProducerAcquired(false)
     , mIsConsumerAcquired(false)
 #ifdef DEBUG
     , mOwningThread(NS_GetCurrentThread())
 #endif
-{
-}
+{ }
 
 void
 SharedSurface::LockProd()

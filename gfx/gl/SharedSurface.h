@@ -59,6 +59,7 @@ public:
     GLContext* const mGL;
     const gfx::IntSize mSize;
     const bool mHasAlpha;
+    const bool mCanRecycle;
 protected:
     bool mIsLocked;
     bool mIsProducerAcquired;
@@ -69,7 +70,8 @@ protected:
                   AttachmentType attachType,
                   GLContext* gl,
                   const gfx::IntSize& size,
-                  bool hasAlpha);
+                  bool hasAlpha,
+                  bool canRecycle);
 
 public:
     virtual ~SharedSurface() {

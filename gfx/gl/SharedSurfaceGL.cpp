@@ -66,7 +66,8 @@ SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                     AttachmentType::GLTexture,
                     gl,
                     size,
-                    hasAlpha)
+                    hasAlpha,
+                    true)
     , mTex(tex)
     , mOwnsTex(ownsTex)
     , mFB(0)

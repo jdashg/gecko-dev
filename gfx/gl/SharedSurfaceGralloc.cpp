@@ -129,7 +129,8 @@ SharedSurface_Gralloc::SharedSurface_Gralloc(GLContext* prodGL,
                     AttachmentType::GLTexture,
                     prodGL,
                     size,
-                    hasAlpha)
+                    hasAlpha,
+                    true)
     , mEGL(egl)
     , mSync(0)
     , mAllocator(allocator)

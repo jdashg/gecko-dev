@@ -106,7 +106,8 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
                     AttachmentType::Screen,
                     gl,
                     size,
-                    hasAlpha)
+                    hasAlpha,
+                    true)
     , mEGL(egl)
     , mContext(context)
     , mPBuffer(pbuffer)

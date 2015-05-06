@@ -153,7 +153,8 @@ SharedSurface_IOSurface::SharedSurface_IOSurface(const RefPtr<MacIOSurface>& ioS
                   AttachmentType::GLTexture,
                   gl,
                   size,
-                  hasAlpha)
+                  hasAlpha,
+                  true)
   , mIOSurf(ioSurf)
 {
     gl->MakeCurrent();

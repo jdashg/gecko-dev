@@ -73,7 +73,8 @@ SharedSurface_EGLImage::SharedSurface_EGLImage(GLContext* gl,
                     AttachmentType::GLTexture,
                     gl,
                     size,
-                    hasAlpha)
+                    hasAlpha,
+                    false) // Can't recycle, as mSync changes never update TextureHost.
     , mMutex("SharedSurface_EGLImage mutex")
     , mEGL(egl)
     , mFormats(formats)
