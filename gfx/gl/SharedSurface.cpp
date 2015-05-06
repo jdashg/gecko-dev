@@ -14,6 +14,7 @@
 #include "SharedSurfaceGL.h"
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/TextureClientSharedSurface.h"
+#include "mozilla/unused.h"
 
 namespace mozilla {
 namespace gl {
@@ -315,64 +316,94 @@ SurfaceFactory::SurfaceFactory(SharedSurfaceType type, GLContext* gl,
 
 SurfaceFactory::~SurfaceFactory()
 {
-    while (!mRecyclePool.empty()) {
-        RefPtr<layers::SharedSurfaceTextureClient> cur = mRecyclePool.front();
-        mRecyclePool.pop();
-
-        cur->StopRecycling();
+    while (!mRecycleTotalPool.empty()) {
+        StopRecycling(*mRecycleTotalPool.begin());
     }
+
+    MOZ_RELEASE_ASSERT(mRecycleTotalPool.empty());
+
+    // If we mRecycleFreePool.clear() before StopRecycling(), we may try to recycle it,
+    // fail, call StopRecycling(), then return here and call it again.
+    mRecycleFreePool.clear();
 }
 
 TemporaryRef<layers::SharedSurfaceTextureClient>
 SurfaceFactory::NewTexClient(const gfx::IntSize& size)
 {
-    while (!mRecyclePool.empty()) {
-        RefPtr<layers::SharedSurfaceTextureClient> cur = mRecyclePool.front();
-        mRecyclePool.pop();
+    while (!mRecycleFreePool.empty()) {
+        RefPtr<layers::SharedSurfaceTextureClient> cur = mRecycleFreePool.front();
+        mRecycleFreePool.pop();
 
         if (cur->Surf()->mSize == size) {
             return cur.forget();
         }
 
-        // Let it die.
-        cur->StopRecycling();
+        StopRecycling(cur);
     }
 
     UniquePtr<SharedSurface> surf = Move(CreateShared(size));
     if (!surf)
         return nullptr;
 
-    return MakeAndAddRef<layers::SharedSurfaceTextureClient>(mAllocator, mFlags, Move(surf), this);
+    RefPtr<layers::SharedSurfaceTextureClient> ret;
+    ret = new layers::SharedSurfaceTextureClient(mAllocator, mFlags, Move(surf), this);
+
+    StartRecycling(ret);
+
+    mRecycleTotalPool.insert(ret);
+
+    return ret.forget();
+}
+
+void
+SurfaceFactory::StartRecycling(layers::SharedSurfaceTextureClient* tc)
+{
+    tc->SetRecycleCallback(&SurfaceFactory::RecycleCallback, (void*)this);
+
+    bool didInsert = mRecycleTotalPool.insert(tc);
+    MOZ_RELEASE_ASSERT(didInsert);
+    mozilla::unused << didInsert;
+}
+
+void
+SurfaceFactory::StopRecycling(layers::SharedSurfaceTextureClient* tc)
+{
+    // Must clear before releasing ref.
+    tc->ClearRecycleCallback();
+
+    bool didErase = mRecycleTotalPool.erase(tc);
+    MOZ_RELEASE_ASSERT(didErase);
+    mozilla::unused << didErase;
 }
 
 /*static*/ void
-SurfaceFactory::RecycleCallback(layers::TextureClient* tc, void* /*closure*/)
+SurfaceFactory::RecycleCallback(layers::TextureClient* rawTC, void* rawFactory)
 {
     MOZ_ASSERT(NS_IsMainThread());
 
-    layers::SharedSurfaceTextureClient* sstc = (layers::SharedSurfaceTextureClient*)tc;
+    RefPtr<layers::SharedSurfaceTextureClient> tc = (layers::SharedSurfaceTextureClient*)rawTC;
+    SurfaceFactory* factory = (SurfaceFactory*)rawFactory;
 
-    if (sstc->mSurf->mCanRecycle && sstc->mFactory) {
-        if (sstc->mFactory->Recycle(sstc))
+    if (tc->mSurf->mCanRecycle) {
+        if (factory->Recycle(tc))
             return;
     }
 
     // Did not recover the tex client. End the (re)cycle!
-    sstc->StopRecycling();
+    factory->StopRecycling(tc);
 }
 
 bool
 SurfaceFactory::Recycle(layers::SharedSurfaceTextureClient* texClient)
 {
     MOZ_ASSERT(texClient);
-    MOZ_ASSERT(texClient->mFactory == this);
 
-    if (mRecyclePool.size() >= 2) {
+    if (mRecycleFreePool.size() >= 2) {
         return false;
     }
 
     RefPtr<layers::SharedSurfaceTextureClient> texClientRef = texClient;
-    mRecyclePool.push(texClientRef);
+    mRecycleFreePool.push(texClientRef);
     return true;
 }
 

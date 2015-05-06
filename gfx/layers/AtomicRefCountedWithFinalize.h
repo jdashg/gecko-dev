@@ -20,6 +20,14 @@ namespace mozilla {
 template<class U>
 class StaticRefPtr;
 
+namespace gl {
+template<typename T>
+class RefSet;
+
+template<typename T>
+class RefQueue;
+}
+
 template<typename T>
 class AtomicRefCountedWithFinalize
 {
@@ -63,6 +71,12 @@ public:
 
     template<class U>
     friend struct ::RunnableMethodTraits;
+
+    template<typename U>
+    friend class ::mozilla::gl::RefSet;
+
+    template<typename U>
+    friend class ::mozilla::gl::RefQueue;
 
     //friend class mozilla::gl::SurfaceFactory;
 

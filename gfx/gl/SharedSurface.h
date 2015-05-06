@@ -16,6 +16,7 @@
 #define SHARED_SURFACE_H_
 
 #include <queue>
+#include <set>
 #include <stdint.h>
 
 #include "GLContextTypes.h"
@@ -188,6 +189,90 @@ public:
     virtual bool ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor) = 0;
 };
 
+template<typename T>
+class RefSet
+{
+    std::set<T*> mSet;
+
+public:
+    ~RefSet() {
+        clear();
+    }
+
+    auto begin() -> decltype(mSet.begin()) {
+        return mSet.begin();
+    }
+
+    void clear() {
+        for (auto itr = mSet.begin(); itr != mSet.end(); ++itr) {
+            (*itr)->Release();
+        }
+        mSet.clear();
+    }
+
+    bool empty() const {
+        return mSet.empty();
+    }
+
+    bool insert(T* x) {
+        if (mSet.insert(x).second) {
+            x->AddRef();
+            return true;
+        }
+
+        return false;
+    }
+
+    bool erase(T* x) {
+        if (mSet.erase(x)) {
+            x->Release();
+            return true;
+        }
+
+        return false;
+    }
+};
+
+template<typename T>
+class RefQueue
+{
+    std::queue<T*> mQueue;
+
+public:
+    ~RefQueue() {
+        clear();
+    }
+
+    void clear() {
+        while (!empty()) {
+            pop();
+        }
+    }
+
+    bool empty() const {
+        return mQueue.empty();
+    }
+
+    size_t size() const {
+        return mQueue.size();
+    }
+
+    void push(T* x) {
+        mQueue.push(x);
+        x->AddRef();
+    }
+
+    T* front() const {
+        return mQueue.front();
+    }
+
+    void pop() {
+        T* x = mQueue.front();
+        x->Release();
+        mQueue.pop();
+    }
+};
+
 class SurfaceFactory : public SupportsWeakPtr<SurfaceFactory>
 {
 public:
@@ -204,7 +289,8 @@ public:
 protected:
     SurfaceCaps mDrawCaps;
     SurfaceCaps mReadCaps;
-    std::queue<RefPtr<layers::SharedSurfaceTextureClient>> mRecyclePool;
+    RefQueue<layers::SharedSurfaceTextureClient> mRecycleFreePool;
+    RefSet<layers::SharedSurfaceTextureClient> mRecycleTotalPool;
 
     SurfaceFactory(SharedSurfaceType type, GLContext* gl, const SurfaceCaps& caps,
                    const RefPtr<layers::ISurfaceAllocator>& allocator,
@@ -223,6 +309,10 @@ public:
 
 protected:
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) = 0;
+
+    void StartRecycling(layers::SharedSurfaceTextureClient* tc);
+    void SetRecycleCallback(layers::SharedSurfaceTextureClient* tc);
+    void StopRecycling(layers::SharedSurfaceTextureClient* tc);
 
 public:
     UniquePtr<SharedSurface> NewSharedSurface(const gfx::IntSize& size);
