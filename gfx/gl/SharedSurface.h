@@ -40,6 +40,7 @@ class ISurfaceAllocator;
 class SharedSurfaceTextureClient;
 enum class TextureFlags : uint32_t;
 class SurfaceDescriptor;
+class TextureClient;
 }
 
 namespace gl {

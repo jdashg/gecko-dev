@@ -90,6 +90,8 @@ public:
   RefPtr<TextureHost> mTextureHost;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 // static
 PTextureParent*
 TextureHost::CreateIPDLActor(CompositableParentManager* aManager,

@@ -496,6 +496,8 @@ EGLImageTextureSource::EGLImageTextureSource(CompositorOGL* aCompositor,
   , mWrapMode(aWrapMode)
   , mSize(aSize)
 {
+  MOZ_ASSERT(mTextureTarget == LOCAL_GL_TEXTURE_2D ||
+             mTextureTarget == LOCAL_GL_TEXTURE_EXTERNAL);
 }
 
 void
@@ -509,13 +511,12 @@ EGLImageTextureSource::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
   MOZ_ASSERT(DoesEGLContextSupportSharingWithEGLImage(gl()),
              "EGLImage not supported or disabled in runtime");
 
-  GLuint tex = mCompositor->GetTemporaryTexture(GetTextureTarget(), aTextureUnit);
+  GLuint tex = mCompositor->GetTemporaryTexture(mTextureTarget, aTextureUnit);
 
   gl()->fActiveTexture(aTextureUnit);
   gl()->fBindTexture(mTextureTarget, tex);
 
-  MOZ_ASSERT(mTextureTarget == LOCAL_GL_TEXTURE_2D);
-  gl()->fEGLImageTargetTexture2D(LOCAL_GL_TEXTURE_2D, mImage);
+  gl()->fEGLImageTargetTexture2D(mTextureTarget, mImage);
 
   ApplyFilterToBoundTexture(gl(), aFilter, mTextureTarget);
 }
@@ -557,12 +558,10 @@ EGLImageTextureHost::EGLImageTextureHost(TextureFlags aFlags,
   , mSync(aSync)
   , mSize(aSize)
   , mCompositor(nullptr)
-{
-}
+{}
 
 EGLImageTextureHost::~EGLImageTextureHost()
-{
-}
+{}
 
 gl::GLContext*
 EGLImageTextureHost::gl() const
@@ -578,13 +577,16 @@ EGLImageTextureHost::Lock()
   }
 
   EGLint status = sEGLLibrary.fClientWaitSync(EGL_DISPLAY(), mSync, 0, LOCAL_EGL_FOREVER);
+
   if (status != LOCAL_EGL_CONDITION_SATISFIED) {
+    MOZ_ASSERT(status != 0,
+               "ClientWaitSync generated an error. Has mSync already been destroyed?");
     return false;
   }
 
   if (!mTextureSource) {
     gfx::SurfaceFormat format = gfx::SurfaceFormat::R8G8B8A8;
-    GLenum target = LOCAL_GL_TEXTURE_2D;
+    GLenum target = LOCAL_GL_TEXTURE_EXTERNAL;
     GLenum wrapMode = LOCAL_GL_CLAMP_TO_EDGE;
     mTextureSource = new EGLImageTextureSource(mCompositor,
                                                mImage,
