@@ -117,6 +117,7 @@ SharedSurface_EGLImage::Fence()
         mGL->IsExtensionSupported(GLContext::OES_EGL_sync))
     {
         if (mSync) {
+            MOZ_RELEASE_ASSERT(false, "Non-recycleable should not Fence twice.");
             MOZ_ALWAYS_TRUE( mEGL->fDestroySync(Display(), mSync) );
             mSync = 0;
         }

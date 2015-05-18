@@ -576,7 +576,12 @@ EGLImageTextureHost::Lock()
     return false;
   }
 
-  EGLint status = sEGLLibrary.fClientWaitSync(EGL_DISPLAY(), mSync, 0, LOCAL_EGL_FOREVER);
+  EGLint status = LOCAL_EGL_CONDITION_SATISFIED;
+
+  if (mSync) {
+    MOZ_ASSERT(sEGLLibrary.IsExtensionSupported(GLLibraryEGL::KHR_fence_sync));
+    status = sEGLLibrary.fClientWaitSync(EGL_DISPLAY(), mSync, 0, LOCAL_EGL_FOREVER);
+  }
 
   if (status != LOCAL_EGL_CONDITION_SATISFIED) {
     MOZ_ASSERT(status != 0,
