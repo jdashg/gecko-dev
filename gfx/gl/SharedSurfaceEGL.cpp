@@ -154,14 +154,7 @@ SharedSurface_EGLImage::WaitSync()
                                           0,
                                           LOCAL_EGL_FOREVER);
 
-    if (status != LOCAL_EGL_CONDITION_SATISFIED) {
-        return false;
-    }
-
-    MOZ_ALWAYS_TRUE( mEGL->fDestroySync(Display(), mSync) );
-    mSync = 0;
-
-    return true;
+    return status == LOCAL_EGL_CONDITION_SATISFIED;
 }
 
 bool
@@ -179,14 +172,8 @@ SharedSurface_EGLImage::PollSync()
                                          mSync,
                                          LOCAL_EGL_SYNC_STATUS_KHR,
                                          &status) );
-    if (status != LOCAL_EGL_SIGNALED_KHR) {
-        return false;
-    }
 
-    MOZ_ALWAYS_TRUE( mEGL->fDestroySync(mEGL->Display(), mSync) );
-    mSync = 0;
-
-    return true;
+    return status == LOCAL_EGL_SIGNALED_KHR;
 }
 
 EGLDisplay
