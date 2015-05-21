@@ -98,6 +98,8 @@ protected:
     virtual void ProducerReleaseImpl() {
         Fence();
     }
+    virtual void ProducerReadAcquireImpl() {}
+    virtual void ProducerReadReleaseImpl() {}
     virtual void ConsumerAcquireImpl() {
         WaitSync();
     }
@@ -112,6 +114,16 @@ public:
     void ProducerRelease() {
         MOZ_ASSERT(mIsProducerAcquired);
         ProducerReleaseImpl();
+        mIsProducerAcquired = false;
+    }
+    void ProducerReadAcquire() {
+        MOZ_ASSERT(!mIsProducerAcquired);
+        ProducerReadAcquireImpl();
+        mIsProducerAcquired = true;
+    }
+    void ProducerReadRelease() {
+        MOZ_ASSERT(mIsProducerAcquired);
+        ProducerReadReleaseImpl();
         mIsProducerAcquired = false;
     }
     void ConsumerAcquire() {

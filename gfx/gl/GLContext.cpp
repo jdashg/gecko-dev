@@ -2516,10 +2516,9 @@ GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
     {
         ScopedBindFramebuffer autoFB(this);
 
-        // Even though we're reading. We're doing it on
-        // the producer side. So we call ProducerAcquire
-        // instead of ConsumerAcquire.
-        src->ProducerAcquire();
+        // We're consuming from the producer side, so which do we use?
+        // Really, we just want a read-only lock, so ConsumerAcquire is the best match.
+        src->ProducerReadAcquire();
 
         if (src->mAttachType == AttachmentType::Screen) {
             fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
@@ -2546,7 +2545,7 @@ GLContext::Readback(SharedSurface* src, gfx::DataSourceSurface* dest)
 
         ReadPixelsIntoDataSurface(this, dest);
 
-        src->ProducerRelease();
+        src->ProducerReadRelease();
     }
 
     if (tempFB)

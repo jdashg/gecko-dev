@@ -185,6 +185,21 @@ SharedSurface_ANGLEShareHandle::ProducerReleaseImpl()
 }
 
 void
+SharedSurface_ANGLEShareHandle::ProducerReadAcquireImpl()
+{
+    ProducerAcquireImpl();
+}
+
+void
+SharedSurface_ANGLEShareHandle::ProducerReadReleaseImpl()
+{
+    if (mKeyedMutex) {
+        mKeyedMutex->ReleaseSync(0);
+        return;
+    }
+}
+
+void
 SharedSurface_ANGLEShareHandle::ConsumerAcquireImpl()
 {
     if (!mConsumerTexture) {
