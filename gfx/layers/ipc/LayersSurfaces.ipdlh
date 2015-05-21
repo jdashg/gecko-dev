@@ -79,6 +79,7 @@ struct EGLImageDescriptor {
   uintptr_t image; // `EGLImage` is a `void*`.
   uintptr_t fence;
   IntSize size;
+  bool hasAlpha;
 };
 
 struct NewSurfaceDescriptorGralloc {

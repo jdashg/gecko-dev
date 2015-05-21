@@ -209,7 +209,7 @@ bool
 SharedSurface_EGLImage::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
 {
     *out_descriptor = layers::EGLImageDescriptor((uintptr_t)mImage, (uintptr_t)mSync,
-                                                 mSize);
+                                                 mSize, mHasAlpha);
     return true;
 }
 

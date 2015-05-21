@@ -71,7 +71,8 @@ CreateTextureHostOGL(const SurfaceDescriptor& aDesc,
       result = new EGLImageTextureHost(aFlags,
                                        (EGLImage)desc.image(),
                                        (EGLSync)desc.fence(),
-                                       desc.size());
+                                       desc.size(),
+                                       desc.hasAlpha());
       break;
     }
 
@@ -552,11 +553,13 @@ EGLImageTextureSource::GetTextureTransform()
 EGLImageTextureHost::EGLImageTextureHost(TextureFlags aFlags,
                                          EGLImage aImage,
                                          EGLSync aSync,
-                                         gfx::IntSize aSize)
+                                         gfx::IntSize aSize,
+                                         bool hasAlpha)
   : TextureHost(aFlags)
   , mImage(aImage)
   , mSync(aSync)
   , mSize(aSize)
+  , mHasAlpha(hasAlpha)
   , mCompositor(nullptr)
 {}
 
@@ -590,7 +593,8 @@ EGLImageTextureHost::Lock()
   }
 
   if (!mTextureSource) {
-    gfx::SurfaceFormat format = gfx::SurfaceFormat::R8G8B8A8;
+    gfx::SurfaceFormat format = mHasAlpha ? gfx::SurfaceFormat::R8G8B8A8
+                                          : gfx::SurfaceFormat::R8G8B8X8;
     GLenum target = LOCAL_GL_TEXTURE_EXTERNAL;
     GLenum wrapMode = LOCAL_GL_CLAMP_TO_EDGE;
     mTextureSource = new EGLImageTextureSource(mCompositor,
