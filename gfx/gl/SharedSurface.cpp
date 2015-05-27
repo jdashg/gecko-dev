@@ -350,15 +350,13 @@ SurfaceFactory::NewTexClient(const gfx::IntSize& size)
 
     StartRecycling(ret);
 
-    mRecycleTotalPool.insert(ret);
-
     return ret.forget();
 }
 
 void
 SurfaceFactory::StartRecycling(layers::SharedSurfaceTextureClient* tc)
 {
-    tc->SetRecycleCallback(&SurfaceFactory::RecycleCallback, (void*)this);
+    tc->SetRecycleCallback(&SurfaceFactory::RecycleCallback, static_cast<void*>(this));
 
     bool didInsert = mRecycleTotalPool.insert(tc);
     MOZ_RELEASE_ASSERT(didInsert);
@@ -381,8 +379,10 @@ SurfaceFactory::RecycleCallback(layers::TextureClient* rawTC, void* rawFactory)
 {
     MOZ_ASSERT(NS_IsMainThread());
 
-    RefPtr<layers::SharedSurfaceTextureClient> tc = (layers::SharedSurfaceTextureClient*)rawTC;
-    SurfaceFactory* factory = (SurfaceFactory*)rawFactory;
+    RefPtr<layers::SharedSurfaceTextureClient> tc;
+    tc = static_cast<layers::SharedSurfaceTextureClient*>(rawTC);
+
+    SurfaceFactory* factory = static_cast<SurfaceFactory*>(rawFactory);
 
     if (tc->mSurf->mCanRecycle) {
         if (factory->Recycle(tc))
