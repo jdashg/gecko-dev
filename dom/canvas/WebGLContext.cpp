@@ -1827,9 +1827,8 @@ WebGLContext::DidRefresh()
 }
 
 bool
-WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
-                                       GLint level, GLenum internalFormat,
-                                       GLenum format, GLenum type,
+WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget, GLint level,
+                                       const FormatInfo* formatInfo,
                                        mozilla::dom::Element& elt)
 {
     if (!ValidateTexImageFormatAndType(format, type,
@@ -1847,7 +1846,7 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     if (NS_SUCCEEDED(video->GetReadyState(&readyState)) &&
         readyState < nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA)
     {
-        //No frame inside, just return
+        // No frame inside, just return
         return false;
     }
 
@@ -1898,13 +1897,9 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
                                                    texImageTarget.get(),
                                                    destOrigin);
     if (ok) {
-        TexInternalFormat effectiveInternalFormat =
-            EffectiveInternalFormatFromInternalFormatAndType(internalFormat,
-                                                             type);
         MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
         tex->SetImageInfo(texImageTarget, level, srcImage->GetSize().width,
-                          srcImage->GetSize().height, 1,
-                          effectiveInternalFormat,
+                          srcImage->GetSize().height, 1, formatInfo,
                           WebGLImageDataStatus::InitializedImageData);
         tex->Bind(TexImageTargetToTexTarget(texImageTarget));
     }

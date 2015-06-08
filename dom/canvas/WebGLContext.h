@@ -607,12 +607,18 @@ public:
         if (!tex)
             return ErrorInvalidOperation("no texture is bound to this target");
 
-        // Trying to handle the video by GPU directly first
-        if (TexImageFromVideoElement(texImageTarget, level, internalFormat,
-                                     format, type, elt))
+
+        const FormatInfo* formatInfo;
+        const FormatUsageInfo* formatUsage;
+        if (!ValidateTexImageFormat(internalFormat, format, type, "texImage2D",
+                                    &formatInfo, &formatUsage))
         {
             return;
         }
+
+        // Trying to handle the video by GPU directly first
+        if (TexImageFromVideoElement(texImageTarget, level, formatInfo, elt))
+            return;
 
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
@@ -1560,6 +1566,12 @@ protected:
 #endif
 
     nsRefPtr<WebGLObserver> mContextObserver;
+
+
+    bool ValidateTexImageFormat(GLenum internalFormat, GLenum unpackFormat,
+                                GLenum unpackType, const char* info,
+                                const webgl::FormatInfo** const out_formatInfo,
+                                const webgl::FormatUsageInfo** const out_formatUsage);
 
 public:
     // console logging helpers

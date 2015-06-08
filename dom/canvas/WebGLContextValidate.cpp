@@ -1104,6 +1104,76 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type,
     return false;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+bool
+WebGLContext::ValidateTexImageFormat(GLenum internalFormat, GLenum unpackFormat,
+                                     GLenum unpackType, const char* info,
+                                     const webgl::FormatInfo** const out_formatInfo,
+                                     const webgl::FormatUsageInfo** const out_formatUsage)
+{
+    // Try sized format first.
+    const webgl::FormatInfo* formatInfo = GetInfoBySizedFormat(internalFormat);
+    if (!formatInfo) {
+        formatInfo = GetInfoByUnpackTuple(unpackFormat, unpackType);
+    }
+
+    if (!ret) {
+        ErrorInvalidEnum("%s: Unrecognized TexImage internalformat/format/type:"
+                         " 0x%04x/0x%04x/0x%04x",
+                         internalFOrmat, unpackFormat, unpackType);
+        return false;
+    }
+
+    const webgl::FormatUsageInfo* usage = mFormatUsage->Info(formatInfo->effectiveFormat);
+    if (!usage || !usage->asTexture) {
+        ErrorInvalidEnum("%s: Invalid TexImage internalformat/format/type:"
+                         " 0x%04x/0x%04x/0x%04x",
+                         internalFOrmat, unpackFormat, unpackType);
+        return false;
+    }
+
+    *out_formatInfo = formatInfo;
+    *out_formatUsage = formatUsage;
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
+}
+
 bool
 WebGLContext::ValidateCompTexImageInternalFormat(GLenum format,
                                                  WebGLTexImageFunc func,

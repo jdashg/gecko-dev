@@ -13,6 +13,7 @@
 #include "ScopedGLHelpers.h"
 #include "WebGLContext.h"
 #include "WebGLContextUtils.h"
+#include "WebGLFormat.h"
 #include "WebGLTexelConversions.h"
 #include "mozilla/gfx/Logging.h"
 
@@ -173,9 +174,9 @@ WebGLTexture::Bind(TexTarget texTarget)
 }
 
 void
-WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level,
-                           GLsizei width, GLsizei height, GLsizei depth,
-                           TexInternalFormat effectiveInternalFormat,
+WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level, GLsizei width,
+                           GLsizei height, GLsizei depth,
+                           const webgl::FormatInfo* formatInfo,
                            WebGLImageDataStatus status)
 {
     MOZ_ASSERT(depth == 1 || texImageTarget == LOCAL_GL_TEXTURE_3D);
@@ -185,8 +186,7 @@ WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level,
 
     EnsureMaxLevelWithCustomImagesAtLeast(level);
 
-    ImageInfoAt(texImageTarget, level) = ImageInfo(width, height, depth,
-                                                   effectiveInternalFormat,
+    ImageInfoAt(texImageTarget, level) = ImageInfo(width, height, depth, formatInfo,
                                                    status);
 
     if (level > 0)

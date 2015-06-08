@@ -18,6 +18,9 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
+namespace webgl {
+struct FormatInfo;
+} // namespace webgl
 
 // Zero is not an integer power of two.
 inline bool
@@ -76,16 +79,16 @@ public:
     {
     public:
         ImageInfo()
-            : mEffectiveInternalFormat(LOCAL_GL_NONE)
+            : mFormatInfo(nullptr)
             , mDepth(0)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
         {}
 
         ImageInfo(GLsizei width, GLsizei height, GLsizei depth,
-                  TexInternalFormat effectiveInternalFormat,
+                  const webgl::FormatInfo* formatInfo,
                   WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
-            , mEffectiveInternalFormat(effectiveInternalFormat)
+            , mFormatInfo(formatInfo)
             , mDepth(depth)
             , mImageDataStatus(status)
         {
@@ -98,7 +101,7 @@ public:
                    mWidth == a.mWidth &&
                    mHeight == a.mHeight &&
                    mDepth == a.mDepth &&
-                   mEffectiveInternalFormat == a.mEffectiveInternalFormat;
+                   mFormatInfo == a.mFormatInfo;
         }
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
@@ -120,16 +123,11 @@ public:
         }
         size_t MemoryUsage() const;
 
-        TexInternalFormat EffectiveInternalFormat() const {
-            return mEffectiveInternalFormat;
-        }
+        const webgl::FormatInfo* FormatInfo() const { return mFormatInfo; }
         GLsizei Depth() const { return mDepth; }
 
     protected:
-        // This is the "effective internal format" of the texture, an official
-        // OpenGL spec concept, see OpenGL ES 3.0.3 spec, section 3.8.3, page
-        // 126 and below.
-        TexInternalFormat mEffectiveInternalFormat;
+        const webgl::FormatInfo* mFormatInfo;
 
         /* Used only for 3D textures.
          * Note that mWidth and mHeight are inherited from WebGLRectangleObject.
@@ -255,8 +253,8 @@ protected:
 public:
     void Bind(TexTarget texTarget);
 
-    void SetImageInfo(TexImageTarget target, GLint level, GLsizei width,
-                      GLsizei height, GLsizei depth, TexInternalFormat format,
+    void SetImageInfo(TexImageTarget target, GLint level, GLsizei width, GLsizei height,
+                      GLsizei depth, const webgl::FormatInfo* formatInfo,
                       WebGLImageDataStatus status);
 
     void SetMinFilter(TexMinFilter minFilter) {

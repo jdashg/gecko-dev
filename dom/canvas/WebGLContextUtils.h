@@ -14,6 +14,7 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
+/*
 bool FormatHasAlpha(TexInternalFormat webGLFormat);
 
 void
@@ -36,10 +37,13 @@ TexType TypeFromInternalFormat(TexInternalFormat internalformat);
 
 TexInternalFormat
 UnsizedInternalFormatFromInternalFormat(TexInternalFormat internalformat);
+*/
 
 void SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat);
 
+/*
 size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
+*/
 
 // For use with the different texture calls, i.e.
 //   TexImage2D, CopyTex[Sub]Image2D, ...
