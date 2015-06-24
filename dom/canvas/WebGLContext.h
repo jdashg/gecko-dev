@@ -568,20 +568,63 @@ public:
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum format, GLenum type, dom::ImageData* pixels,
                     ErrorResult& rv);
-    // Allow whatever element types the bindings are willing to pass
-    // us in TexImage2D
-    bool TexImageFromVideoElement(TexImageTarget texImageTarget, GLint level,
-                                  GLenum internalFormat, GLenum format,
-                                  GLenum type, mozilla::dom::Element& image);
 
     template<class ElementType>
-    void TexImage2D(GLenum rawTexImageTarget, GLint level,
+    void TexImage2D(GLenum target, GLint level,
                     GLenum internalFormat, GLenum format, GLenum type,
-                    ElementType& elt, ErrorResult& rv)
+                    ElementType& elem, ErrorResult& rv)
     {
+      /*
         if (IsContextLost())
             return;
 
+        BlittableElement* pBlitElem;
+        bool badCORS;
+        BlittableElement blitElem(elem, &pBlitElem, &badCORS);
+
+        gfx::IntSize size;
+        uint32_t byteLength;
+        uint32_t stride;
+        void* data;
+        RefPtr<gfx::DataSourceSurface> surf;
+
+        if (pBlitElem) {
+            size = pBlitElem->Size();
+            byteLength = 0;
+            stride = 0;
+            data = nullptr;
+        } else {
+            nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
+
+            WebGLTexelFormat srcFormat;
+            rv = SurfaceFromElementResultToImageSurface(res, surf, &srcFormat);
+            if (rv.Failed() || !surf)
+                return;
+
+            size = surf->GetSize();
+            byteLength = surf->Stride() * size.height; // Technically it can be a byte or
+                                                       // so less, if there's stride
+                                                       // padding.
+            stride = surf->Stride();
+            data = surf->GetData();
+        }
+*/
+        TexImage_base(WebGLTexImageFunc::TexImage, 2,
+                      target, level, internalFormat,
+                      0, 0, 0,
+                      0, 0, 1, 0,
+                      format, type,
+                      nullptr, 0, nullptr,
+                      &elem,
+                      &rv);
+    }
+
+
+
+
+
+
+    {
         if (!ValidateTexImageTarget(rawTexImageTarget,
                                     WebGLTexImageFunc::TexImage,
                                     WebGLTexDimensions::Tex2D))
@@ -607,18 +650,19 @@ public:
         if (!tex)
             return ErrorInvalidOperation("no texture is bound to this target");
 
-
-        const FormatInfo* formatInfo;
         const FormatUsageInfo* formatUsage;
         if (!ValidateTexImageFormat(internalFormat, format, type, "texImage2D",
-                                    &formatInfo, &formatUsage))
+                                    &formatUsage))
         {
             return;
         }
 
         // Trying to handle the video by GPU directly first
-        if (TexImageFromVideoElement(texImageTarget, level, formatInfo, elt))
+        if (TexImageFromVideoElement(texImageTarget, level, internalFormat, format, type,
+                                     formatUsage, elt))
+        {
             return;
+        }
 
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
@@ -1281,8 +1325,9 @@ protected:
     // If jsArrayType is MaxTypedArrayViewType, it means no array.
     void TexImage2D_base(TexImageTarget texImageTarget, GLint level,
                          GLenum internalFormat, GLsizei width,
-                         GLsizei height, GLsizei srcStrideOrZero, GLint border,
-                         GLenum format, GLenum type, void* data,
+                         GLsizei height, GLint border,
+                         GLenum format, GLenum type, mozilla::dom::Element* element,
+                         void* data, GLsizei srcStrideOrZero,
                          uint32_t byteLength, js::Scalar::Type jsArrayType,
                          WebGLTexelFormat srcFormat, bool srcPremultiplied);
     void TexSubImage2D_base(GLenum texImageTarget, GLint level,

@@ -3309,104 +3309,51 @@ WebGLContext::GetShaderTranslatedSource(WebGLShader* shader, nsAString& retval)
     shader->GetShaderTranslatedSource(&retval);
 }
 
-GLenum WebGLContext::CheckedTexImage2D(TexImageTarget texImageTarget,
-                                       GLint level,
-                                       TexInternalFormat internalformat,
-                                       GLsizei width,
-                                       GLsizei height,
-                                       GLint border,
-                                       TexFormat format,
-                                       TexType type,
-                                       const GLvoid* data)
-{
-    WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
-    MOZ_ASSERT(tex, "no texture bound");
 
-    TexInternalFormat effectiveInternalFormat =
-        EffectiveInternalFormatFromInternalFormatAndType(internalformat, type);
-    bool sizeMayChange = true;
 
-    if (tex->HasImageInfoAt(texImageTarget, level)) {
-        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(texImageTarget, level);
-        sizeMayChange = width != imageInfo.Width() ||
-                        height != imageInfo.Height() ||
-                        effectiveInternalFormat != imageInfo.EffectiveInternalFormat();
-    }
 
-    // Convert to format and type required by OpenGL 'driver'.
-    GLenum driverType = LOCAL_GL_NONE;
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             effectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat,
-                                             &driverType);
 
-    if (sizeMayChange) {
-        GetAndFlushUnderlyingGLErrors();
-    }
 
-    gl->fTexImage2D(texImageTarget.get(), level, driverInternalFormat, width, height, border, driverFormat, driverType, data);
 
-    if (effectiveInternalFormat != driverInternalFormat)
-        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
 
-    GLenum error = LOCAL_GL_NO_ERROR;
-    if (sizeMayChange) {
-        error = GetAndFlushUnderlyingGLErrors();
-    }
 
-    return error;
-}
 
-static FormatInfo*
-FormatForFormatTuple(GLenum internalFormat, GLenum unpackFormat, GLenum unpackType,
-                     WebGLContext* webgl, const char* funcName)
-{
-    // Two main internalFormat/format/type tuples:
-    // 1. Sized internalFormat. (format is always unsized)
-    // 2. Unsized internalFormat, matches format.
 
-    FormatInfo* format = FormatFromSizedFormat(internalFormat);
-    if (format)
-        return format;
 
-    // Must be an unsized format.
-    if (unpackFormat != internalFormat) {
-        webgl->ErrorInvalidOperation("%s: Non-sized `internalFormat` must match"
-                                     " `format`.",
-                                     funcName);
-        return nullptr;
-    }
 
-    format = FormatFromUnpackTuple(unpackFormat, unpackType);
-    if (format)
-        return format;
 
-    webgl->ErrorInvalidOperation("%s: Unrecognized `internalFormat`/`format`/`type`.",
-                                 funcName);
-    return nullptr;
-}
+
+
+
+
+
+
+
 
 
 void
 WebGLContext::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
-                              GLenum internalFormat,
-                              GLsizei width, GLsizei height, GLsizei srcStrideOrZero,
-                              GLint border,
-                              GLenum unpackFormat,
-                              GLenum unpackType,
-                              void* data, uint32_t byteLength,
+                              GLenum internalFormat, GLenum unpackFormat, GLenum unpackType,
+
+                              GLsizei width, GLsizei height, GLint border,
+
+                              // Lots of different ways to represent the `data` bit:
+                              mozilla::dom::Element* element,
+
+
+                              void* data, uint32_t byteLength, GLsizei srcStrideOrZero,
                               js::Scalar::Type jsArrayType,
                               WebGLTexelFormat srcFormat, bool srcPremultiplied)
 {
     const WebGLTexImageFunc func = WebGLTexImageFunc::TexImage;
     const WebGLTexDimensions dims = WebGLTexDimensions::Tex2D;
 
-    FormatInfo* format = FormatForFormatTuple(internalFormat, unpackFormat, unpackType);
-    if (!format)
+    const webgl::FormatUsageInfo* formatUsage;
+    if (!ValidateTexImageFormat(internalFormat, unpackFormat, unpackType, "texImage2D",
+                                &formatUsage)
+    {
         return;
+    }
 
     if (!ValidateTexImage(texImageTarget, level, internalformat,
                           0, 0, 0,
@@ -3436,6 +3383,28 @@ WebGLContext::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (effectiveInternalFormat == LOCAL_GL_NONE) {
         return ErrorInvalidOperation("texImage2D: bad combination of internalformat and type");
     }
+
+    // end basic args
+    //////////////////////////////////////////////////////////////////////////////////////
+
+    // From TexImage2D<ElementType>
+
+    // Trying to handle the video by GPU directly first
+    if (TexImageFromVideoElement(texImageTarget, level, internalFormat, format, type,
+                                 formatUsage, elt))
+    {
+        return;
+    }
+
+    RefPtr<gfx::DataSourceSurface> data;
+    WebGLTexelFormat srcFormat;
+    nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
+    rv = SurfaceFromElementResultToImageSurface(res, data, &srcFormat);
+    if (rv.Failed() || !data)
+        return;
+
+    gfx::IntSize size = data->GetSize();
+    uint32_t byteLength = data->Stride() * size.height;
 
     size_t srcTexelSize = size_t(-1);
     if (srcFormat == WebGLTexelFormat::Auto) {
@@ -3549,62 +3518,49 @@ WebGLContext::TexImage2D(GLenum rawTarget, GLint level,
                          GLenum type, const dom::Nullable<ArrayBufferView>& pixels,
                          ErrorResult& rv)
 {
-    if (IsContextLost())
-        return;
+    WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
+    MOZ_ASSERT(tex, "no texture bound");
 
-    void* data;
-    uint32_t length;
-    js::Scalar::Type jsArrayType;
-    if (pixels.IsNull()) {
-        data = nullptr;
-        length = 0;
-        jsArrayType = js::Scalar::MaxTypedArrayViewType;
-    } else {
-        const ArrayBufferView& view = pixels.Value();
-        view.ComputeLengthAndData();
+    TexInternalFormat effectiveInternalFormat =
+        EffectiveInternalFormatFromInternalFormatAndType(internalformat, type);
+    bool sizeMayChange = true;
 
-        data = view.Data();
-        length = view.Length();
-        jsArrayType = view.Type();
+    if (tex->HasImageInfoAt(texImageTarget, level)) {
+        const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(texImageTarget, level);
+        sizeMayChange = width != imageInfo.Width() ||
+                        height != imageInfo.Height() ||
+                        effectiveInternalFormat != imageInfo.EffectiveInternalFormat();
     }
 
-    if (!ValidateTexImageTarget(rawTarget, WebGLTexImageFunc::TexImage, WebGLTexDimensions::Tex2D))
-        return;
+    // Convert to format and type required by OpenGL 'driver'.
+    GLenum driverType = LOCAL_GL_NONE;
+    GLenum driverInternalFormat = LOCAL_GL_NONE;
+    GLenum driverFormat = LOCAL_GL_NONE;
+    DriverFormatsFromEffectiveInternalFormat(gl,
+                                             effectiveInternalFormat,
+                                             &driverInternalFormat,
+                                             &driverFormat,
+                                             &driverType);
 
-    return TexImage2D_base(rawTarget, level, internalformat, width, height, 0, border, format, type,
-                           data, length, jsArrayType,
-                           WebGLTexelFormat::Auto, false);
-}
-
-void
-WebGLContext::TexImage2D(GLenum rawTarget, GLint level,
-                         GLenum internalformat, GLenum format,
-                         GLenum type, ImageData* pixels, ErrorResult& rv)
-{
-    if (IsContextLost())
-        return;
-
-    if (!pixels) {
-        // Spec says to generate an INVALID_VALUE error
-        return ErrorInvalidValue("texImage2D: null ImageData");
+    if (sizeMayChange) {
+        GetAndFlushUnderlyingGLErrors();
     }
 
-    Uint8ClampedArray arr;
-    DebugOnly<bool> inited = arr.Init(pixels->GetDataObject());
-    MOZ_ASSERT(inited);
-    arr.ComputeLengthAndData();
+    gl->fTexImage2D(texImageTarget.get(), level, driverInternalFormat, width, height, border, driverFormat, driverType, data);
 
-    void* pixelData = arr.Data();
-    const uint32_t pixelDataLength = arr.Length();
+    if (effectiveInternalFormat != driverInternalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
 
-    if (!ValidateTexImageTarget(rawTarget, WebGLTexImageFunc::TexImage, WebGLTexDimensions::Tex2D))
-        return;
+    GLenum error = LOCAL_GL_NO_ERROR;
+    if (sizeMayChange) {
+        error = GetAndFlushUnderlyingGLErrors();
+    }
 
-    return TexImage2D_base(rawTarget, level, internalformat, pixels->Width(),
-                           pixels->Height(), 4*pixels->Width(), 0,
-                           format, type, pixelData, pixelDataLength, js::Scalar::MaxTypedArrayViewType,
-                           WebGLTexelFormat::RGBA8, false);
+    return error;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// TexSubImage
 
 
 void

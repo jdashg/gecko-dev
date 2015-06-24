@@ -176,7 +176,7 @@ WebGLTexture::Bind(TexTarget texTarget)
 void
 WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level, GLsizei width,
                            GLsizei height, GLsizei depth,
-                           const webgl::FormatInfo* formatInfo,
+                           const webgl::FormatInfo* format,
                            WebGLImageDataStatus status)
 {
     MOZ_ASSERT(depth == 1 || texImageTarget == LOCAL_GL_TEXTURE_3D);
@@ -186,8 +186,7 @@ WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level, GLsizei w
 
     EnsureMaxLevelWithCustomImagesAtLeast(level);
 
-    ImageInfoAt(texImageTarget, level) = ImageInfo(width, height, depth, formatInfo,
-                                                   status);
+    ImageInfoAt(texImageTarget, level) = ImageInfo(width, height, depth, format, status);
 
     if (level > 0)
         SetCustomMipmap();

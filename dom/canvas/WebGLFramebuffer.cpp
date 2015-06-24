@@ -830,7 +830,7 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format)
+WebGLFramebuffer::ValidateForRead(const char* funcName, TexInternalFormat* const out_format)
 {
     if (mReadBufferMode == LOCAL_GL_NONE) {
         mContext->ErrorInvalidOperation("%s: Read buffer mode must not be"
@@ -841,19 +841,19 @@ WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out
     const auto& attachPoint = GetAttachPoint(mReadBufferMode);
 
     if (!CheckAndInitializeAttachments()) {
-        mContext->ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
+        mContext->ErrorInvalidFramebufferOperation("%s: Incomplete framebuffer.", funcName);
         return false;
     }
 
-    GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
+    const GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
     if (!HasCompletePlanes(readPlaneBits)) {
-        mContext->ErrorInvalidOperation("readPixels: Read source attachment doesn't have the"
-                                        " correct color/depth/stencil type.");
+        mContext->ErrorInvalidOperation("%s: Read source attachment doesn't have the"
+                                        " correct color/depth/stencil type.", funcName);
         return false;
     }
 
     if (!attachPoint.IsDefined()) {
-        mContext->ErrorInvalidOperation("readPixels: ");
+        mContext->ErrorInvalidOperation("%s: Attachment point is undefined.", funcName);
         return false;
     }
 

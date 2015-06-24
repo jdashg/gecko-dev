@@ -1115,36 +1115,46 @@ WebGLContext::ValidateTexImageFormatAndType(GLenum format, GLenum type,
 
 
 
+bool
+WebGLContext::ValidateTexImageUnpack(const webgl::FormatUsageInfo* usage,
+                                     GLenum unpackFormat, GLenum unpackType,
+                                     const char* funcName)
+{
+    if (!usage->CanUnpackWith(unpackFormat, unpackType)) {
+        ErrorInvalidOperation("%s: Invalid unpack format/type for internalFormat %s.",
+                              funcName, usage->formatInfo->name);
+        return false;
+    }
 
+    return true;
+}
 
 bool
 WebGLContext::ValidateTexImageFormat(GLenum internalFormat, GLenum unpackFormat,
-                                     GLenum unpackType, const char* info,
-                                     const webgl::FormatInfo** const out_formatInfo,
+                                     GLenum unpackType, const char* funcName,
                                      const webgl::FormatUsageInfo** const out_formatUsage)
 {
     // Try sized format first.
     const webgl::FormatInfo* formatInfo = GetInfoBySizedFormat(internalFormat);
-    if (!formatInfo) {
+    if (!formatInfo)
         formatInfo = GetInfoByUnpackTuple(unpackFormat, unpackType);
-    }
 
-    if (!ret) {
+    if (!formatInfo) {
         ErrorInvalidEnum("%s: Unrecognized TexImage internalformat/format/type:"
                          " 0x%04x/0x%04x/0x%04x",
-                         internalFOrmat, unpackFormat, unpackType);
+                         funcName, internalFormat, unpackFormat, unpackType);
         return false;
     }
 
-    const webgl::FormatUsageInfo* usage = mFormatUsage->Info(formatInfo->effectiveFormat);
-    if (!usage || !usage->asTexture) {
-        ErrorInvalidEnum("%s: Invalid TexImage internalformat/format/type:"
-                         " 0x%04x/0x%04x/0x%04x",
-                         internalFOrmat, unpackFormat, unpackType);
+    const webgl::FormatUsageInfo* formatUsage = mFormatUsage->Info(formatInfo->effectiveFormat);
+    if (!formatUsage || !formatUsage->asTexture) {
+        ErrorInvalidEnum("%s: Invalid TexImage internalformat/format/type.", funcName);
         return false;
     }
 
-    *out_formatInfo = formatInfo;
+    if (!ValidateTexImageUnpack(formatUsage, unpackFormat, unpackType, funcName))
+        return false;
+
     *out_formatUsage = formatUsage;
     return true;
 }
@@ -1387,84 +1397,79 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
  */
 // TODO: Texture dims is here for future expansion in WebGL 2.0
 bool
-WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
+WebGLContext::ValidateTexImage(WebGLTexImageFunc func, WebGLTexDimensions dims,
+                               GLenum rawTexImageTarget, GLint level,
                                GLenum internalFormat, GLint xoffset,
                                GLint yoffset, GLint zoffset, GLint width,
                                GLint height, GLint depth, GLint border,
-                               GLenum format, GLenum type,
-                               WebGLTexImageFunc func,
-                               WebGLTexDimensions dims)
+                               GLenum unpackFormat, GLenum unpackType,
+                               const webgl::FormatUsageInfo** const out_formatUsage)
 {
-    const char* info = InfoFrom(func, dims);
+    const char* funcName = InfoFrom(func, dims);
+
+    bool isTargetValid;
+    bool isCubeMap;
+    uint8_t targetDims;
+
+    switch (rawTexImageTarget) {
+    case LOCAL_GL_TEXTURE_2D:
+        isTargetValid = true;
+        isCubeMap = false;
+        targetDims = 2;
+        break;
+
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+        isTargetValid = true;
+        isCubeMap = true;
+        targetDims = 2;
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+    case LOCAL_GL_TEXTURE_ARRAY:
+        isTargetValid = true;
+        isCubeMap = false;
+        targetDims = 3;
+        break;
+
+    default:
+        isTargetValid = false;
+        break;
+    }
+
+    if (!isTargetValid) {
+        ErrorInvalidEnum("%s: Bad `target`.", funcName);
+        return false;
+    }
+    TexImageTarget texImageTarget = rawTexImageTarget;
 
     // Check level
     if (level < 0) {
-        ErrorInvalidValue("%s: `level` must be >= 0.", info);
+        ErrorInvalidValue("%s: `level` must be >= 0.", funcName);
         return false;
     }
 
     // Check border
     if (border != 0) {
-        ErrorInvalidValue("%s: `border` must be 0.", info);
+        ErrorInvalidValue("%s: `border` must be 0.", funcName);
         return false;
     }
 
-    // Check incoming image format and type
-    if (!ValidateTexImageFormatAndType(format, type, func, dims))
-        return false;
-
-    if (!TexInternalFormat::IsValueLegal(internalFormat)) {
-        ErrorInvalidEnum("%s: Invalid `internalformat` enum %s.", info,
-                         EnumName(internalFormat));
+    const webgl::FormatUsageInfo* formatUsage;
+    if (!ValidateTexImageFormat(func, internalFormat, unpackFormat, unpackType, funcName,
+                                &formatUsage)
+    {
         return false;
     }
-    TexInternalFormat unsizedInternalFormat =
-        UnsizedInternalFormatFromInternalFormat(internalFormat);
 
-    if (IsCompressedFunc(func)) {
-        if (!ValidateCompTexImageInternalFormat(internalFormat, func, dims))
-            return false;
-
-    } else if (IsCopyFunc(func)) {
-        if (!ValidateCopyTexImageInternalFormat(unsizedInternalFormat.get(),
-                                                func, dims))
-        {
-            return false;
-        }
-    } else if (format != unsizedInternalFormat) {
-        if (IsWebGL2()) {
-            // In WebGL2, it's OK to have `internalFormat != format` if
-            // internalFormat is the sized internal format corresponding to the
-            // (format, type) pair according to Table 3.2 in the OpenGL ES 3.0.3
-            // spec.
-            auto effectiveFormat = EffectiveInternalFormatFromInternalFormatAndType(format,
-                                                                                    type);
-            if (internalFormat != effectiveFormat) {
-                bool exceptionallyAllowed = false;
-                if (internalFormat == LOCAL_GL_SRGB8_ALPHA8 &&
-                    format == LOCAL_GL_RGBA &&
-                    type == LOCAL_GL_UNSIGNED_BYTE)
-                {
-                    exceptionallyAllowed = true;
-                }
-                else if (internalFormat == LOCAL_GL_SRGB8 &&
-                         format == LOCAL_GL_RGB &&
-                         type == LOCAL_GL_UNSIGNED_BYTE)
-                {
-                    exceptionallyAllowed = true;
-                }
-                if (!exceptionallyAllowed) {
-                    ErrorInvalidOperation("%s: `internalformat` does not match"
-                                          " `format` and `type`.", info);
-                    return false;
-                }
-            }
-        } else {
-            // In WebGL 1, format must be equal to internalformat.
-            ErrorInvalidOperation("%s: `internalformat` does not match"
-                                  " `format`.", info);
-            return false;
-        }
+    if (IsCompressedFunc(func) == bool(formatUsage->info->compression)) {
+        ErrorInvalidEnum("%s: Specified format %s be compressed.", funcName,
+                         IsCompressedFunc(func) ? "must" : "must not");
+        return false;
     }
 
     // Check texture image size

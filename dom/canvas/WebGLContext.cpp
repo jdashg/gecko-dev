@@ -1826,9 +1826,93 @@ WebGLContext::DidRefresh()
     }
 }
 
+void
+BlittableElement::BlittableElement(mozilla::dom::Element& elem, BlittableElement** const out,
+                                   bool* const out_badCORS)
+{
+    *out = nullptr;
+    *out_badCORS = false;
+
+    MOZ_RELEASE_ASSERT(!mSrcImage);
+    if (mSrcImage)
+        return;
+
+    HTMLVideoElement* video = HTMLVideoElement::FromContentOrNull(&elt);
+    if (!video)
+        return;
+
+    uint16_t readyState;
+    if (NS_SUCCEEDED(video->GetReadyState(&readyState)) &&
+        readyState < nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA)
+    {
+        // No frame inside, just return
+        return;
+    }
+
+    // If it doesn't have a principal, just bail
+    nsCOMPtr<nsIPrincipal> principal = video->GetCurrentPrincipal();
+    if (!principal)
+        return;
+
+    mContainer = video->GetImageContainer();
+    if (!mContainer)
+        return;
+
+    if (video->GetCORSMode() == CORS_NONE) {
+        bool subsumes;
+        nsresult rv = mCanvasElement->NodePrincipal()->Subsumes(principal, &subsumes);
+        if (NS_FAILED(rv) || !subsumes) {
+            *out_badCORS = true;
+            return;
+        }
+    }
+
+    mSrcImage = mContainer->LockCurrentImage();
+    if (!mSrcImage)
+        return;
+
+    *out = this;
+    return;
+}
+
+BlittableElement::~BlittableElement()
+{
+    if (!mSrcImage)
+        return;
+
+    mSrcImage = nullptr;
+    mContainer->UnlockCurrentImage();
+}
+
+bool
+BlittableElement::BlitToTexture(GLuint tex, GLenum texImageTarget,
+                                gl::OriginPos destOrigin) const
+{
+    return gl->BlitHelper()->BlitImageToTexture(mSrcImage.get(), mSrcImage->GetSize(),
+                                                tex, texImageTarget, destOrigin);
+};
+
+class BlittableElement
+{
+    mozilla::layers::ImageContainer* mContainer;
+    nsRefPtr<mozilla::layers::Image> mSrcImage;
+
+public:
+    BlittableElement(mozilla::dom::Element& elem, BlittableElement** const out,
+                     bool* const out_badCORS);
+
+    ~BlittableElement();
+
+    const gfx::IntSize& Size() const { return mSrcImage->GetSize(); }
+
+    bool BlitToTexture(GLuint tex, GLenum texImageTarget, gl::OriginPos destOrigin) const;
+};
+
 bool
 WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget, GLint level,
-                                       const FormatInfo* formatInfo,
+                                       GLenum internalFormat, GLenum unpackFormat,
+                                       GLenum unpackType,
+                                       const FormatUsageInfo* formatUsage,
                                        mozilla::dom::Element& elt)
 {
     if (!ValidateTexImageFormatAndType(format, type,
@@ -1899,7 +1983,7 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget, GLin
     if (ok) {
         MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
         tex->SetImageInfo(texImageTarget, level, srcImage->GetSize().width,
-                          srcImage->GetSize().height, 1, formatInfo,
+                          srcImage->GetSize().height, 1, formatUsage,
                           WebGLImageDataStatus::InitializedImageData);
         tex->Bind(TexImageTargetToTexTarget(texImageTarget));
     }

@@ -19,7 +19,7 @@
 
 namespace mozilla {
 namespace webgl {
-struct FormatInfo;
+struct FormatUsageInfo;
 } // namespace webgl
 
 // Zero is not an integer power of two.
@@ -79,16 +79,16 @@ public:
     {
     public:
         ImageInfo()
-            : mFormatInfo(nullptr)
+            : mFormat(nullptr)
             , mDepth(0)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
         {}
 
         ImageInfo(GLsizei width, GLsizei height, GLsizei depth,
-                  const webgl::FormatInfo* formatInfo,
+                  const webgl::FormatUsageInfo* format,
                   WebGLImageDataStatus status)
             : WebGLRectangleObject(width, height)
-            , mFormatInfo(formatInfo)
+            , mFormat(format)
             , mDepth(depth)
             , mImageDataStatus(status)
         {
@@ -101,7 +101,7 @@ public:
                    mWidth == a.mWidth &&
                    mHeight == a.mHeight &&
                    mDepth == a.mDepth &&
-                   mFormatInfo == a.mFormatInfo;
+                   mFormat == a.mFormat;
         }
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
@@ -123,11 +123,11 @@ public:
         }
         size_t MemoryUsage() const;
 
-        const webgl::FormatInfo* FormatInfo() const { return mFormatInfo; }
+        const webgl::FormatUsageInfo* Format() const { return mFormat; }
         GLsizei Depth() const { return mDepth; }
 
     protected:
-        const webgl::FormatInfo* mFormatInfo;
+        const webgl::FormatUsageInfo* mFormat;
 
         /* Used only for 3D textures.
          * Note that mWidth and mHeight are inherited from WebGLRectangleObject.
@@ -254,7 +254,7 @@ public:
     void Bind(TexTarget texTarget);
 
     void SetImageInfo(TexImageTarget target, GLint level, GLsizei width, GLsizei height,
-                      GLsizei depth, const webgl::FormatInfo* formatInfo,
+                      GLsizei depth, const webgl::FormatInfo* format,
                       WebGLImageDataStatus status);
 
     void SetMinFilter(TexMinFilter minFilter) {
