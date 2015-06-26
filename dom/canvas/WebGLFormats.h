@@ -103,7 +103,7 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     COMPRESSED_SIGNED_R11_EAC,
     COMPRESSED_RG11_EAC,
     COMPRESSED_SIGNED_RG11_EAC,
-    COMPRESSED_RGB_ETC2,
+    COMPRESSED_RGB8_ETC2,
     COMPRESSED_SRGB8_ETC2,
     COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2,
     COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2,
@@ -223,7 +223,7 @@ struct FormatUsageInfo {
 
 class FormatUsageAuthority
 {
-    std::map<EffectiveFormatValueT, FormatUsageInfo> mInfoMap;
+    std::map<EffectiveFormat, FormatUsageInfo> mInfoMap;
 
 public:
     static UniquePtr<FormatUsageAuthority> CreateForWebGL1();
@@ -233,13 +233,13 @@ private:
     FormatUsageAuthority() { }
 
 public:
-    void AddFormat(EffectiveFormat format, bool asRenderbuffer, bool asTexture,
-                   bool isRenderable, bool isFilterable);
+    void AddFormat(EffectiveFormat format, bool asRenderbuffer, bool isRenderable,
+                   bool asTexture, bool isFilterable);
 
     void AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
                          EffectiveFormat effectiveFormat);
 
-    FormatUsageInfo* Info(EffectiveFormat format) const;
+    FormatUsageInfo* GetInfo(EffectiveFormat format);
 };
 
 ////////////////////////////////////////

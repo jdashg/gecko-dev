@@ -10,24 +10,31 @@ namespace webgl {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static std::map<EffectiveFormatValueT,
+static std::map<EffectiveFormat,
                 const CompressedFormatInfo> sCompressedFormatInfoMap;
 
+template<typename K, typename V, typename K2, typename V2>
 static void
-AddCompressedFormatInfo(EffectiveFormat format, uint8_t bitsPerBlock, uint8_t blockWidth,
+AlwaysInsert(std::map<K,V>& dest, const K2& key, const V2& val)
+{
+    auto res = dest.insert({ key, val });
+    bool didInsert = res.second;
+    MOZ_ALWAYS_TRUE(didInsert);
+}
+
+static void
+AddCompressedFormatInfo(EffectiveFormat format, uint16_t bitsPerBlock, uint8_t blockWidth,
                         uint8_t blockHeight, bool requirePOT,
                         SubImageUpdateBehavior subImageUpdateBehavior)
 {
-    MOZ_RELEASE_ASSERT(bitsPerBlock % 8 == 0);
-    uint8_t bytesPerBlock = bitsPerBlock / 8; // The specs always state these in bits, but
-                                              // it's only ever useful to us as bytes.
+    MOZ_ASSERT(bitsPerBlock % 8 == 0);
+    uint16_t bytesPerBlock = bitsPerBlock / 8; // The specs always state these in bits, but
+                                               // it's only ever useful to us as bytes.
+    MOZ_ASSERT(bytesPerBlock <= 255);
 
     const CompressedFormatInfo info = { format, bytesPerBlock, blockWidth, blockHeight,
                                         requirePOT, subImageUpdateBehavior };
-
-    auto insertResult = sCompressedFormatInfoMap.insert({format.get(), info});
-    bool didInsert = insertResult.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    AlwaysInsert(sCompressedFormatInfoMap, format, info);
 }
 
 static void
@@ -70,7 +77,7 @@ InitCompressedFormatInfo()
 static const CompressedFormatInfo*
 GetCompressedFormatInfo(EffectiveFormat format)
 {
-    auto itr = sCompressedFormatInfoMap.find(format.get());
+    auto itr = sCompressedFormatInfoMap.find(format);
     if (itr == sCompressedFormatInfoMap.end())
         return nullptr;
 
@@ -79,11 +86,11 @@ GetCompressedFormatInfo(EffectiveFormat format)
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static std::map<EffectiveFormatValueT, const FormatInfo> sFormatInfoMap;
+static std::map<EffectiveFormat, const FormatInfo> sFormatInfoMap;
 
 static void
-AddFormatInfo(EffectiveFormat format, uint8_t bytesPerPixel, UnsizedFormat unsizedFormat,
-              ComponentType colorComponentType)
+AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
+              UnsizedFormat unsizedFormat, ComponentType colorComponentType)
 {
     bool hasColor = false;
     bool hasAlpha = false;
@@ -122,21 +129,18 @@ AddFormatInfo(EffectiveFormat format, uint8_t bytesPerPixel, UnsizedFormat unsiz
     const CompressedFormatInfo* compressedFormatInfo = GetCompressedFormatInfo(format);
     MOZ_ASSERT(!bytesPerPixel == !!compressedFormatInfo);
 
-    const FormatInfo info = { format, unsizedFormat, colorComponentType, bytesPerPixel,
-                              compressedFormatInfo, hasColor, hasAlpha, hasDepth,
-                              hasStencil };
-
-    auto res = sFormatInfoMap.insert({format.get(), info});
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    const FormatInfo info = { format, name, unsizedFormat, colorComponentType,
+                              bytesPerPixel, hasColor, hasAlpha, hasDepth, hasStencil,
+                              compressedFormatInfo };
+    AlwaysInsert(sFormatInfoMap, format, info);
 }
 
 static void
 InitFormatInfoMap()
 {
 
-#ifdef FOO(x)
-#error FOO(x) is already defined!
+#ifdef FOO
+#error FOO is already defined!
 #endif
 
 #define FOO(x) EffectiveFormat::x, #x
@@ -247,13 +251,13 @@ InitFormatInfoMap()
     // OES_compressed_ETC1_RGB8_texture
     AddFormatInfo(FOO(ETC1_RGB8), 0, UnsizedFormat::RGB, ComponentType::NormUInt);
 
-#undef FOO(x)
+#undef FOO
 }
 
 const FormatInfo*
 GetFormatInfo(EffectiveFormat format)
 {
-    auto itr = sFormatInfoMap.find(format.get());
+    auto itr = sFormatInfoMap.find(format);
     if (itr == sFormatInfoMap.end())
         return nullptr;
 
@@ -272,9 +276,7 @@ AddUnpackTuple(GLenum unpackFormat, GLenum unpackType, EffectiveFormat effective
     const UnpackTuple unpack = { unpackFormat, unpackType };
     const FormatInfo* info = GetFormatInfo(effectiveFormat);
 
-    auto res = sUnpackTupleMap.insert({ unpack, info });
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    AlwaysInsert(sUnpackTupleMap, unpack, info);
 }
 
 static void
@@ -309,9 +311,10 @@ AddSizedFormat(GLenum sizedFormat, EffectiveFormat effectiveFormat)
 {
     MOZ_ASSERT(GetFormatInfo(effectiveFormat));
 
-    auto res = sSizedFormatMap.insert({ sizedFormat, effectiveFormat });
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    const FormatInfo* info = GetFormatInfo(effectiveFormat);
+    MOZ_ASSERT(info);
+
+    AlwaysInsert(sSizedFormatMap, sizedFormat, info);
 }
 
 static void
@@ -320,7 +323,7 @@ InitSizedFormatMap()
     // GLES 3.0.4, p128-129 "Required Texture Formats"
 
     // "Texture and renderbuffer color formats"
-#ifdef FOO(x)
+#ifdef FOO
 #error FOO(x) is already defined!
 #endif
 
@@ -399,7 +402,7 @@ InitSizedFormatMap()
     // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
     FOO(STENCIL_INDEX8);
 
-#undef FOO(x)
+#undef FOO
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -421,7 +424,7 @@ const FormatInfo*
 GetInfoBySizedFormat(GLenum sizedFormat)
 {
     auto itr = sSizedFormatMap.find(sizedFormat);
-    if (itr == sUnpackTupleMap.end())
+    if (itr == sSizedFormatMap.end())
         return nullptr;
 
     return itr->second;
@@ -441,9 +444,9 @@ FormatUsageInfo::CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const
 // FormatUsageAuthority
 
 FormatUsageInfo*
-FormatCapAuthority::GetInfo(EffectiveFormat format) const
+FormatUsageAuthority::GetInfo(EffectiveFormat format)
 {
-    auto itr = mInfoMap.find(format.get());
+    auto itr = mInfoMap.find(format);
 
     if (itr == mInfoMap.end())
         return nullptr;
@@ -453,8 +456,7 @@ FormatCapAuthority::GetInfo(EffectiveFormat format) const
 
 void
 FormatUsageAuthority::AddFormat(EffectiveFormat format, bool asRenderbuffer,
-                                bool isRenderable, bool asTexture, bool canUpload,
-                                bool isFilterable)
+                                bool isRenderable, bool asTexture, bool isFilterable)
 {
     MOZ_ASSERT_IF(asRenderbuffer, isRenderable);
     MOZ_ASSERT_IF(isFilterable, asTexture);
@@ -464,10 +466,7 @@ FormatUsageAuthority::AddFormat(EffectiveFormat format, bool asRenderbuffer,
 
     FormatUsageInfo usage = { formatInfo, asRenderbuffer, isRenderable, asTexture,
                               isFilterable, {} };
-
-    auto res = mFormatMap.insert({ format.get(), usage });
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    AlwaysInsert(mInfoMap, format, usage);
 }
 
 void
@@ -497,13 +496,11 @@ AddES3TexFormat(FormatUsageAuthority* that, EffectiveFormat format, bool isRende
     that->AddFormat(format, asRenderbuffer, isRenderable, asTexture, isFilterable);
 }
 
-template<size_t N>
 static void
 AddUnpackOptions(FormatUsageAuthority* that, GLenum unpackFormat, GLenum unpackType,
-                 const (&EffectiveFormat) formatArr[N])
+                 std::initializer_list<EffectiveFormat> formats)
 {
-    for (size_t i = 0; i < N; i++) {
-        const EffectiveFormat effectiveFormat = formatArr[i];
+    for (EffectiveFormat effectiveFormat : formats) {
         that->AddUnpackOption(unpackFormat, unpackType, effectiveFormat);
     }
 }
@@ -569,188 +566,188 @@ FormatUsageAuthority::CreateForWebGL2()
     // GLES 3.0.4, p130-132, table 3.13
     //                                                render filter
     //                                                 able   able
-    AddES3TexFormat(ret, EffectiveFormat::R8,          true , true );
-    AddES3TexFormat(ret, EffectiveFormat::R8_SNORM,    false, true );
-    AddES3TexFormat(ret, EffectiveFormat::RG8,         true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RG8_SNORM,   false, true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB8,        true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB8_SNORM,  false, true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB565,      true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGBA4,       true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB5_A1,     true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGBA8,       true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGBA8_SNORM, false, true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB10_A2,    true , true );
-    AddES3TexFormat(ret, EffectiveFormat::RGB10_A2UI,  true , false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R8,          true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::R8_SNORM,    false, true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG8,         true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG8_SNORM,   false, true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB8,        true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB8_SNORM,  false, true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB565,      true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA4,       true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB5_A1,     true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA8,       true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA8_SNORM, false, true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB10_A2,    true , true );
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB10_A2UI,  true , false);
 
-    AddES3TexFormat(ret, EffectiveFormat::SRGB8,        false, true);
-    AddES3TexFormat(ret, EffectiveFormat::SRGB8_ALPHA8, true , true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::SRGB8,        false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::SRGB8_ALPHA8, true , true);
 
-    AddES3TexFormat(ret, EffectiveFormat::R16F,    false, true);
-    AddES3TexFormat(ret, EffectiveFormat::RG16F,   false, true);
-    AddES3TexFormat(ret, EffectiveFormat::RGB16F,  false, true);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA16F, false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R16F,    false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG16F,   false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB16F,  false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA16F, false, true);
 
-    AddES3TexFormat(ret, EffectiveFormat::R32F,    false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG32F,   false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB32F,  false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA32F, false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R32F,    false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG32F,   false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB32F,  false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA32F, false, false);
 
-    AddES3TexFormat(ret, EffectiveFormat::R11F_G11F_B10F, false, true);
-    AddES3TexFormat(ret, EffectiveFormat::RGB9_E5,        false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R11F_G11F_B10F, false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB9_E5,        false, true);
 
-    AddES3TexFormat(ret, EffectiveFormat::R8I,   true, false);
-    AddES3TexFormat(ret, EffectiveFormat::R8UI,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::R16I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::R16UI, true, false);
-    AddES3TexFormat(ret, EffectiveFormat::R32I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::R32UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R8I,   true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R8UI,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R16I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R16UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R32I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::R32UI, true, false);
 
-    AddES3TexFormat(ret, EffectiveFormat::RG8I,   true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG8UI,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG16I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG16UI, true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG32I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RG32UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG8I,   true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG8UI,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG16I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG16UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG32I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RG32UI, true, false);
 
-    AddES3TexFormat(ret, EffectiveFormat::RGB8I,   false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB8UI,  false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB16I,  false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB16UI, false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB32I,  false, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGB32UI, false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB8I,   false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB8UI,  false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB16I,  false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB16UI, false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB32I,  false, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGB32UI, false, false);
 
-    AddES3TexFormat(ret, EffectiveFormat::RGBA8I,   true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA8UI,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA16I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA16UI, true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA32I,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::RGBA32UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA8I,   true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA8UI,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA16I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA16UI, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA32I,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::RGBA32UI, true, false);
 
     // GLES 3.0.4, p133, table 3.14
     // GLES 3.0.4, p161 "...a texture is complete unless..."
-    AddES3TexFormat(ret, EffectiveFormat::DEPTH_COMPONENT16,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::DEPTH_COMPONENT24,  true, false);
-    AddES3TexFormat(ret, EffectiveFormat::DEPTH_COMPONENT32F, true, false);
-    AddES3TexFormat(ret, EffectiveFormat::DEPTH24_STENCIL8,   true, false);
-    AddES3TexFormat(ret, EffectiveFormat::DEPTH32F_STENCIL8,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::DEPTH_COMPONENT16,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::DEPTH_COMPONENT24,  true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::DEPTH_COMPONENT32F, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::DEPTH24_STENCIL8,   true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::DEPTH32F_STENCIL8,  true, false);
 
     // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
-    AddES3TexFormat(ret, EffectiveFormat::STENCIL_INDEX8, true, false);
+    AddES3TexFormat(ret.get(), EffectiveFormat::STENCIL_INDEX8, true, false);
 
     // GLES 3.0.4, p128, table 3.12.
     // Unsized RGBA/RGB formats are renderable, other unsized are not.
-    AddES3TexFormat(ret, EffectiveFormat::L8A8, false, true);
-    AddES3TexFormat(ret, EffectiveFormat::L8,   false, true);
-    AddES3TexFormat(ret, EffectiveFormat::A8,   false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::Luminance8Alpha8, false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::Luminance8      , false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::Alpha8          , false, true);
 
     // GLES 3.0.4, p147, table 3.19
     // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
     // (jgilbert) I can't find where these are established as filterable.
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_RGB8_ETC2,                      false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_SRGB8_ETC2,                     false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_RGBA8_ETC2_EAC,                 false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC,          false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_R11_EAC,                        false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_RG11_EAC,                       false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_SIGNED_R11_EAC,                 false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_SIGNED_RG11_EAC,                false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2,  false, true);
-    AddES3TexFormat(ret, EffectiveFormat::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2, false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_RGB8_ETC2,                      false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_SRGB8_ETC2,                     false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_RGBA8_ETC2_EAC,                 false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC,          false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_R11_EAC,                        false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_RG11_EAC,                       false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_SIGNED_R11_EAC,                 false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_SIGNED_RG11_EAC,                false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2,  false, true);
+    AddES3TexFormat(ret.get(), EffectiveFormat::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2, false, true);
 
     ////////////////////////////////////////////////////////////////////////////
     // GLES 3.0.4 p111-113
     // RGBA
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              , { EffectiveFormat::RGBA8,
-                                                                                 EffectiveFormat::RGB5_A1,
-                                                                                 EffectiveFormat::RGBA4,
-                                                                                 EffectiveFormat::SRGB8_ALPHA8 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_BYTE                       , { EffectiveFormat::RGBA8_SNORM } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     , { EffectiveFormat::RGBA4 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1     , { EffectiveFormat::RGB5_A1 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, { EffectiveFormat::RGB10_A2,
-                                                                                 EffectiveFormat::RGB5_A1 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT                 , { EffectiveFormat::RGBA16F } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      , { EffectiveFormat::RGBA32F,
-                                                                                 EffectiveFormat::RGBA16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              , { EffectiveFormat::RGBA8,
+                                                                                       EffectiveFormat::RGB5_A1,
+                                                                                       EffectiveFormat::RGBA4,
+                                                                                       EffectiveFormat::SRGB8_ALPHA8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_BYTE                       , { EffectiveFormat::RGBA8_SNORM } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     , { EffectiveFormat::RGBA4 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1     , { EffectiveFormat::RGB5_A1 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, { EffectiveFormat::RGB10_A2,
+                                                                                       EffectiveFormat::RGB5_A1 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT                 , { EffectiveFormat::RGBA16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      , { EffectiveFormat::RGBA32F,
+                                                                                       EffectiveFormat::RGBA16F } );
     // RGBA_INTEGER
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_BYTE              , { EffectiveFormat::RGBA8UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_BYTE                       , { EffectiveFormat::RGBA8I } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_SHORT             , { EffectiveFormat::RGBA16UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_SHORT                      , { EffectiveFormat::RGBA16I } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT               , { EffectiveFormat::RGBA32UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_INT                        , { EffectiveFormat::RGBA32I } );
-    AddUnpackOptions(ret, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, { EffectiveFormat::RGB10_A2UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_BYTE              , { EffectiveFormat::RGBA8UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_BYTE                       , { EffectiveFormat::RGBA8I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_SHORT             , { EffectiveFormat::RGBA16UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_SHORT                      , { EffectiveFormat::RGBA16I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT               , { EffectiveFormat::RGBA32UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_INT                        , { EffectiveFormat::RGBA32I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, { EffectiveFormat::RGB10_A2UI } );
 
     // RGB
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               , { EffectiveFormat::RGB8,
-                                                                                 EffectiveFormat::RGB565,
-                                                                                 EffectiveFormat::SRGB8 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_BYTE                        , { EffectiveFormat::RGB8_SNORM } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_SHORT_5_6_5        , { EffectiveFormat::RGB565 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV, { EffectiveFormat::R11F_G11F_B10F } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV    , { EffectiveFormat::RGB9_E5 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  , { EffectiveFormat::RGB16F,
-                                                                                 EffectiveFormat::R11F_G11F_B10F,
-                                                                                 EffectiveFormat::RGB9_E5 } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB, LOCAL_GL_FLOAT                       , { EffectiveFormat::RGB32F
-                                                                                 EffectiveFormat::RGB16F,
-                                                                                 EffectiveFormat::R11F_G11F_B10F,
-                                                                                 EffectiveFormat::RGB9_E5 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               , { EffectiveFormat::RGB8,
+                                                                                       EffectiveFormat::RGB565,
+                                                                                       EffectiveFormat::SRGB8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_BYTE                        , { EffectiveFormat::RGB8_SNORM } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_SHORT_5_6_5        , { EffectiveFormat::RGB565 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV, { EffectiveFormat::R11F_G11F_B10F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV    , { EffectiveFormat::RGB9_E5 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  , { EffectiveFormat::RGB16F,
+                                                                                       EffectiveFormat::R11F_G11F_B10F,
+                                                                                       EffectiveFormat::RGB9_E5 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB, LOCAL_GL_FLOAT                       , { EffectiveFormat::RGB32F,
+                                                                                       EffectiveFormat::RGB16F,
+                                                                                       EffectiveFormat::R11F_G11F_B10F,
+                                                                                       EffectiveFormat::RGB9_E5 } );
 
     // RGB_INTEGER
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::RGB8UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::RGB8I } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::RGB16UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::RGB16I } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::RGB32UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RGB_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::RGB32I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::RGB8UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::RGB8I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::RGB16UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::RGB16I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::RGB32UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RGB_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::RGB32I } );
 
 
     // RG
-    AddUnpackOptions(ret, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE, { EffectiveFormat::RG8 } );
-    AddUnpackOptions(ret, LOCAL_GL_RG, LOCAL_GL_BYTE         , { EffectiveFormat::RG8_SNORM } );
-    AddUnpackOptions(ret, LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT   , { EffectiveFormat::RG16F } );
-    AddUnpackOptions(ret, LOCAL_GL_RG, LOCAL_GL_FLOAT        , { EffectiveFormat::RG32F,
-                                                                 EffectiveFormat::RG16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE, { EffectiveFormat::RG8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG, LOCAL_GL_BYTE         , { EffectiveFormat::RG8_SNORM } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT   , { EffectiveFormat::RG16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG, LOCAL_GL_FLOAT        , { EffectiveFormat::RG32F,
+                                                                       EffectiveFormat::RG16F } );
 
     // RG_INTEGER
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::RG8UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::RG8I } );
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::RG16UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::RG16I } );
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::RG32UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RG_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::RG32I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::RG8UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::RG8I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::RG16UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::RG16I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::RG32UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RG_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::RG32I } );
 
     // RED
-    AddUnpackOptions(ret, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE, { EffectiveFormat::R8 } );
-    AddUnpackOptions(ret, LOCAL_GL_RED, LOCAL_GL_BYTE         , { EffectiveFormat::R8_SNORM } );
-    AddUnpackOptions(ret, LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT   , { EffectiveFormat::R16F } );
-    AddUnpackOptions(ret, LOCAL_GL_RED, LOCAL_GL_FLOAT        , { EffectiveFormat::R32F,
-                                                                  EffectiveFormat::R16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE, { EffectiveFormat::R8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED, LOCAL_GL_BYTE         , { EffectiveFormat::R8_SNORM } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT   , { EffectiveFormat::R16F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED, LOCAL_GL_FLOAT        , { EffectiveFormat::R32F,
+                                                                        EffectiveFormat::R16F } );
 
     // RED_INTEGER
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::R8UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::R8I } );
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::R16UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::R16I } );
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::R32UI } );
-    AddUnpackOptions(ret, LOCAL_GL_RED_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::R32I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_BYTE , { EffectiveFormat::R8UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_BYTE          , { EffectiveFormat::R8I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::R16UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_SHORT         , { EffectiveFormat::R16I } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::R32UI } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_RED_INTEGER, LOCAL_GL_INT           , { EffectiveFormat::R32I } );
 
     // DEPTH_COMPONENT
-    AddUnpackOptions(ret, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::DEPTH_COMPONENT16 } );
-    AddUnpackOptions(ret, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::DEPTH_COMPONENT24,
-                                                                               EffectiveFormat::DEPTH_COMPONENT16 } );
-    AddUnpackOptions(ret, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_FLOAT         , { EffectiveFormat::DEPTH_COMPONENT32F } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT, { EffectiveFormat::DEPTH_COMPONENT16 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  , { EffectiveFormat::DEPTH_COMPONENT24,
+                                                                                     EffectiveFormat::DEPTH_COMPONENT16 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_FLOAT         , { EffectiveFormat::DEPTH_COMPONENT32F } );
 
     // DEPTH_STENCIL
-    AddUnpackOptions(ret, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             , { EffectiveFormat::DEPTH24_STENCIL8 } );
-    AddUnpackOptions(ret, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSGINED_INT_24_8_REV, { EffectiveFormat::DEPTH32F_STENCIL8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             , { EffectiveFormat::DEPTH24_STENCIL8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV, { EffectiveFormat::DEPTH32F_STENCIL8 } );
 
     // Unsized formats
-    AddUnpackOptions(ret, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Luminance8Alpha8 } );
-    AddUnpackOptions(ret, LOCAL_GL_LUMINANCE      , LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Luminance8 } );
-    AddUnpackOptions(ret, LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Alpha8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Luminance8Alpha8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_LUMINANCE      , LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Luminance8 } );
+    AddUnpackOptions(ret.get(), LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE         , { EffectiveFormat::Alpha8 } );
 
     return Move(ret);
 }
