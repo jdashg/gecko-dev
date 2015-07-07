@@ -10,8 +10,32 @@ namespace webgl {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static std::map<EffectiveFormat,
-                const CompressedFormatInfo> sCompressedFormatInfoMap;
+static std::map<EffectiveFormat, const CompressedFormatInfo> sCompressedFormatInfoMap;
+static std::map<EffectiveFormat, const FormatInfo> sFormatInfoMap;
+static std::map<UnpackTuple, const FormatInfo*> sUnpackTupleMap;
+static std::map<GLenum, const FormatInfo*> sSizedFormatMap;
+
+static const CompressedFormatInfo*
+GetCompressedFormatInfo(EffectiveFormat format)
+{
+    MOZ_ASSERT(!sCompressedFormatInfoMap.empty());
+    auto itr = sCompressedFormatInfoMap.find(format);
+    if (itr == sCompressedFormatInfoMap.end())
+        return nullptr;
+
+    return &(itr->second);
+}
+
+static const FormatInfo*
+GetFormatInfo_NoLock(EffectiveFormat format)
+{
+    MOZ_ASSERT(!sFormatInfoMap.empty());
+    auto itr = sFormatInfoMap.find(format);
+    if (itr == sFormatInfoMap.end())
+        return nullptr;
+
+    return &(itr->second);
+}
 
 template<typename K, typename V, typename K2, typename V2>
 static void
@@ -22,18 +46,21 @@ AlwaysInsert(std::map<K,V>& dest, const K2& key, const V2& val)
     MOZ_ALWAYS_TRUE(didInsert);
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
 static void
 AddCompressedFormatInfo(EffectiveFormat format, uint16_t bitsPerBlock, uint8_t blockWidth,
                         uint8_t blockHeight, bool requirePOT,
                         SubImageUpdateBehavior subImageUpdateBehavior)
 {
     MOZ_ASSERT(bitsPerBlock % 8 == 0);
-    uint16_t bytesPerBlock = bitsPerBlock / 8; // The specs always state these in bits, but
-                                               // it's only ever useful to us as bytes.
+    uint16_t bytesPerBlock = bitsPerBlock / 8; // The specs always state these in bits,
+                                               // but it's only ever useful to us as
+                                               // bytes.
     MOZ_ASSERT(bytesPerBlock <= 255);
 
-    const CompressedFormatInfo info = { format, bytesPerBlock, blockWidth, blockHeight,
-                                        requirePOT, subImageUpdateBehavior };
+    const CompressedFormatInfo info = { format, uint8_t(bytesPerBlock), blockWidth,
+                                        blockHeight, requirePOT, subImageUpdateBehavior };
     AlwaysInsert(sCompressedFormatInfoMap, format, info);
 }
 
@@ -74,19 +101,7 @@ InitCompressedFormatInfo()
     AddCompressedFormatInfo(EffectiveFormat::ETC1_RGB8, 64, 4, 4, false, SubImageUpdateBehavior::Forbidden);
 }
 
-static const CompressedFormatInfo*
-GetCompressedFormatInfo(EffectiveFormat format)
-{
-    auto itr = sCompressedFormatInfoMap.find(format);
-    if (itr == sCompressedFormatInfoMap.end())
-        return nullptr;
-
-    return &(itr->second);
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
-
-static std::map<EffectiveFormat, const FormatInfo> sFormatInfoMap;
 
 static void
 AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
@@ -127,7 +142,7 @@ AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
     }
 
     const CompressedFormatInfo* compressedFormatInfo = GetCompressedFormatInfo(format);
-    MOZ_ASSERT(!bytesPerPixel == !!compressedFormatInfo);
+    MOZ_ASSERT(!bytesPerPixel == bool(compressedFormatInfo));
 
     const FormatInfo info = { format, name, unsizedFormat, colorComponentType,
                               bytesPerPixel, hasColor, hasAlpha, hasDepth, hasStencil,
@@ -138,7 +153,6 @@ AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
 static void
 InitFormatInfoMap()
 {
-
 #ifdef FOO
 #error FOO is already defined!
 #endif
@@ -254,27 +268,14 @@ InitFormatInfoMap()
 #undef FOO
 }
 
-const FormatInfo*
-GetFormatInfo(EffectiveFormat format)
-{
-    auto itr = sFormatInfoMap.find(format);
-    if (itr == sFormatInfoMap.end())
-        return nullptr;
-
-    return &(itr->second);
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
-
-static std::map<UnpackTuple, const FormatInfo*> sUnpackTupleMap;
 
 static void
 AddUnpackTuple(GLenum unpackFormat, GLenum unpackType, EffectiveFormat effectiveFormat)
 {
-    MOZ_ASSERT(GetFormatInfo(effectiveFormat));
-
     const UnpackTuple unpack = { unpackFormat, unpackType };
-    const FormatInfo* info = GetFormatInfo(effectiveFormat);
+    const FormatInfo* info = GetFormatInfo_NoLock(effectiveFormat);
+    MOZ_ASSERT(info);
 
     AlwaysInsert(sUnpackTupleMap, unpack, info);
 }
@@ -292,10 +293,10 @@ InitUnpackTupleMap()
     AddUnpackTuple(LOCAL_GL_LUMINANCE      , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8      );
     AddUnpackTuple(LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Alpha8          );
 
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_FLOAT         , EffectiveFormat::RGB32F );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_FLOAT         , EffectiveFormat::RGBA32F);
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT    , EffectiveFormat::RGB16F );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::RGBA16F);
+    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_FLOAT     , EffectiveFormat::RGB32F );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_FLOAT     , EffectiveFormat::RGBA32F);
+    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT, EffectiveFormat::RGB16F );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT, EffectiveFormat::RGBA16F);
 
     // Everyone's favorite problem-child:
     AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGB16F );
@@ -304,14 +305,10 @@ InitUnpackTupleMap()
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static std::map<GLenum, const FormatInfo*> sSizedFormatMap;
-
 static void
 AddSizedFormat(GLenum sizedFormat, EffectiveFormat effectiveFormat)
 {
-    MOZ_ASSERT(GetFormatInfo(effectiveFormat));
-
-    const FormatInfo* info = GetFormatInfo(effectiveFormat);
+    const FormatInfo* info = GetFormatInfo_NoLock(effectiveFormat);
     MOZ_ASSERT(info);
 
     AlwaysInsert(sSizedFormatMap, sizedFormat, info);
@@ -406,13 +403,46 @@ InitSizedFormatMap()
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
+
+static bool sAreFormatTablesInitialized = false;
+
+static void
+EnsureInitFormatTables()
+{
+    if (MOZ_LIKELY(sAreFormatTablesInitialized))
+        return;
+
+    sAreFormatTablesInitialized = true;
+
+    InitCompressedFormatInfo();
+    InitFormatInfoMap();
+    InitUnpackTupleMap();
+    InitSizedFormatMap();
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
 // Public funcs
+
+static Mutex sFormatMapMutex("sFormatMapMutex");
+
+const FormatInfo*
+GetFormatInfo(EffectiveFormat format)
+{
+    MutexAutoLock lock(sFormatMapMutex);
+    EnsureInitFormatTables();
+
+    return GetFormatInfo_NoLock(format);
+}
 
 const FormatInfo*
 GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 {
+    MutexAutoLock lock(sFormatMapMutex);
+    EnsureInitFormatTables();
+
     const UnpackTuple unpack = { unpackFormat, unpackType };
 
+    MOZ_ASSERT(!sUnpackTupleMap.empty());
     auto itr = sUnpackTupleMap.find(unpack);
     if (itr == sUnpackTupleMap.end())
         return nullptr;
@@ -423,6 +453,10 @@ GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 const FormatInfo*
 GetInfoBySizedFormat(GLenum sizedFormat)
 {
+    MutexAutoLock lock(sFormatMapMutex);
+    EnsureInitFormatTables();
+
+    MOZ_ASSERT(!sSizedFormatMap.empty());
     auto itr = sSizedFormatMap.find(sizedFormat);
     if (itr == sSizedFormatMap.end())
         return nullptr;
@@ -435,66 +469,20 @@ GetInfoBySizedFormat(GLenum sizedFormat)
 bool
 FormatUsageInfo::CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const
 {
-    auto itr = validUnpacks.find({ unpackFormat, unpackType });
+    const UnpackTuple key = { unpackFormat, unpackType };
+    auto itr = validUnpacks.find(key);
     return itr != validUnpacks.end();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
 // FormatUsageAuthority
-
-FormatUsageInfo*
-FormatUsageAuthority::GetInfo(EffectiveFormat format)
-{
-    auto itr = mInfoMap.find(format);
-
-    if (itr == mInfoMap.end())
-        return nullptr;
-
-    return &(itr->second);
-}
-
-void
-FormatUsageAuthority::AddFormat(EffectiveFormat format, bool asRenderbuffer,
-                                bool isRenderable, bool asTexture, bool isFilterable)
-{
-    MOZ_ASSERT_IF(asRenderbuffer, isRenderable);
-    MOZ_ASSERT_IF(isFilterable, asTexture);
-
-    const FormatInfo* formatInfo = GetFormatInfo(format);
-    MOZ_RELEASE_ASSERT(formatInfo);
-
-    FormatUsageInfo usage = { formatInfo, asRenderbuffer, isRenderable, asTexture,
-                              isFilterable, {} };
-    AlwaysInsert(mInfoMap, format, usage);
-}
-
-void
-FormatUsageAuthority::AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
-                                      EffectiveFormat effectiveFormat)
-{
-    const UnpackTuple unpack = { unpackFormat, unpackType };
-    FormatUsageInfo* usage = GetInfo(effectiveFormat);
-    MOZ_RELEASE_ASSERT(usage);
-    if (!usage)
-        return;
-
-    MOZ_RELEASE_ASSERT(usage->asTexture);
-
-    auto res = usage->validUnpacks.insert(unpack);
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
-}
-
-static void
-AddES3TexFormat(FormatUsageAuthority* that, EffectiveFormat format, bool isRenderable,
-                bool isFilterable)
-{
-    bool asRenderbuffer = isRenderable;
-    bool asTexture = true;
-
-    that->AddFormat(format, asRenderbuffer, isRenderable, asTexture, isFilterable);
-}
 
 UniquePtr<FormatUsageAuthority>
 FormatUsageAuthority::CreateForWebGL1()
@@ -540,6 +528,16 @@ FormatUsageAuthority::CreateForWebGL1()
 
 
     return Move(ret);
+}
+
+static void
+AddES3TexFormat(FormatUsageAuthority* that, EffectiveFormat format, bool isRenderable,
+                bool isFilterable)
+{
+    bool asRenderbuffer = isRenderable;
+    bool asTexture = true;
+
+    that->AddFormat(format, asRenderbuffer, isRenderable, asTexture, isFilterable);
 }
 
 UniquePtr<FormatUsageAuthority>
@@ -743,9 +741,52 @@ FormatUsageAuthority::CreateForWebGL2()
     return Move(ret);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
 
+FormatUsageInfo*
+FormatUsageAuthority::GetInfo(EffectiveFormat format)
+{
+    auto itr = mInfoMap.find(format);
+
+    if (itr == mInfoMap.end())
+        return nullptr;
+
+    return &(itr->second);
+}
+
+void
+FormatUsageAuthority::AddFormat(EffectiveFormat format, bool asRenderbuffer,
+                                bool isRenderable, bool asTexture, bool isFilterable)
+{
+    MOZ_ASSERT_IF(asRenderbuffer, isRenderable);
+    MOZ_ASSERT_IF(isFilterable, asTexture);
+
+    const FormatInfo* formatInfo = GetFormatInfo(format);
+    MOZ_RELEASE_ASSERT(formatInfo);
+
+    FormatUsageInfo usage = { formatInfo, asRenderbuffer, isRenderable, asTexture,
+                              isFilterable, std::set<UnpackTuple>() };
+    AlwaysInsert(mInfoMap, format, usage);
+}
+
+void
+FormatUsageAuthority::AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
+                                      EffectiveFormat effectiveFormat)
+{
+    const UnpackTuple unpack = { unpackFormat, unpackType };
+    FormatUsageInfo* usage = GetInfo(effectiveFormat);
+    MOZ_RELEASE_ASSERT(usage);
+    if (!usage)
+        return;
+
+    MOZ_RELEASE_ASSERT(usage->asTexture);
+
+    auto res = usage->validUnpacks.insert(unpack);
+    bool didInsert = res.second;
+    MOZ_ALWAYS_TRUE(didInsert);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
 
 } // namespace webgl
 } // namespace mozilla

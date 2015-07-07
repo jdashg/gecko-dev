@@ -201,7 +201,8 @@ struct UnpackTuple {
     const GLenum format;
     const GLenum type;
 
-    bool operator <(const UnpackTuple& x) const {
+    bool operator <(const UnpackTuple& x) const
+    {
         if (format == x.format) {
             return type < x.type;
         }
@@ -240,6 +241,11 @@ public:
                          EffectiveFormat effectiveFormat);
 
     FormatUsageInfo* GetInfo(EffectiveFormat format);
+
+    FormatUsageInfo* GetInfo(const FormatInfo* format)
+    {
+        return GetInfo(format->effectiveFormat);
+    }
 };
 
 ////////////////////////////////////////
