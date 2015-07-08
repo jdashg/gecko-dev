@@ -941,9 +941,9 @@ WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out
 // Goop.
 
 JSObject*
-WebGLFramebuffer::WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto)
+WebGLFramebuffer::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto)
 {
-    return dom::WebGLFramebufferBinding::Wrap(cx, this, aGivenProto);
+    return dom::WebGLFramebufferBinding::Wrap(cx, this, givenProto);
 }
 
 inline void

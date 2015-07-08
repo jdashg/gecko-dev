@@ -38,7 +38,7 @@ public:
     // -------------------------------------------------------------------------
     // IMPLEMENT nsWrapperCache
 
-    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> aGivenProto) override;
+    virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override;
 
     // -------------------------------------------------------------------------
     // Buffer objects - WebGL2ContextBuffers.cpp
@@ -58,9 +58,9 @@ public:
     void FramebufferTextureLayer(GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer);
     void GetInternalformatParameter(JSContext*, GLenum target, GLenum internalformat, GLenum pname, JS::MutableHandleValue retval);
     void InvalidateFramebuffer(GLenum target, const dom::Sequence<GLenum>& attachments,
-                               ErrorResult& aRv);
+                               ErrorResult& rv);
     void InvalidateSubFramebuffer (GLenum target, const dom::Sequence<GLenum>& attachments, GLint x, GLint y,
-                                   GLsizei width, GLsizei height, ErrorResult& aRv);
+                                   GLsizei width, GLsizei height, ErrorResult& rv);
     void ReadBuffer(GLenum mode);
     void RenderbufferStorageMultisample(GLenum target, GLsizei samples, GLenum internalformat,
                                         GLsizei width, GLsizei height);

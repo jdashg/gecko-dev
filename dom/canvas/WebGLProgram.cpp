@@ -277,8 +277,8 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-webgl::LinkedProgramInfo::LinkedProgramInfo(WebGLProgram* aProg)
-    : prog(aProg)
+webgl::LinkedProgramInfo::LinkedProgramInfo(WebGLProgram* prog)
+    : prog(prog)
     , fragDataMap(nullptr)
 { }
 
@@ -1034,9 +1034,9 @@ WebGLProgram::FindUniformBlockByMappedName(const nsACString& mappedName,
 ////////////////////////////////////////////////////////////////////////////////
 
 JSObject*
-WebGLProgram::WrapObject(JSContext* js, JS::Handle<JSObject*> aGivenProto)
+WebGLProgram::WrapObject(JSContext* js, JS::Handle<JSObject*> givenProto)
 {
-    return dom::WebGLProgramBinding::Wrap(js, this, aGivenProto);
+    return dom::WebGLProgramBinding::Wrap(js, this, givenProto);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(WebGLProgram, mVertShader, mFragShader)

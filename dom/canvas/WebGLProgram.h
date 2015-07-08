@@ -62,7 +62,7 @@ struct LinkedProgramInfo final
     // Needed for draw call validation.
     std::set<GLuint> activeAttribLocs;
 
-    explicit LinkedProgramInfo(WebGLProgram* aProg);
+    explicit LinkedProgramInfo(WebGLProgram* prog);
 
     bool FindAttrib(const nsCString& baseUserName,
                     const WebGLActiveInfo** const out_activeInfo) const
@@ -187,7 +187,7 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext* js, JS::Handle<JSObject*> aGivenProto) override;
+    virtual JSObject* WrapObject(JSContext* js, JS::Handle<JSObject*> givenProto) override;
 
 private:
     ~WebGLProgram() {
