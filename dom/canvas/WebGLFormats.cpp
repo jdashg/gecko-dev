@@ -10,17 +10,17 @@ namespace webgl {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static std::map<EffectiveFormat, const CompressedFormatInfo> sCompressedFormatInfoMap;
-static std::map<EffectiveFormat, const FormatInfo> sFormatInfoMap;
-static std::map<UnpackTuple, const FormatInfo*> sUnpackTupleMap;
-static std::map<GLenum, const FormatInfo*> sSizedFormatMap;
+std::map<EffectiveFormat, const CompressedFormatInfo> gCompressedFormatInfoMap;
+std::map<EffectiveFormat, const FormatInfo> gFormatInfoMap;
+std::map<UnpackTuple, const FormatInfo*> gUnpackTupleMap;
+std::map<GLenum, const FormatInfo*> gSizedFormatMap;
 
 static const CompressedFormatInfo*
 GetCompressedFormatInfo(EffectiveFormat format)
 {
-    MOZ_ASSERT(!sCompressedFormatInfoMap.empty());
-    auto itr = sCompressedFormatInfoMap.find(format);
-    if (itr == sCompressedFormatInfoMap.end())
+    MOZ_ASSERT(!gCompressedFormatInfoMap.empty());
+    auto itr = gCompressedFormatInfoMap.find(format);
+    if (itr == gCompressedFormatInfoMap.end())
         return nullptr;
 
     return &(itr->second);
@@ -29,9 +29,9 @@ GetCompressedFormatInfo(EffectiveFormat format)
 static const FormatInfo*
 GetFormatInfo_NoLock(EffectiveFormat format)
 {
-    MOZ_ASSERT(!sFormatInfoMap.empty());
-    auto itr = sFormatInfoMap.find(format);
-    if (itr == sFormatInfoMap.end())
+    MOZ_ASSERT(!gFormatInfoMap.empty());
+    auto itr = gFormatInfoMap.find(format);
+    if (itr == gFormatInfoMap.end())
         return nullptr;
 
     return &(itr->second);
@@ -61,7 +61,7 @@ AddCompressedFormatInfo(EffectiveFormat format, uint16_t bitsPerBlock, uint8_t b
 
     const CompressedFormatInfo info = { format, uint8_t(bytesPerBlock), blockWidth,
                                         blockHeight, requirePOT, subImageUpdateBehavior };
-    AlwaysInsert(sCompressedFormatInfoMap, format, info);
+    AlwaysInsert(gCompressedFormatInfoMap, format, info);
 }
 
 static void
@@ -147,7 +147,7 @@ AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
     const FormatInfo info = { format, name, unsizedFormat, colorComponentType,
                               bytesPerPixel, hasColor, hasAlpha, hasDepth, hasStencil,
                               compressedFormatInfo };
-    AlwaysInsert(sFormatInfoMap, format, info);
+    AlwaysInsert(gFormatInfoMap, format, info);
 }
 
 static void
@@ -277,7 +277,7 @@ AddUnpackTuple(GLenum unpackFormat, GLenum unpackType, EffectiveFormat effective
     const FormatInfo* info = GetFormatInfo_NoLock(effectiveFormat);
     MOZ_ASSERT(info);
 
-    AlwaysInsert(sUnpackTupleMap, unpack, info);
+    AlwaysInsert(gUnpackTupleMap, unpack, info);
 }
 
 static void
@@ -311,7 +311,7 @@ AddSizedFormat(GLenum sizedFormat, EffectiveFormat effectiveFormat)
     const FormatInfo* info = GetFormatInfo_NoLock(effectiveFormat);
     MOZ_ASSERT(info);
 
-    AlwaysInsert(sSizedFormatMap, sizedFormat, info);
+    AlwaysInsert(gSizedFormatMap, sizedFormat, info);
 }
 
 static void
@@ -404,15 +404,15 @@ InitSizedFormatMap()
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static bool sAreFormatTablesInitialized = false;
+bool gAreFormatTablesInitialized = false;
 
 static void
 EnsureInitFormatTables()
 {
-    if (MOZ_LIKELY(sAreFormatTablesInitialized))
+    if (MOZ_LIKELY(gAreFormatTablesInitialized))
         return;
 
-    sAreFormatTablesInitialized = true;
+    gAreFormatTablesInitialized = true;
 
     InitCompressedFormatInfo();
     InitFormatInfoMap();
@@ -423,12 +423,12 @@ EnsureInitFormatTables()
 //////////////////////////////////////////////////////////////////////////////////////////
 // Public funcs
 
-static Mutex sFormatMapMutex("sFormatMapMutex");
+Mutex gFormatMapMutex("sFormatMapMutex");
 
 const FormatInfo*
 GetFormatInfo(EffectiveFormat format)
 {
-    MutexAutoLock lock(sFormatMapMutex);
+    MutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
     return GetFormatInfo_NoLock(format);
@@ -437,14 +437,14 @@ GetFormatInfo(EffectiveFormat format)
 const FormatInfo*
 GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 {
-    MutexAutoLock lock(sFormatMapMutex);
+    MutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
     const UnpackTuple unpack = { unpackFormat, unpackType };
 
-    MOZ_ASSERT(!sUnpackTupleMap.empty());
-    auto itr = sUnpackTupleMap.find(unpack);
-    if (itr == sUnpackTupleMap.end())
+    MOZ_ASSERT(!gUnpackTupleMap.empty());
+    auto itr = gUnpackTupleMap.find(unpack);
+    if (itr == gUnpackTupleMap.end())
         return nullptr;
 
     return itr->second;
@@ -453,12 +453,12 @@ GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 const FormatInfo*
 GetInfoBySizedFormat(GLenum sizedFormat)
 {
-    MutexAutoLock lock(sFormatMapMutex);
+    MutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
-    MOZ_ASSERT(!sSizedFormatMap.empty());
-    auto itr = sSizedFormatMap.find(sizedFormat);
-    if (itr == sSizedFormatMap.end())
+    MOZ_ASSERT(!gSizedFormatMap.empty());
+    auto itr = gSizedFormatMap.find(sizedFormat);
+    if (itr == gSizedFormatMap.end())
         return nullptr;
 
     return itr->second;
