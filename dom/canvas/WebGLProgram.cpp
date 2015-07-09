@@ -202,10 +202,10 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
                 // By GLES 3, GetUniformLocation("foo[0]") should return -1 if `foo` is
                 // not an array. Our current linux Try slaves return the location of `foo`
                 // anyways, though.
-                std::string mappedName = baseMappedName.BeginReading();
-                mappedName += "[0]";
+                std::string mappedNameStr = baseMappedName.BeginReading();
+                mappedNameStr += "[0]";
 
-                GLint loc = gl->fGetUniformLocation(prog->mGLName, mappedName.c_str());
+                GLint loc = gl->fGetUniformLocation(prog->mGLName, mappedNameStr.c_str());
                 if (loc != -1)
                     isArray = true;
             }
@@ -246,14 +246,17 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
                 MOZ_CRASH("Failed to parse `mappedName` received from driver.");
 
             nsAutoCString baseUserName;
-            if (!prog->FindUniformBlockByMappedName(baseMappedName, &baseUserName, &isArray)) {
+            if (!prog->FindUniformBlockByMappedName(baseMappedName, &baseUserName,
+                                                    &isArray))
+            {
                 baseUserName = baseMappedName;
 
                 if (needsCheckForArrays && !isArray) {
-                    std::string mappedName = baseMappedName.BeginReading();
-                    mappedName += "[0]";
+                    std::string mappedNameStr = baseMappedName.BeginReading();
+                    mappedNameStr += "[0]";
 
-                    GLuint loc = gl->fGetUniformBlockIndex(prog->mGLName, mappedName.c_str());
+                    GLuint loc = gl->fGetUniformBlockIndex(prog->mGLName,
+                                                           mappedNameStr.c_str());
                     if (loc != LOCAL_GL_INVALID_INDEX)
                         isArray = true;
                 }

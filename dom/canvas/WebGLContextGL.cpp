@@ -2087,9 +2087,9 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
             return;
 
         MOZ_ASSERT(srcFormat != LOCAL_GL_NONE);
-        TexType type = TypeFromInternalFormat(srcFormat);
-        isSourceTypeFloat = (type == LOCAL_GL_FLOAT ||
-                             type == LOCAL_GL_HALF_FLOAT);
+        TexType texType = TypeFromInternalFormat(srcFormat);
+        isSourceTypeFloat = (texType == LOCAL_GL_FLOAT ||
+                             texType == LOCAL_GL_HALF_FLOAT);
     } else {
         ClearBackbufferIfNeeded();
 
