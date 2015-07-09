@@ -6,8 +6,8 @@
 #ifndef WEBGL_QUERY_H_
 #define WEBGL_QUERY_H_
 
-#include "mozilla/LinkedList.h"
-#include "nsWrapperCache.h"
+#include "../../mfbt/LinkedList.h"
+#include "../base/nsWrapperCache.h"
 #include "WebGLObjectModel.h"
 
 namespace mozilla {

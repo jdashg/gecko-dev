@@ -75,12 +75,12 @@ public:
     void TexImage3D(GLenum target, GLint level, GLenum internalformat,
                     GLsizei width, GLsizei height, GLsizei depth,
                     GLint border, GLenum format, GLenum type,
-                    const Nullable<dom::ArrayBufferView> &pixels,
+                    const dom::Nullable<dom::ArrayBufferView>& pixels,
                     ErrorResult& rv);
     void TexSubImage3D(GLenum target, GLint level,
                        GLint xoffset, GLint yoffset, GLint zoffset,
                        GLsizei width, GLsizei height, GLsizei depth,
-                       GLenum format, GLenum type, const Nullable<dom::ArrayBufferView>& pixels,
+                       GLenum format, GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
                        ErrorResult& rv);
     void TexSubImage3D(GLenum target, GLint level,
                        GLint xoffset, GLint yoffset, GLint zoffset,

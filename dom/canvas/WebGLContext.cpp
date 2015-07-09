@@ -5,29 +5,32 @@
 
 #include "WebGLContext.h"
 
-#include "AccessCheck.h"
+#include <queue>
+
+#include "../../js/xpconnect/wrappers/AccessCheck.h"
+
 #include "CanvasUtils.h"
-#include "gfxContext.h"
-#include "gfxCrashReporterUtils.h"
-#include "gfxPattern.h"
-#include "gfxPrefs.h"
-#include "gfxUtils.h"
-#include "GLBlitHelper.h"
-#include "GLContext.h"
-#include "GLContextProvider.h"
-#include "GLReadTexImageHelper.h"
-#include "ImageContainer.h"
-#include "ImageEncoder.h"
-#include "Layers.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/HTMLVideoElement.h"
-#include "mozilla/dom/ImageData.h"
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "mozilla/EnumeratedArrayCycleCollection.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/ProcessPriorityManager.h"
-#include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
+#include "../../gfx/thebes/gfxContext.h"
+#include "../../gfx/src/gfxCrashReporterUtils.h"
+#include "../../gfx/thebes/gfxPattern.h"
+#include "../../gfx/thebes/gfxPrefs.h"
+#include "../../gfx/thebes/gfxUtils.h"
+#include "../../gfx/gl/GLBlitHelper.h"
+#include "../../gfx/gl/GLContext.h"
+#include "../../gfx/gl/GLContextProvider.h"
+#include "../../gfx/gl/GLReadTexImageHelper.h"
+#include "../../gfx/gl/GLScreenBuffer.h"
+#include "../../gfx/layers/ImageContainer.h"
+#include "../base/ImageEncoder.h"
+#include "../../gfx/layers/Layers.h"
+#include "../bindings/BindingUtils.h"
+#include "../html/HTMLVideoElement.h"
+#include "ImageData.h"
+#include "../../xpcom/glue/EnumeratedArrayCycleCollection.h"
+#include "../../modules/libpref/Preferences.h"
+#include "../ipc/ProcessPriorityManager.h"
+#include "../../xpcom/build/Services.h"
+#include "../../toolkit/components/telemetry/Telemetry.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsError.h"
@@ -42,9 +45,9 @@
 #include "nsServiceManagerUtils.h"
 #include "nsSVGEffects.h"
 #include "prenv.h"
-#include <queue>
 #include "ScopedGLHelpers.h"
 #include "WebGL1Context.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLBuffer.h"
 #include "WebGLContextLossHandler.h"
 #include "WebGLContextUtils.h"
@@ -52,17 +55,23 @@
 #include "WebGLFramebuffer.h"
 #include "WebGLMemoryTracker.h"
 #include "WebGLObjectModel.h"
+#include "WebGLProgram.h"
 #include "WebGLQuery.h"
 #include "WebGLSampler.h"
+#include "WebGLShader.h"
 #include "WebGLTransformFeedback.h"
 #include "WebGLVertexArray.h"
 #include "WebGLVertexAttribData.h"
+
+// Generated
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "mozilla/layers/ShadowLayers.h"
 #endif
 
-using namespace mozilla;
+namespace mozilla {
+
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
@@ -908,7 +917,7 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
                     !gfxPrefs::WebGLDisableFailIfMajorPerformanceCaveat() &&
                     !HasAcceleratedLayers(gfxInfo);
     if (failIfMajorPerformanceCaveat) {
-        Nullable<dom::WebGLContextAttributes> contextAttributes;
+        dom::Nullable<dom::WebGLContextAttributes> contextAttributes;
         this->GetContextAttributes(contextAttributes);
         if (contextAttributes.Value().mFailIfMajorPerformanceCaveat) {
             return NS_ERROR_FAILURE;
@@ -1182,8 +1191,6 @@ WebGLContext::UpdateLastUseIndex()
 
 static uint8_t gWebGLLayerUserData;
 
-namespace mozilla {
-
 class WebGLContextUserData : public LayerUserData
 {
 public:
@@ -1221,8 +1228,6 @@ public:
 private:
     nsRefPtr<HTMLCanvasElement> mCanvas;
 };
-
-} // end namespace mozilla
 
 already_AddRefed<layers::CanvasLayer>
 WebGLContext::GetCanvasLayer(nsDisplayListBuilder* builder,
@@ -1283,7 +1288,7 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* builder,
 }
 
 void
-WebGLContext::GetContextAttributes(Nullable<dom::WebGLContextAttributes>& retval)
+WebGLContext::GetContextAttributes(dom::Nullable<dom::WebGLContextAttributes>& retval)
 {
     retval.SetNull();
     if (IsContextLost())
@@ -1977,3 +1982,5 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
     // ToSupports() method.
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)
 NS_INTERFACE_MAP_END
+
+} // namespace mozilla

@@ -6,45 +6,39 @@
 #ifndef WEBGLCONTEXT_H_
 #define WEBGLCONTEXT_H_
 
-#include "mozilla/Attributes.h"
-#include "mozilla/CheckedInt.h"
-#include "mozilla/EnumeratedArray.h"
-#include "mozilla/LinkedList.h"
-#include "mozilla/UniquePtr.h"
-#include "mozilla/WeakPtr.h"
+#include <stdarg.h>
 
-#include "GLDefs.h"
-#include "WebGLActiveInfo.h"
+#include "gfx/2D/2D.h"
+#include "gfx/gl/GLDefs.h"
+#include "layout/base/nsLayoutUtils.h"
+#include "mfbt/Attributes.h"
+#include "mfbt/CheckedInt.h"
+#include "mfbt/EnumeratedArray.h"
+#include "mfbt/LinkedList.h"
+#include "mfbt/UniquePtr.h"
+#include "mfbt/WeakPtr.h"
+#include "xpcom/glue/nsTArray.h"
+#include "xpcom/glue/nsCycleCollectionNoteChild.h"
+
+#include "dom/base/nsWrapperCache.h"
+#include "dom/bindings/ErrorResult.h"
+#include "dom/bindings/TypedArray.h"
+#include "dom/html/HTMLCanvasElement.h"
+
+#include "nsICanvasRenderingContextInternal.h"
 #include "WebGLContextUnchecked.h"
 #include "WebGLFormats.h"
 #include "WebGLObjectModel.h"
-#include "WebGLRenderbuffer.h"
-#include "WebGLTexture.h"
-#include "WebGLShaderValidator.h"
 #include "WebGLStrongTypes.h"
-#include <stdarg.h>
 
-#include "nsTArray.h"
-#include "nsCycleCollectionNoteChild.h"
-
+// Generated
 #include "nsIDOMWebGLRenderingContext.h"
-#include "nsICanvasRenderingContextInternal.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
-#include "nsWrapperCache.h"
 #include "nsIObserver.h"
 #include "nsIDOMEventListener.h"
-#include "nsLayoutUtils.h"
-
-#include "GLContextProvider.h"
-
-#include "mozilla/gfx/2D.h"
 
 #ifdef XP_MACOSX
-#include "ForceDiscreteGPUHelperCGL.h"
+#include "gfx/gl/ForceDiscreteGPUHelperCGL.h"
 #endif
-
-#include "mozilla/dom/TypedArray.h"
-#include "mozilla/ErrorResult.h"
 
 class nsIDocShell;
 
@@ -108,6 +102,7 @@ class SourceSurface;
 
 namespace webgl {
 struct LinkedProgramInfo;
+class ShaderValidator;
 } // namespace webgl
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
@@ -201,6 +196,10 @@ class WebGLContext
 public:
     WebGLContext();
 
+protected:
+    virtual ~WebGLContext();
+
+public:
     MOZ_DECLARE_WEAKREFERENCE_TYPENAME(WebGLContext)
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -542,7 +541,7 @@ public:
     void PolygonOffset(GLfloat factor, GLfloat units);
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
-                    const Nullable<dom::ArrayBufferView>& pixels,
+                    const dom::Nullable<dom::ArrayBufferView>& pixels,
                     ErrorResult& rv);
     void RenderbufferStorage(GLenum target, GLenum internalFormat,
                              GLsizei width, GLsizei height);
@@ -563,7 +562,7 @@ public:
                            GLenum dppass);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLsizei width, GLsizei height, GLint border, GLenum format,
-                    GLenum type, const Nullable<dom::ArrayBufferView>& pixels,
+                    GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
                     ErrorResult& rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum format, GLenum type, dom::ImageData* pixels,
@@ -640,7 +639,7 @@ public:
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
                        GLint yoffset, GLsizei width, GLsizei height,
                        GLenum format, GLenum type,
-                       const Nullable<dom::ArrayBufferView>& pixels,
+                       const dom::Nullable<dom::ArrayBufferView>& pixels,
                        ErrorResult& rv);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
                        GLint yoffset, GLenum format, GLenum type,
@@ -917,7 +916,7 @@ public:
     void BufferData(GLenum target, WebGLsizeiptr size, GLenum usage);
     void BufferData(GLenum target, const dom::ArrayBufferView& data,
                     GLenum usage);
-    void BufferData(GLenum target, const Nullable<dom::ArrayBuffer>& maybeData,
+    void BufferData(GLenum target, const dom::Nullable<dom::ArrayBuffer>& maybeData,
                     GLenum usage);
 
 private:
@@ -928,7 +927,7 @@ public:
     void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
                        const dom::ArrayBufferView& data);
     void BufferSubData(GLenum target, WebGLsizeiptr byteOffset,
-                       const Nullable<dom::ArrayBuffer>& maybeData);
+                       const dom::Nullable<dom::ArrayBuffer>& maybeData);
     already_AddRefed<WebGLBuffer> CreateBuffer();
     void DeleteBuffer(WebGLBuffer* buf);
     bool IsBuffer(WebGLBuffer* buf);
@@ -1087,8 +1086,6 @@ private:
 // -----------------------------------------------------------------------------
 // PROTECTED
 protected:
-    virtual ~WebGLContext();
-
     void SetFakeBlackStatus(WebGLContextFakeBlackStatus x) {
         mFakeBlackStatus = x;
     }

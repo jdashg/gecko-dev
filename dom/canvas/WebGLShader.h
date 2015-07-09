@@ -6,9 +6,12 @@
 #ifndef WEBGL_SHADER_H_
 #define WEBGL_SHADER_H_
 
+#include <vector>
+
 #include "GLDefs.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/MemoryReporting.h"
+#include "nsString.h"
 #include "nsWrapperCache.h"
 #include "WebGLObjectModel.h"
 

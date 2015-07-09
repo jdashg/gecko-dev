@@ -7,21 +7,30 @@
 #define WEBGL_PROGRAM_H_
 
 #include <map>
-#include "mozilla/CheckedInt.h"
-#include "mozilla/LinkedList.h"
-#include "mozilla/dom/WebGL2RenderingContextBinding.h"
-#include "nsString.h"
-#include "nsWrapperCache.h"
 #include <set>
 #include <vector>
+#include "../../mfbt/LinkedList.h"
+#include "../../mfbt/RefPtr.h"
+#include "../../mfbt/WeakPtr.h"
+#include "nsString.h"
+#include "../base/nsWrapperCache.h"
 #include "WebGLObjectModel.h"
-#include "WebGLShader.h"
+
+
+template<class> class nsRefPtr;
 
 namespace mozilla {
-
+class ErrorResult;
 class WebGLActiveInfo;
 class WebGLProgram;
+class WebGLShader;
 class WebGLUniformLocation;
+
+namespace dom {
+template<typename> struct Nullable;
+class OwningUnsignedLongOrUint32ArrayOrBoolean;
+template<typename> class Sequence;
+} // namespace dom
 
 namespace webgl {
 
@@ -48,8 +57,8 @@ struct LinkedProgramInfo final
     MOZ_DECLARE_WEAKREFERENCE_TYPENAME(LinkedProgramInfo)
 
     WebGLProgram* const prog;
-    std::vector<nsRefPtr<WebGLActiveInfo>> activeAttribs;
-    std::vector<nsRefPtr<WebGLActiveInfo>> activeUniforms;
+    std::vector<RefPtr<WebGLActiveInfo>> activeAttribs;
+    std::vector<RefPtr<WebGLActiveInfo>> activeUniforms;
 
     // Needed for Get{Attrib,Uniform}Location. The keys for these are non-mapped
     // user-facing `GLActiveInfo::name`s, without any final "[0]".
@@ -119,10 +128,6 @@ struct LinkedProgramInfo final
 
 } // namespace webgl
 
-class WebGLShader;
-
-typedef nsDataHashtable<nsCStringHashKey, nsCString> CStringMap;
-
 class WebGLProgram final
     : public nsWrapperCache
     , public WebGLRefCountedObject<WebGLProgram>
@@ -151,9 +156,9 @@ public:
     GLuint GetUniformBlockIndex(const nsAString& name) const;
     void GetActiveUniformBlockName(GLuint uniformBlockIndex, nsAString& name) const;
     void GetActiveUniformBlockParam(GLuint uniformBlockIndex, GLenum pname,
-                                    Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval) const;
+                                    dom::Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval) const;
     void GetActiveUniformBlockActiveUniforms(JSContext* cx, GLuint uniformBlockIndex,
-                                             Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval,
+                                             dom::Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval,
                                              ErrorResult& rv) const;
     already_AddRefed<WebGLUniformLocation> GetUniformLocation(const nsAString& name) const;
     void UniformBlockBinding(GLuint uniformBlockIndex, GLuint uniformBlockBinding) const;
@@ -175,7 +180,7 @@ public:
 
     void TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
                                    GLenum bufferMode);
-    already_AddRefed<WebGLActiveInfo> GetTransformFeedbackVarying(GLuint index);
+    TemporaryRef<WebGLActiveInfo> GetTransformFeedbackVarying(GLuint index);
 
     bool IsLinked() const { return mMostRecentLinkInfo; }
 
@@ -190,9 +195,7 @@ public:
     virtual JSObject* WrapObject(JSContext* js, JS::Handle<JSObject*> givenProto) override;
 
 private:
-    ~WebGLProgram() {
-        DeleteOnce();
-    }
+    ~WebGLProgram();
 
     bool LinkAndUpdate();
 

@@ -27,8 +27,6 @@
 
 namespace mozilla {
 
-using namespace gl;
-
 bool
 IsGLDepthFormat(TexInternalFormat internalformat)
 {

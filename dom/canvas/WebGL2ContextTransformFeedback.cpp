@@ -9,8 +9,7 @@
 #include "WebGLTransformFeedback.h"
 #include "GLContext.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+namespace mozilla {
 
 // -------------------------------------------------------------------------
 // Transform Feedback
@@ -214,5 +213,9 @@ WebGL2Context::GetTransformFeedbackVarying(WebGLProgram* program, GLuint index)
     if (!ValidateObject("getTransformFeedbackVarying: program", program))
         return nullptr;
 
-    return program->GetTransformFeedbackVarying(index);
+    RefPtr<WebGLActiveInfo> ret = program->GetTransformFeedbackVarying(index);
+    nsRefPtr<WebGLActiveInfo> ret2 = ret;
+    return ret2.forget();
 }
+
+} // namespace mozilla

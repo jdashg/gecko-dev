@@ -6,7 +6,11 @@
 #include "WebGLProgram.h"
 
 #include "GLContext.h"
+#include "mozilla/CheckedInt.h"
+#include "mozilla/dom/WebGL2RenderingContextBinding.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "../../xpcom/base/nsRefPtr.h"
+#include "WebGLActiveInfo.h"
 #include "WebGLContext.h"
 #include "WebGLShader.h"
 #include "WebGLUniformLocation.h"
@@ -67,12 +71,12 @@ ParseName(const nsCString& name, nsCString* const out_baseName,
 static void
 AddActiveInfo(WebGLContext* webgl, GLint elemCount, GLenum elemType, bool isArray,
               const nsACString& baseUserName, const nsACString& baseMappedName,
-              std::vector<nsRefPtr<WebGLActiveInfo>>* activeInfoList,
+              std::vector<RefPtr<WebGLActiveInfo>>* activeInfoList,
               std::map<nsCString, const WebGLActiveInfo*>* infoLocMap)
 {
-    nsRefPtr<WebGLActiveInfo> info = new WebGLActiveInfo(webgl, elemCount, elemType,
-                                                         isArray, baseUserName,
-                                                         baseMappedName);
+    RefPtr<WebGLActiveInfo> info = new WebGLActiveInfo(webgl, elemCount, elemType,
+                                                       isArray, baseUserName,
+                                                       baseMappedName);
     activeInfoList->push_back(info);
 
     infoLocMap->insert(std::make_pair(info->mBaseUserName, info.get()));
@@ -301,6 +305,11 @@ WebGLProgram::WebGLProgram(WebGLContext* webgl)
     , mTransformFeedbackBufferMode(LOCAL_GL_NONE)
 {
     mContext->mPrograms.insertBack(this);
+}
+
+WebGLProgram::~WebGLProgram()
+{
+    DeleteOnce();
 }
 
 void
@@ -630,7 +639,7 @@ WebGLProgram::GetActiveUniformBlockName(GLuint uniformBlockIndex, nsAString& ret
 
 void
 WebGLProgram::GetActiveUniformBlockParam(GLuint uniformBlockIndex, GLenum pname,
-                                         Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval) const
+                                         dom::Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval) const
 {
     retval.SetNull();
     if (!IsLinked()) {
@@ -666,7 +675,7 @@ WebGLProgram::GetActiveUniformBlockParam(GLuint uniformBlockIndex, GLenum pname,
 
 void
 WebGLProgram::GetActiveUniformBlockActiveUniforms(JSContext* cx, GLuint uniformBlockIndex,
-                                                  Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval,
+                                                  dom::Nullable<dom::OwningUnsignedLongOrUint32ArrayOrBoolean>& retval,
                                                   ErrorResult& rv) const
 {
     if (!IsLinked()) {
@@ -993,7 +1002,7 @@ WebGLProgram::TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
     mTransformFeedbackVaryings.swap(asciiVaryings);
 }
 
-already_AddRefed<WebGLActiveInfo>
+TemporaryRef<WebGLActiveInfo>
 WebGLProgram::GetTransformFeedbackVarying(GLuint index)
 {
     // No docs in the WebGL 2 spec for this function. Taking the language for
@@ -1016,7 +1025,7 @@ WebGLProgram::GetTransformFeedbackVarying(GLuint index)
     LinkInfo()->FindAttrib(varyingUserName, (const WebGLActiveInfo**) &info);
     MOZ_ASSERT(info);
 
-    nsRefPtr<WebGLActiveInfo> ret(info);
+    RefPtr<WebGLActiveInfo> ret(info);
     return ret.forget();
 }
 

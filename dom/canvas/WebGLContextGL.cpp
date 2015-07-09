@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
+
+#include "WebGLActiveInfo.h"
 #include "WebGLContextUtils.h"
 #include "WebGLBuffer.h"
 #include "WebGLVertexAttribData.h"
@@ -17,9 +19,10 @@
 #include "WebGLExtensions.h"
 #include "WebGLVertexArray.h"
 
-#include "nsString.h"
 #include "nsDebug.h"
 #include "nsReadableUtils.h"
+#include "../../xpcom/base/nsRefPtr.h"
+#include "nsString.h"
 
 #include "gfxContext.h"
 #include "gfxPlatform.h"
@@ -49,7 +52,8 @@
 #include "mozilla/dom/ToJSValue.h"
 #include "mozilla/Endian.h"
 
-using namespace mozilla;
+namespace mozilla {
+
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
@@ -1023,7 +1027,7 @@ WebGLContext::GetActiveUniform(WebGLProgram* prog, GLuint index)
 
 void
 WebGLContext::GetAttachedShaders(WebGLProgram* prog,
-                                 Nullable<nsTArray<nsRefPtr<WebGLShader>>>& retval)
+                                 dom::Nullable<nsTArray<nsRefPtr<WebGLShader>>>& retval)
 {
     retval.SetNull();
     if (IsContextLost())
@@ -1140,7 +1144,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
 
     MakeContextCurrent();
 
-    const WebGLFramebuffer::AttachPoint& fba = fb->GetAttachPoint(attachment);
+    const WebGLFBAttachPoint& fba = fb->GetAttachPoint(attachment);
 
     if (fba.Renderbuffer()) {
         switch (pname) {
@@ -1972,7 +1976,7 @@ IsFormatAndTypeUnpackable(GLenum format, GLenum type)
 void
 WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                          GLsizei height, GLenum format,
-                         GLenum type, const Nullable<ArrayBufferView> &pixels,
+                         GLenum type, const dom::Nullable<ArrayBufferView>& pixels,
                          ErrorResult& rv)
 {
     if (IsContextLost())
@@ -3407,7 +3411,8 @@ void
 WebGLContext::TexImage2D(GLenum rawTarget, GLint level,
                          GLenum internalformat, GLsizei width,
                          GLsizei height, GLint border, GLenum format,
-                         GLenum type, const Nullable<ArrayBufferView> &pixels, ErrorResult& rv)
+                         GLenum type, const dom::Nullable<ArrayBufferView>& pixels,
+                         ErrorResult& rv)
 {
     if (IsContextLost())
         return;
@@ -3608,7 +3613,7 @@ WebGLContext::TexSubImage2D(GLenum rawTarget, GLint level,
                             GLint xoffset, GLint yoffset,
                             GLsizei width, GLsizei height,
                             GLenum format, GLenum type,
-                            const Nullable<ArrayBufferView> &pixels,
+                            const dom::Nullable<ArrayBufferView>& pixels,
                             ErrorResult& rv)
 {
     if (IsContextLost())
@@ -3768,3 +3773,5 @@ WebGLContext::SampleCoverage(GLclampf value, WebGLboolean invert) {
     MakeContextCurrent();
     gl->fSampleCoverage(value, invert);
 }
+
+} // namespace mozilla

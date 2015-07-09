@@ -5,11 +5,12 @@
 
 #include "WebGL2Context.h"
 
-#include "GLContext.h"
+#include "../../gfx/gl/GLContext.h"
+#include "../../gfx/gl/GLScreenBuffer.h"
 #include "WebGLContextUtils.h"
+#include "WebGLFramebuffer.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+namespace mozilla {
 
 // Returns one of FLOAT, INT, UNSIGNED_INT.
 // Fixed-points (normalized ints) are considered FLOAT.
@@ -536,3 +537,5 @@ WebGL2Context::RenderbufferStorageMultisample(GLenum target, GLsizei samples,
     RenderbufferStorage_base("renderbufferStorageMultisample", target, samples,
                               internalFormat, width, height);
 }
+
+} // namespace mozilla

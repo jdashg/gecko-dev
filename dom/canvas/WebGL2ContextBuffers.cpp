@@ -9,8 +9,7 @@
 #include "WebGLBuffer.h"
 #include "WebGLTransformFeedback.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+namespace mozilla {
 
 bool
 WebGL2Context::ValidateBufferTarget(GLenum target, const char* info)
@@ -225,3 +224,5 @@ WebGL2Context::GetBufferSubData(GLenum target, GLintptr offset,
         BindTransformFeedback(LOCAL_GL_TRANSFORM_FEEDBACK, currentTF);
     }
 }
+
+} // namespace mozilla
