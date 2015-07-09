@@ -7,6 +7,7 @@
 
 #include "GLContext.h"
 #include "WebGLBuffer.h"
+#include "WebGLTransformFeedback.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

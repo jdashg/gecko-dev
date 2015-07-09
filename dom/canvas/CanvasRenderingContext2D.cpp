@@ -116,6 +116,7 @@
 #include "nsDeviceContext.h"
 #include "nsFontMetrics.h"
 #include "Units.h"
+#include "CanvasUtils.h"
 
 #undef free // apparently defined by some windows header, clashing with a free()
             // method in SkTypes.h

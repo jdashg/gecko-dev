@@ -5,7 +5,9 @@
 
 #include "WebGLSync.h"
 
+#include "GLContext.h"
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
+#include "WebGLContext.h"
 
 namespace mozilla {
 

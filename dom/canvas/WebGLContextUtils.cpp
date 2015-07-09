@@ -496,7 +496,7 @@ WebGLContext::GenerateWarning(const char* fmt, va_list ap)
         return;
     }
 
-    AutoJSAPI api;
+    dom::AutoJSAPI api;
     if (!api.Init(mCanvasElement->OwnerDoc()->GetScopeObject())) {
         return;
     }
