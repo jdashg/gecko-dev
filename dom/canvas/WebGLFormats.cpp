@@ -5,6 +5,8 @@
 
 #include "WebGLFormats.h"
 
+#include "mozilla/StaticMutex.h"
+
 namespace mozilla {
 namespace webgl {
 
@@ -423,12 +425,12 @@ EnsureInitFormatTables()
 //////////////////////////////////////////////////////////////////////////////////////////
 // Public funcs
 
-Mutex gFormatMapMutex("sFormatMapMutex");
+StaticMutex gFormatMapMutex;
 
 const FormatInfo*
 GetFormatInfo(EffectiveFormat format)
 {
-    MutexAutoLock lock(gFormatMapMutex);
+    StaticMutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
     return GetFormatInfo_NoLock(format);
@@ -437,7 +439,7 @@ GetFormatInfo(EffectiveFormat format)
 const FormatInfo*
 GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 {
-    MutexAutoLock lock(gFormatMapMutex);
+    StaticMutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
     const UnpackTuple unpack = { unpackFormat, unpackType };
@@ -453,7 +455,7 @@ GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
 const FormatInfo*
 GetInfoBySizedFormat(GLenum sizedFormat)
 {
-    MutexAutoLock lock(gFormatMapMutex);
+    StaticMutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
     MOZ_ASSERT(!gSizedFormatMap.empty());

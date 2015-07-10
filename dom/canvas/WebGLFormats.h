@@ -6,9 +6,10 @@
 #ifndef WEBGL_FORMATS_H_
 #define WEBGL_FORMATS_H_
 
-#include "GLTypes.h"
 #include <map>
 #include <set>
+
+#include "GLTypes.h"
 #include "mozilla/UniquePtr.h"
 
 namespace mozilla {
