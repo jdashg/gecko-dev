@@ -13,6 +13,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
 
 namespace mozilla {

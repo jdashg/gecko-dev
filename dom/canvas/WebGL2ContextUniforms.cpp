@@ -5,9 +5,9 @@
 
 #include "WebGL2Context.h"
 
-#include "../../gfx/gl/GLContext.h"
-#include "../../xpcom/base/nsRefPtr.h"
+#include "GLContext.h"
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
+#include "nsRefPtr.h"
 #include "WebGLBuffer.h"
 #include "WebGLContext.h"
 #include "WebGLProgram.h"

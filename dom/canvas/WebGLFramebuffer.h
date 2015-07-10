@@ -6,9 +6,10 @@
 #ifndef WEBGL_FRAMEBUFFER_H_
 #define WEBGL_FRAMEBUFFER_H_
 
-#include "../../mfbt/LinkedList.h"
-#include "../../mfbt/WeakPtr.h"
-#include "../base/nsWrapperCache.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/WeakPtr.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
 #include "WebGLRenderbuffer.h"

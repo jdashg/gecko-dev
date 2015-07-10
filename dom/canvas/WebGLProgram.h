@@ -9,11 +9,13 @@
 #include <map>
 #include <set>
 #include <vector>
-#include "../../mfbt/LinkedList.h"
-#include "../../mfbt/RefPtr.h"
-#include "../../mfbt/WeakPtr.h"
+
+#include "mozilla/LinkedList.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/WeakPtr.h"
 #include "nsString.h"
-#include "../base/nsWrapperCache.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
 
 
@@ -180,7 +182,7 @@ public:
 
     void TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
                                    GLenum bufferMode);
-    TemporaryRef<WebGLActiveInfo> GetTransformFeedbackVarying(GLuint index);
+    already_AddRefed<WebGLActiveInfo> GetTransformFeedbackVarying(GLuint index);
 
     bool IsLinked() const { return mMostRecentLinkInfo; }
 

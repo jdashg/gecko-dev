@@ -5,8 +5,8 @@
 
 #include "WebGL2Context.h"
 
-#include "../../gfx/gl/GLContext.h"
-#include "../../gfx/gl/GLScreenBuffer.h"
+#include "GLContext.h"
+#include "GLScreenBuffer.h"
 #include "WebGLContextUtils.h"
 #include "WebGLFramebuffer.h"
 

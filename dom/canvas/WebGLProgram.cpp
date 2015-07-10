@@ -9,7 +9,7 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
-#include "../../xpcom/base/nsRefPtr.h"
+#include "nsRefPtr.h"
 #include "WebGLActiveInfo.h"
 #include "WebGLContext.h"
 #include "WebGLShader.h"
@@ -1002,7 +1002,7 @@ WebGLProgram::TransformFeedbackVaryings(const dom::Sequence<nsString>& varyings,
     mTransformFeedbackVaryings.swap(asciiVaryings);
 }
 
-TemporaryRef<WebGLActiveInfo>
+already_AddRefed<WebGLActiveInfo>
 WebGLProgram::GetTransformFeedbackVarying(GLuint index)
 {
     // No docs in the WebGL 2 spec for this function. Taking the language for

@@ -7,38 +7,36 @@
 
 #include <queue>
 
-#include "../../js/xpconnect/wrappers/AccessCheck.h"
-
-#include "CanvasUtils.h"
-#include "../../gfx/thebes/gfxContext.h"
-#include "../../gfx/src/gfxCrashReporterUtils.h"
-#include "../../gfx/thebes/gfxPattern.h"
-#include "../../gfx/thebes/gfxPrefs.h"
-#include "../../gfx/thebes/gfxUtils.h"
-#include "../../gfx/gl/GLBlitHelper.h"
-#include "../../gfx/gl/GLContext.h"
-#include "../../gfx/gl/GLContextProvider.h"
-#include "../../gfx/gl/GLReadTexImageHelper.h"
-#include "../../gfx/gl/GLScreenBuffer.h"
-#include "../../gfx/layers/ImageContainer.h"
-#include "../base/ImageEncoder.h"
-#include "../../gfx/layers/Layers.h"
-#include "../bindings/BindingUtils.h"
-#include "../html/HTMLVideoElement.h"
-#include "ImageData.h"
-#include "../../xpcom/glue/EnumeratedArrayCycleCollection.h"
-#include "../../modules/libpref/Preferences.h"
-#include "../ipc/ProcessPriorityManager.h"
-#include "../../xpcom/build/Services.h"
-#include "../../toolkit/components/telemetry/Telemetry.h"
+#include "AccessCheck.h"
+#include "gfxContext.h"
+#include "gfxCrashReporterUtils.h"
+#include "gfxPattern.h"
+#include "gfxPrefs.h"
+#include "gfxUtils.h"
+#include "GLBlitHelper.h"
+#include "GLContext.h"
+#include "GLContextProvider.h"
+#include "GLReadTexImageHelper.h"
+#include "GLScreenBuffer.h"
+#include "ImageContainer.h"
+#include "ImageEncoder.h"
+#include "Layers.h"
+#include "mozilla/dom/BindingUtils.h"
+#include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/dom/ImageData.h"
+#include "mozilla/EnumeratedArrayCycleCollection.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/ProcessPriorityManager.h"
+#include "mozilla/Services.h"
+#include "mozilla/Telemetry.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsError.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIConsoleService.h"
+#include "nsIDOMEvent.h"
 #include "nsIGfxInfo.h"
 #include "nsIObserverService.h"
-#include "nsIDOMEvent.h"
 #include "nsIVariant.h"
 #include "nsIWidget.h"
 #include "nsIXPConnect.h"
@@ -46,6 +44,13 @@
 #include "nsSVGEffects.h"
 #include "prenv.h"
 #include "ScopedGLHelpers.h"
+
+#ifdef MOZ_WIDGET_GONK
+#include "mozilla/layers/ShadowLayers.h"
+#endif
+
+// Local
+#include "CanvasUtils.h"
 #include "WebGL1Context.h"
 #include "WebGLActiveInfo.h"
 #include "WebGLBuffer.h"
@@ -66,9 +71,6 @@
 // Generated
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 
-#ifdef MOZ_WIDGET_GONK
-#include "mozilla/layers/ShadowLayers.h"
-#endif
 
 namespace mozilla {
 

@@ -6,9 +6,10 @@
 #ifndef WEBGL_VERTEX_ARRAY_H_
 #define WEBGL_VERTEX_ARRAY_H_
 
-#include "../../xpcom/glue/nsTArray.h"
-#include "../../mfbt/LinkedList.h"
-#include "../base/nsWrapperCache.h"
+#include "nsTArray.h"
+#include "mozilla/LinkedList.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLBuffer.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"

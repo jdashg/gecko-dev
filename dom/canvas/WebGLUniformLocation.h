@@ -11,6 +11,7 @@
 #include "nsCycleCollectionParticipant.h" // NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS
 #include "nsISupportsImpl.h" // NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING
 #include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
 
 struct JSContext;
@@ -37,7 +38,6 @@ public:
     WebGLContext* GetParentObject() const {
         return mContext;
     }
-
 
     const WeakPtr<const webgl::LinkedProgramInfo> mLinkInfo;
     const GLuint mLoc;

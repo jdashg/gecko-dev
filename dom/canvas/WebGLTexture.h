@@ -7,11 +7,12 @@
 #define WEBGL_TEXTURE_H_
 
 #include <algorithm>
+
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/LinkedList.h"
-//#include "nsAlgorithm.h"
-#include "../base/nsWrapperCache.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLFramebufferAttachable.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"

@@ -6,9 +6,10 @@
 #ifndef WEBGL_EXTENSIONS_H_
 #define WEBGL_EXTENSIONS_H_
 
-#include "../../mfbt/Attributes.h"
-#include "../../mfbt/AlreadyAddRefed.h"
-#include "../base/nsWrapperCache.h"
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/Attributes.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
 #include "WebGLTypes.h"
 

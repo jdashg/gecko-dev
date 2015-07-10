@@ -8,37 +8,38 @@
 
 #include <stdarg.h>
 
-#include "gfx/2D/2D.h"
-#include "gfx/gl/GLDefs.h"
-#include "layout/base/nsLayoutUtils.h"
-#include "mfbt/Attributes.h"
-#include "mfbt/CheckedInt.h"
-#include "mfbt/EnumeratedArray.h"
-#include "mfbt/LinkedList.h"
-#include "mfbt/UniquePtr.h"
-#include "mfbt/WeakPtr.h"
-#include "xpcom/glue/nsTArray.h"
-#include "xpcom/glue/nsCycleCollectionNoteChild.h"
-
-#include "dom/base/nsWrapperCache.h"
-#include "dom/bindings/ErrorResult.h"
-#include "dom/bindings/TypedArray.h"
-#include "dom/html/HTMLCanvasElement.h"
-
+#include "GLDefs.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/CheckedInt.h"
+#include "mozilla/dom/HTMLCanvasElement.h"
+#include "mozilla/dom/TypedArray.h"
+#include "mozilla/EnumeratedArray.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/UniquePtr.h"
+#include "mozilla/WeakPtr.h"
+#include "nsCycleCollectionNoteChild.h"
 #include "nsICanvasRenderingContextInternal.h"
+#include "nsLayoutUtils.h"
+#include "nsTArray.h"
+#include "nsWrapperCache.h"
+
+#ifdef XP_MACOSX
+#include "ForceDiscreteGPUHelperCGL.h"
+#endif
+
+// Local
 #include "WebGLContextUnchecked.h"
 #include "WebGLFormats.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
 
 // Generated
+#include "nsIDOMEventListener.h"
 #include "nsIDOMWebGLRenderingContext.h"
 #include "nsIObserver.h"
-#include "nsIDOMEventListener.h"
 
-#ifdef XP_MACOSX
-#include "gfx/gl/ForceDiscreteGPUHelperCGL.h"
-#endif
 
 class nsIDocShell;
 

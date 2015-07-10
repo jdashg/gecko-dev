@@ -8,11 +8,10 @@
 
 #include "GLDefs.h"
 #include "mozilla/LinkedList.h"
-//#include "mozilla/MemoryReporting.h"
-#include "../../xpcom/base/nsAutoPtr.h"
-#include "../base/nsWrapperCache.h"
+#include "nsAutoPtr.h"
+#include "nsWrapperCache.h"
+
 #include "WebGLObjectModel.h"
-//#include "WebGLStrongTypes.h"
 #include "WebGLTypes.h"
 
 namespace mozilla {

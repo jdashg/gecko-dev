@@ -6,9 +6,8 @@
 #ifndef WEBGL_RENDERBUFFER_H_
 #define WEBGL_RENDERBUFFER_H_
 
-#include "../../mfbt/LinkedList.h"
-
-#include "../base/nsWrapperCache.h"
+#include "mozilla/LinkedList.h"
+#include "nsWrapperCache.h"
 
 #include "WebGLFramebufferAttachable.h"
 #include "WebGLObjectModel.h"
