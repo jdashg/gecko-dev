@@ -437,7 +437,7 @@ WebGLProgram::GetActiveAttrib(GLuint index) const
         return nullptr;
     }
 
-    nsRefPtr<WebGLActiveInfo> ret =  activeList[index];
+    RefPtr<WebGLActiveInfo> ret = activeList[index];
     return ret.forget();
 }
 
@@ -458,7 +458,7 @@ WebGLProgram::GetActiveUniform(GLuint index) const
         return nullptr;
     }
 
-    nsRefPtr<WebGLActiveInfo> ret = activeList[index];
+    RefPtr<WebGLActiveInfo> ret = activeList[index];
     return ret.forget();
 }
 

@@ -6,6 +6,7 @@
 #ifndef WEBGL_SHADER_H_
 #define WEBGL_SHADER_H_
 
+#include <string>
 #include <vector>
 
 #include "GLDefs.h"

@@ -3689,7 +3689,7 @@ WebGLContext::RestoreContext()
 }
 
 WebGLTexelFormat
-mozilla::GetWebGLTexelFormat(TexInternalFormat effectiveInternalFormat)
+GetWebGLTexelFormat(TexInternalFormat effectiveInternalFormat)
 {
     switch (effectiveInternalFormat.get()) {
         case LOCAL_GL_RGBA8:                  return WebGLTexelFormat::RGBA8;

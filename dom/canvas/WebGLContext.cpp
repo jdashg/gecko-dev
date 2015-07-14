@@ -1909,7 +1909,69 @@ WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
     return ok;
 }
 
-size_t mozilla::RoundUpToMultipleOf(size_t value, size_t multiple)
+void
+WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset,
+                            GLint yoffset, GLenum format, GLenum type,
+                            dom::Element* elt, ErrorResult* const out_rv)
+{
+    // TODO: Consolidate all the parameter validation
+    // checks. Instead of spreading out the cheks in multple
+    // places, consolidate into one spot.
+
+    if (IsContextLost())
+        return;
+
+    if (!ValidateTexImageTarget(rawTexImageTarget,
+                                WebGLTexImageFunc::TexSubImage,
+                                WebGLTexDimensions::Tex2D))
+    {
+        ErrorInvalidEnumInfo("texSubImage2D: target", rawTexImageTarget);
+        return;
+    }
+
+    const TexImageTarget texImageTarget(rawTexImageTarget);
+
+    if (level < 0)
+        return ErrorInvalidValue("texSubImage2D: level is negative");
+
+    const int32_t maxLevel = MaxTextureLevelForTexImageTarget(texImageTarget);
+    if (level > maxLevel) {
+        ErrorInvalidValue("texSubImage2D: level %d is too large, max is %d",
+                          level, maxLevel);
+        return;
+    }
+
+    WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
+    if (!tex)
+        return ErrorInvalidOperation("texSubImage2D: no texture bound on active texture unit");
+
+    const WebGLTexture::ImageInfo& imageInfo = tex->ImageInfoAt(texImageTarget, level);
+    const TexInternalFormat internalFormat = imageInfo.EffectiveInternalFormat();
+
+    // Trying to handle the video by GPU directly first
+    if (TexImageFromVideoElement(texImageTarget, level,
+                                 internalFormat.get(), format, type, *elt))
+    {
+        return;
+    }
+
+    RefPtr<gfx::DataSourceSurface> data;
+    WebGLTexelFormat srcFormat;
+    nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(*elt);
+    *out_rv = SurfaceFromElementResultToImageSurface(res, data, &srcFormat);
+    if (out_rv->Failed() || !data)
+        return;
+
+    gfx::IntSize size = data->GetSize();
+    uint32_t byteLength = data->Stride() * size.height;
+    TexSubImage2D_base(texImageTarget.get(), level, xoffset, yoffset, size.width,
+                       size.height, data->Stride(), format, type, data->GetData(),
+                       byteLength, js::Scalar::MaxTypedArrayViewType, srcFormat,
+                       mPixelStorePremultiplyAlpha);
+}
+
+size_t
+RoundUpToMultipleOf(size_t value, size_t multiple)
 {
     size_t overshoot = value + multiple - 1;
     return overshoot - (overshoot % multiple);

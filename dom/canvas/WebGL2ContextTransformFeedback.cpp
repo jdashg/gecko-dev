@@ -213,9 +213,7 @@ WebGL2Context::GetTransformFeedbackVarying(WebGLProgram* program, GLuint index)
     if (!ValidateObject("getTransformFeedbackVarying: program", program))
         return nullptr;
 
-    RefPtr<WebGLActiveInfo> ret = program->GetTransformFeedbackVarying(index);
-    nsRefPtr<WebGLActiveInfo> ret2 = ret;
-    return ret2.forget();
+    return program->GetTransformFeedbackVarying(index);
 }
 
 } // namespace mozilla
