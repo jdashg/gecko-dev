@@ -60,13 +60,14 @@ namespace mozilla {
     } // namespace gfx
 
     namespace gl {
-        class GLContext;
-        class GLLibraryEGL;
-        class GLScreenBuffer;
-        class TextureGarbageBin;
         class GLBlitHelper;
         class GLBlitTextureImageHelper;
+        class GLContext;
+        class GLLibraryEGL;
         class GLReadTexImageHelper;
+        class GLScreenBuffer;
+        class SharedSurface;
+        class TextureGarbageBin;
         struct SurfaceCaps;
     } // namespace gl
 
