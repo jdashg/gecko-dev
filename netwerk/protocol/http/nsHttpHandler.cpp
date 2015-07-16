@@ -651,10 +651,6 @@ nsHttpHandler::BuildUserAgent()
         mUserAgent += mCompatDevice;
         mUserAgent.AppendLiteral("; ");
     }
-    else if (!mOscpu.IsEmpty()) {
-      mUserAgent += mOscpu;
-      mUserAgent.AppendLiteral("; ");
-    }
     if (!mDeviceModelId.IsEmpty()) {
         mUserAgent += mDeviceModelId;
         mUserAgent.AppendLiteral("; ");
@@ -1945,6 +1941,9 @@ nsHttpHandler::GetPlatform(nsACString &value)
 NS_IMETHODIMP
 nsHttpHandler::GetOscpu(nsACString &value)
 {
+    // Ok, so we don't include oscpu in the userAgent anymore.
+    // But, we have a bunch of callers which rely on getting this info.
+    // So let's give it to the callers, but not add it to the userAgent.
     value = mOscpu;
     return NS_OK;
 }
