@@ -127,6 +127,14 @@ public:
         GLsizei Depth() const { return mDepth; }
 
     protected:
+        bool EnsureInitializedImageData();
+
+    public:
+        void PrepareForSubImage(gl::GLContext* gl, GLint xOffset, GLint yOffset,
+                                GLint zOffset, GLsizei width, GLsizei height,
+                                GLsizei depth);
+
+    protected:
         const webgl::FormatUsageInfo* mFormat;
 
         /* Used only for 3D textures.
@@ -158,7 +166,10 @@ private:
 
         // No need to check level as a wrong value would be caught by
         // ElementAt().
-        return mImageInfos.ElementAt(level * mFacesCount + face);
+        size_t offset = level * mFacesCount + face;
+
+        mImageInfos.EnsureLengthAtLeast(offset + 1);
+        return mImageInfos.ElementAt(offset);
     }
 
     const ImageInfo& ImageInfoAtFace(size_t face, GLint level) const {
@@ -194,6 +205,10 @@ public:
         return ImageInfoAtFace(0, 0);
     }
 
+    void ClearImageInfos() {
+        mImageInfos.SetLength(0);
+    }
+
     size_t MemoryUsage() const;
 
     void SetImageDataStatus(TexImageTarget imageTarget, GLint level,
@@ -222,8 +237,9 @@ protected:
     nsTArray<ImageInfo> mImageInfos;
 
     bool mHaveGeneratedMipmap; // Set by generateMipmap
+public:
     bool mImmutable; // Set by texStorage*
-
+protected:
     size_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
     size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
 
@@ -297,9 +313,6 @@ public:
     bool IsMipmapCubeComplete() const;
 
     void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
-
-    bool IsImmutable() const { return mImmutable; }
-    void SetImmutable() { mImmutable = true; }
 
     void SetBaseMipmapLevel(size_t level) { mBaseMipmapLevel = level; }
     void SetMaxMipmapLevel(size_t level) { mMaxMipmapLevel = level; }

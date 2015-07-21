@@ -93,6 +93,8 @@ public:
 
   explicit HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
+  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMediaElement, media)
+
   /**
    * This is used when the browser is constructing a video element to play
    * a channel that we've already started loading. The src attribute and

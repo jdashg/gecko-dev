@@ -613,23 +613,33 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
 
 
 bool
-WebGLTexture::EnsureInitializedImageData(TexImageTarget imageTarget,
-                                         GLint level)
+WebGLTexture::EnsureInitializedImageData(TexImageTarget target, GLint level)
 {
-    const ImageInfo& imageInfo = ImageInfoAt(imageTarget, level);
-    if (!imageInfo.HasUninitializedImageData())
+    const ImageInfo& imageInfo = ImageInfoAt(target, level);
+    bool ok = imageInfo.EnsureInitializedImageData();
+    if (!ok) {
+        mContext->ForceLoseContext(true);
+    }
+    return ok;
+}
+
+bool
+WebGLTexture::ImageInfo::ClearContents(WebGLContext* webgl)
+{
+    if (!HasUninitializedImageData())
         return true;
 
-    mContext->MakeContextCurrent();
+    gl::GLContext* gl = webgl->gl;
+
+    gl->MakeCurrent();
 
     // Try to clear with glClear.
     if (imageTarget == LOCAL_GL_TEXTURE_2D) {
-        bool cleared = ClearWithTempFB(mContext, mGLName, imageTarget, level,
+        bool cleared = ClearWithTempFB(webgl, mGLName, imageTarget, level,
                                        imageInfo.mEffectiveInternalFormat,
                                        imageInfo.mHeight, imageInfo.mWidth);
         if (cleared) {
-            SetImageDataStatus(imageTarget, level,
-                               WebGLImageDataStatus::InitializedImageData);
+            mStatus = WebGLImageDataStatus::InitializedImageData;
             return true;
         }
     }
@@ -655,12 +665,8 @@ WebGLTexture::EnsureInitializedImageData(TexImageTarget imageTarget,
     UniquePtr<uint8_t> zeros((uint8_t*)calloc(1, byteCount));
     if (zeros == nullptr) {
         // Failed to allocate memory. Lose the context. Return OOM error.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureInitializedImageData: Failed to alloc %u "
-                                   "bytes to clear image target `%s` level `%d`.",
-                                   byteCount, mContext->EnumName(imageTarget.get()),
-                                   level);
-         return false;
+        NS_WARNING("Failed to calloc for WebGLTexture::ImageInfo::ClearContents.");
+        return false;
     }
 
     gl::GLContext* gl = mContext->gl;
@@ -728,6 +734,27 @@ WebGLTexture::SetFakeBlackStatus(WebGLTextureFakeBlackStatus x)
     mFakeBlackStatus = x;
     mContext->SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
 }
+
+void
+WebGLTexture::ImageInfo::PrepareForSubImage(gl::GLContext* gl, GLint xOffset,
+                                            GLint yOffset, GLint zOffset, GLsizei width,
+                                            GLsizei height, GLsizei depth)
+{
+    if (mStatus == WebGLImageDataStatus::InitializedImageData)
+        return;
+
+    if (!xOffset && !yOffset && !zOffset &&
+        width == mWidth &&
+        height == mHeight &&
+        depth == mDepth)
+    {
+        // We're going to fill it anyway.
+        return;
+    }
+
+
+}
+
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLTexture)
 

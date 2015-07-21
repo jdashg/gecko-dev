@@ -358,6 +358,22 @@ public:
 protected:
     void UnwrapImpl();
 };
+
+struct ScopedUnPackAlignment
+    : public ScopedGLWrapper<ScopedUnPackAlignment>
+{
+    friend struct ScopedGLWrapper<ScopedUnPackAlignment>;
+
+protected:
+    GLint mOldVal;
+
+public:
+    ScopedUnPackAlignment(GLContext* aGL, GLint scopedVal);
+
+protected:
+    void UnwrapImpl();
+};
+
 } /* namespace gl */
 } /* namespace mozilla */
 

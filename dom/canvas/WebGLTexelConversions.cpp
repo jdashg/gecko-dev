@@ -326,11 +326,11 @@ public:
 } // end anonymous namespace
 
 bool
-WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t dstStride,
-                           const uint8_t* src, uint8_t* dst,
-                           WebGLTexelFormat srcFormat, bool srcPremultiplied,
-                           WebGLTexelFormat dstFormat, bool dstPremultiplied,
-                           size_t dstTexelSize)
+ConvertImage(size_t width, size_t height, bool yFlip,
+             const uint8_t* src, size_t srcStride, WebGLTexelFormat srcFormat,
+             bool srcPremultiplied,
+             uint8_t* dst, size_t dstStride, WebGLTexelFormat dstFormat,
+             bool dstPremultiplied)
 {
     if (width <= 0 || height <= 0)
         return true;
@@ -353,15 +353,16 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
 
         MOZ_ASSERT(mPixelStoreFlipY || srcStride != dstStride, "Performance trap -- should handle this case earlier, to avoid memcpy");
 
-        size_t row_size = width * dstTexelSize; // doesn't matter, src and dst formats agree
+        size_t texelSize = TexelBytesForFormat(dstFormat); // Doesn't matter which, since
+                                                           // src and dst formats agree.
+        size_t row_size = width * texelSize;
         const uint8_t* ptr = src;
         const uint8_t* src_end = src + height * srcStride;
 
-        uint8_t* dst_row = mPixelStoreFlipY
-                           ? dst + (height-1) * dstStride
-                           : dst;
+        uint8_t* dst_row = yFlip ? dst + (height-1) * dstStride
+                                 : dst;
         ptrdiff_t dstStrideSigned(dstStride);
-        ptrdiff_t dst_delta = mPixelStoreFlipY ? -dstStrideSigned : dstStrideSigned;
+        ptrdiff_t dst_delta = yFlip ? -dstStrideSigned : dstStrideSigned;
 
         while(ptr != src_end) {
             memcpy(dst_row, ptr, row_size);
@@ -379,7 +380,7 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
 
     uint8_t* dstStart = dst;
     ptrdiff_t signedDstStride = dstStride;
-    if (mPixelStoreFlipY) {
+    if (yFlip) {
         dstStart = dst + (height - 1) * dstStride;
         signedDstStride = -signedDstStride;
     }
