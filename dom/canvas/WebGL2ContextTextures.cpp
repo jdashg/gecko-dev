@@ -5,7 +5,9 @@
 
 #include "WebGL2Context.h"
 
+#include "ElementTexSource.h"
 #include "GLContext.h"
+#include "mozilla/dom/ImageData.h"
 #include "WebGLContextUtils.h"
 #include "WebGLTexture.h"
 
@@ -94,16 +96,14 @@ WebGL2Context::TexImage3D(GLenum texImageTarget, GLint level, GLenum internalFor
         const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
 
         if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
-            ErrorInvalidEnum("texImage3D: `type` must be compatible with TypedArray type.",
-                             funcName);
+            ErrorInvalidEnum("texImage3D: `type` must be compatible with TypedArray"
+                             " type.");
             return;
         }
     }
 
     TexImage3D_base(texImageTarget, level, internalFormat, width, height, depth, border,
-                    unpackFormat, unpackType,
-
-                    data, dataSize, nullptr);
+                    unpackFormat, unpackType, data, dataSize);
 }
 
 void
@@ -118,7 +118,7 @@ WebGL2Context::TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
 
     if (maybeView.IsNull()) {
         ErrorInvalidValue("texSubImage3D: Null `pixels`.");
-        return
+        return;
     }
 
     const dom::ArrayBufferView& view = maybeView.Value();
@@ -130,8 +130,8 @@ WebGL2Context::TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
     const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
 
     if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
-        ErrorInvalidEnum("texSubImage3D: `type` must be compatible with TypedArray type.",
-                         funcName);
+        ErrorInvalidEnum("texSubImage3D: `type` must be compatible with TypedArray"
+                         " type.");
         return;
     }
 
@@ -150,21 +150,22 @@ WebGL2Context::TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
     if (IsContextLost())
         return;
 
-    if (!pixels) {
+    if (!imageData) {
         ErrorInvalidValue("texSubImage3D: Null `pixels`.");
-        return
+        return;
     }
 
-    Uint8ClampedArray arr;
+    dom::Uint8ClampedArray arr;
     MOZ_ALWAYS_TRUE( arr.Init(imageData->GetDataObject()) );
     arr.ComputeLengthAndData();
 
     const GLsizei width = imageData->Width();
     const GLsizei height = imageData->Height();
+    const GLsizei depth = 1;
     const void* const data = arr.Data();
     const uint32_t dataSize = arr.Length();
 
-    TexSubImage2D_base(texImageTarget, level, xOffset, yOffset, zOffset, width, height,
+    TexSubImage3D_base(texImageTarget, level, xOffset, yOffset, zOffset, width, height,
                        depth, unpackFormat, unpackType,
 
                        data, dataSize, nullptr);
@@ -176,9 +177,10 @@ WebGL2Context::TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
                              GLenum unpackType, dom::Element* elem,
                              ErrorResult* const out_rv)
 {
-    ElementTexSource* texSource = nullptr;
+    webgl::ElementTexSource* texSource = nullptr;
     bool badCORS;
-    ElementTexSource scopedTexSource(elem, &texSource, &badCORS);
+    webgl::ElementTexSource scopedTexSource(elem, mCanvasElement, this, &texSource,
+                                            &badCORS);
 
     if (!texSource) {
         if (badCORS) {
@@ -216,8 +218,8 @@ WebGL2Context::CompressedTexImage3D(GLenum texImageTarget, GLint level,
         return;
 
     view.ComputeLengthAndData();
-    const void* const data = arr.Data();
-    const uint32_t dataSize = arr.Length();
+    const void* const data = view.Data();
+    const uint32_t dataSize = view.Length();
 
     CompressedTexImage3D_base(texImageTarget, level, internalFormat, width, height, depth,
                               border, data, dataSize);
@@ -233,8 +235,8 @@ WebGL2Context::CompressedTexSubImage3D(GLenum texImageTarget, GLint level, GLint
         return;
 
     view.ComputeLengthAndData();
-    const void* const data = arr.Data();
-    const uint32_t dataSize = arr.Length();
+    const void* const data = view.Data();
+    const uint32_t dataSize = view.Length();
 
     CompressedTexSubImage3D_base(texImageTarget, level, xOffset, yOffset, zOffset, width,
                                  height, depth, unpackFormat, data, dataSize);

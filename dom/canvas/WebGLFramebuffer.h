@@ -21,9 +21,14 @@ class WebGLFramebuffer;
 class WebGLRenderbuffer;
 class WebGLTexture;
 
+
 namespace gl {
     class GLContext;
 } // namespace gl
+
+namespace webgl {
+struct FormatUsageInfo;
+} // namespace webgl
 
 class WebGLFBAttachPoint
 {
@@ -215,7 +220,7 @@ public:
         mStatus = 0;
     }
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format);
+    bool ValidateForRead(const char* info, webgl::FormatUsageInfo** const out_format);
 };
 
 } // namespace mozilla

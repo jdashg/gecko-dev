@@ -73,7 +73,6 @@ class nsIDocShell;
 
 namespace mozilla {
 
-class ElementTexSource;
 class WebGLActiveInfo;
 class WebGLContextLossHandler;
 class WebGLBuffer;
@@ -103,6 +102,7 @@ class SourceSurface;
 } // namespace gfx
 
 namespace webgl {
+class ElementTexSource;
 struct LinkedProgramInfo;
 class ShaderValidator;
 } // namespace webgl
@@ -993,22 +993,22 @@ private:
 protected:
     void TexImage2D_base(GLenum texImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border,
-                         GLenum unpackFormat, GLenum unpackType, void* data,
-                         size_t dataSize, ElementTexSource* texSource);
+                         GLenum unpackFormat, GLenum unpackType, const void* data,
+                         size_t dataSize, webgl::ElementTexSource* texSource);
     void TexImage3D_base(GLenum texImagetTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLsizei depth,
                          GLint border, GLenum unpackFormat, GLenum unpackType,
-                         void* data, size_t dataSize);
+                         const void* data, size_t dataSize);
 
     void TexSubImage2D_base(GLenum texImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLsizei width, GLsizei height,
-                            GLenum unpackFormat, GLenum unpackType, void* data,
-                            size_t dataSize, ElementTexSource* texSource);
+                            GLenum unpackFormat, GLenum unpackType, const void* data,
+                            size_t dataSize, webgl::ElementTexSource* texSource);
     void TexSubImage3D_base(GLenum texImagetTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLint zOffset, GLsizei width,
                             GLsizei height, GLsizei depth, GLenum unpackFormat,
-                            GLenum unpackType, void* data, size_t dataSize,
-                            ElementTexSource* texSource);
+                            GLenum unpackType, const void* data, size_t dataSize,
+                            webgl::ElementTexSource* texSource);
 
     void TexStorage2D_base(GLenum texTarget, GLsizei levels, GLenum internalFormat,
                            GLsizei width, GLsizei height);
@@ -1017,21 +1017,21 @@ protected:
 
     void CompressedTexImage2D_base(GLenum texImagetTarget, GLint level,
                                    GLenum internalFormat, GLsizei width,
-                                   GLsizei height, GLint border, void* data,
+                                   GLsizei height, GLint border, const void* data,
                                    size_t dataSize);
     void CompressedTexImage3D_base(GLenum texImagetTarget, GLint level,
                                    GLenum internalFormat, GLsizei width,
                                    GLsizei height, GLsizei depth, GLint border,
-                                   void* data, size_t dataSize);
+                                   const void* data, size_t dataSize);
 
     void CompressedTexSubImage2D_base(GLenum texImagetTarget, GLint level,
                                       GLint xOffset, GLint yOffset, GLsizei width,
                                       GLsizei height, GLenum unpackFormat,
-                                      void* data, size_t dataSize);
+                                      const void* data, size_t dataSize);
     void CompressedTexSubImage3D_base(GLenum texImagetTarget, GLint level,
                                       GLint xOffset, GLint yOffset, GLint zOffset,
                                       GLsizei width, GLsizei height, GLsizei depth,
-                                      GLenum unpackFormat, void* data,
+                                      GLenum unpackFormat, const void* data,
                                       size_t dataSize);
 
     void CopyTexSubImage2D_base(GLenum texImagetTarget, GLint level, GLint xOffset,
@@ -1046,14 +1046,14 @@ protected:
     void TexImage_base(const char* funcName, uint8_t funcDims, GLenum texImageTarget,
                        GLint level, GLenum internalFormat, GLsizei width,
                        GLsizei height, GLsizei depth, GLint border,
-                       GLenum unpackFormat, GLenum unpackType, void* data,
-                       size_t dataSize, ElementTexSource* texSource);
+                       GLenum unpackFormat, GLenum unpackType, const void* data,
+                       size_t dataSize, webgl::ElementTexSource* texSource);
     void TexSubImage_base(const char* funcName, uint8_t funcDims,
                           GLenum texImageTarget, GLint level, GLint xOffset,
                           GLint yOffset, GLint zOffset, GLsizei width,
                           GLsizei height, GLsizei depth, GLenum unpackFormat,
-                          GLenum unpackType, void* data, size_t dataSize,
-                          ElementTexSource* texSource);
+                          GLenum unpackType, const void* data, size_t dataSize,
+                          webgl::ElementTexSource* texSource);
 
     void TexStorage_base(const char* funcName, uint8_t funcDims,
                          GLenum texTarget, GLsizei levels,
@@ -1067,12 +1067,13 @@ protected:
                                  GLenum texImageTarget, GLint level,
                                  GLenum internalFormat, GLsizei width,
                                  GLsizei height, GLsizei depth, GLint border,
-                                 void* data, size_t dataSize);
+                                 const void* data, size_t dataSize);
     void CompressedTexSubImage_base(const char* funcName, uint8_t funcDims,
                                     GLenum texImageTarget, GLint level,
                                     GLint xOffset, GLint yOffset, GLint zOffset,
                                     GLsizei width, GLsizei height, GLsizei depth,
-                                    GLenum unpackFormat, void* data, size_t dataSize);
+                                    GLenum unpackFormat, const void* data,
+                                    size_t dataSize);
 
     void CopyTexImage2D_base(GLenum imageTarget, GLint level, GLenum internalFormat,
                              GLint x, GLint y, GLsizei width, GLsizei height,
@@ -1106,7 +1107,7 @@ protected:
     bool ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei width,
                            GLsizei height, GLsizei depth, GLenum unpackFormat,
                            GLenum unpackType, size_t dataSize,
-                           ElementTexSource* texSource,
+                           webgl::ElementTexSource* texSource,
                            const webgl::FormatInfo** const out_format);
 
 
@@ -1151,6 +1152,10 @@ protected:
 
     WebGLContextOptions mOptions;
 
+public:
+    const WebGLContextOptions& Options() const { return mOptions; }
+
+protected:
     bool mInvalidated;
     bool mResetLayer;
     bool mOptionsFrozen;
@@ -1356,10 +1361,10 @@ protected:
                       WebGLTexelFormat dstFormat, bool dstPremultiplied,
                       size_t dstTexelSize);
 
-    template<class ElementType>
+public:
     nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType* element) {
-        MOZ_ASSERT(element);
+    SurfaceFromElement(dom::Element* elem) {
+        MOZ_ASSERT(elem);
 
         uint32_t flags = nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
         if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)
@@ -1367,20 +1372,15 @@ protected:
         if (!mPixelStorePremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_PREFER_NO_PREMULTIPLY_ALPHA;
 
-        return nsLayoutUtils::SurfaceFromElement(element, flags);
-    }
-
-    template<class ElementType>
-    nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType& element) {
-       return SurfaceFromElement(&element);
+        return nsLayoutUtils::SurfaceFromElement(elem, flags);
     }
 
     nsresult
-    SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,
-                                           RefPtr<gfx::DataSourceSurface>& imageOut,
-                                           WebGLTexelFormat* format);
+    SurfaceFromElementResultToImageSurface(const nsLayoutUtils::SurfaceFromElementResult& res,
+                                           RefPtr<gfx::DataSourceSurface>* const out_image,
+                                           WebGLTexelFormat* const out_format);
 
+protected:
     // Returns false if `object` is null or not valid.
     template<class ObjectType>
     bool ValidateObject(const char* info, ObjectType* object);
@@ -1751,6 +1751,9 @@ GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
                        uint32_t skipImages, uint32_t usedPixelsPerRow,
                        uint32_t usedRowsPerImage, uint32_t usedImages,
                        uint32_t* const out_packedBytes);
+
+bool
+DoesUnpackTypeMatchArrayType(GLenum unpackType, js::Scalar::Type arrayType);
 
 } // namespace mozilla
 

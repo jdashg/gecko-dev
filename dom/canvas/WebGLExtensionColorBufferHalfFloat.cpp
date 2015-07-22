@@ -7,7 +7,7 @@
 #include "GLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
-#include "WebGLFormat.h"
+#include "WebGLFormats.h"
 
 namespace mozilla {
 
@@ -15,11 +15,11 @@ WebGLExtensionColorBufferHalfFloat::WebGLExtensionColorBufferHalfFloat(WebGLCont
     : WebGLExtensionBase(webgl)
 {
     MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
-    auto auth = webgl->mFormatUsage;
-
-    if (!auth.HasInfo(webgl::EffectiveFormat::RGBA16F)) {
-        //auth.AddEffectiveFormat(RGBA16F,
+    /*
+    if (!webgl->mFormatUsage->HasInfo(webgl::EffectiveFormat::RGBA16F)) {
+        webgl->mFormatUsage->AddEffectiveFormat(RGBA16F,
     }
+    */
 }
 
 WebGLExtensionColorBufferHalfFloat::~WebGLExtensionColorBufferHalfFloat()

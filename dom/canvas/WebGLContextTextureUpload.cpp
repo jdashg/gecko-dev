@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
+
+#include "ElementTexSource.h"
 #include "WebGLContextUtils.h"
 #include "WebGLBuffer.h"
 #include "WebGLVertexAttribData.h"
@@ -50,129 +52,6 @@
 #include "mozilla/Endian.h"
 
 namespace mozilla {
-
-//////////////////////////////////////////////////////////////////////////////////////////
-// ElementTexSource
-
-class ElementTexSource
-{
-    mozilla::dom::Element* mElem;
-    RefPtr<mozilla::layers::ImageContainer> mContainer;
-    RefPtr<mozilla::layers::Image> mLockedImage;
-    RefPtr<gfx::DataSourceSurface> mData;
-
-public:
-    ElementTexSource(mozilla::dom::Element* elem,
-                     ElementTexSource** const out_onlyIfValid,
-                     bool* const out_badCORS);
-
-    ~ElementTexSource();
-
-    const gfx::IntSize& Size() const
-    {
-        if (mLockedImage)
-            return mLockedImage->GetSize();
-
-        MOZ_ASSERT(mData);
-        return mData->GetSize();
-    }
-
-    bool BlitToTexture(gl::GLContext* gl, GLuint destTex, GLenum texImageTarget,
-                       gl::OriginPos destOrigin) const;
-    gfx::DataSourceSurface* ElementTexSource::GetData();
-};
-
-
-ElementTexSource::ElementTexSource(mozilla::dom::Element* elem,
-                                   ElementTexSource** const out_onlyIfValid,
-                                   bool* const out_badCORS)
-    : mElem(elem);
-{
-    MOZ_ASSERT(mElem);
-
-    *out_onlyIfValid = nullptr;
-    *out_badCORS = false;
-
-    HTMLMediaElement* media = HTMLMediaElement::FromContent(elem);
-    if (!media)
-        return;
-
-    if (media->GetCORSMode() == CORS_NONE) {
-        nsCOMPtr<nsIPrincipal> principal = media->GetCurrentPrincipal();
-        if (!principal)
-            return;
-
-        bool subsumes;
-        nsresult rv = mCanvasElement->NodePrincipal()->Subsumes(principal, &subsumes);
-        if (NS_FAILED(rv) || !subsumes) {
-            *out_badCORS = true;
-            return;
-        }
-    }
-
-    uint16_t readyState;
-    if (NS_SUCCEEDED(media->GetReadyState(&readyState)) &&
-        readyState < nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA)
-    {
-        // No frame inside, just return
-        return;
-    }
-
-    mozilla::layers::ImageContainer* container = media->GetImageContainer();
-    if (container) {
-        RefPtr<mozilla::layers::Image> lockedImage = container->LockCurrentImage();
-        if (lockedImage) {
-            mContainer = container;
-            mLockedImage = lockedImage;
-
-            *out_onlyIfValid = true;
-            return;
-        }
-    }
-
-    if (!GetData())
-        return;
-    MOZ_ASSERT(mData);
-
-    *out_onlyIfValid = this;
-    return;
-}
-
-ElementTexSource::~ElementTexSource()
-{
-    if (mLockedImage) {
-        mLockedImage = nullptr;
-        mContainer->UnlockCurrentImage();
-    }
-}
-
-bool
-ElementTexSource::BlitToTexture(gl::GLContext* gl, GLuint destTex, GLenum texImageTarget,
-                                gl::OriginPos destOrigin) const
-{
-    if (!mLockedImage)
-        return false;
-
-    return gl->BlitHelper()->BlitImageToTexture(mLockedImage,
-                                                mLockedImage->GetSize(), destTex,
-                                                texImageTarget, destOrigin);
-}
-
-gfx::DataSourceSurface*
-ElementTexSource::GetData()
-{
-    if (!mData) {
-        const nsLayoutUtils::SurfaceFromElementResult sfeRes = SurfaceFromElement(mElem);
-
-        RefPtr<gfx::DataSourceSurface> data;
-        WebGLTexelFormat srcFormat;
-        nsresult rv = SurfaceFromElementResultToImageSurface(sfeRes, data, &srcFormat);
-        if (!rv.Failed() && data)
-            mData = data;
-    }
-
-    return mData;
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -1933,7 +1812,7 @@ WebGLContext::CopyTexSubImage_base(const char* funcName, uint8_t funcDims,
 void
 WebGLContext::TexImage2D_base(GLenum texImageTarget, GLint level, GLenum internalFormat,
                               GLsizei width, GLsizei height, GLint border,
-                              GLenum unpackFormat, GLenum unpackType, void* data,
+                              GLenum unpackFormat, GLenum unpackType, const void* data,
                               size_t dataSize, ElementTexSource* texSource)
 {
     const char funcName[] = "TexImage2D";
@@ -1949,7 +1828,7 @@ void
 WebGLContext::TexImage3D_base(GLenum texImagetTarget, GLint level, GLenum internalFormat,
                               GLsizei width, GLsizei height, GLsizei depth,
                               GLint border, GLenum unpackFormat, GLenum unpackType,
-                              void* data, size_t dataSize)
+                              const void* data, size_t dataSize)
 {
     const char funcName[] = "TexImage3D";
     const uint8_t funcDims = 3;
@@ -1965,7 +1844,7 @@ WebGLContext::TexImage3D_base(GLenum texImagetTarget, GLint level, GLenum intern
 void
 WebGLContext::TexSubImage2D_base(GLenum texImageTarget, GLint level, GLint xOffset,
                                  GLint yOffset, GLsizei width, GLsizei height,
-                                 GLenum unpackFormat, GLenum unpackType, void* data,
+                                 GLenum unpackFormat, GLenum unpackType, const void* data,
                                  size_t dataSize, ElementTexSource* texSource))
 {
     const char funcName[] = "TexSubImage2D";
@@ -1984,7 +1863,7 @@ void
 WebGLContext::TexSubImage3D_base(GLenum texImagetTarget, GLint level, GLint xOffset,
                                  GLint yOffset, GLint zOffset, GLsizei width,
                                  GLsizei height, GLsizei depth, GLenum unpackFormat,
-                                 GLenum unpackType, void* data, size_t dataSize,
+                                 GLenum unpackType, const void* data, size_t dataSize,
                                  ElementTexSource* texSource)
 {
     const char funcName[] = "TexSubImage3D";
@@ -2025,7 +1904,7 @@ WebGLContext::TexStorage3D_base(GLenum texTarget, GLsizei levels, GLenum interna
 void
 WebGLContext::CompressedTexImage2D_base(GLenum texImagetTarget, GLint level,
                                         GLenum internalFormat, GLsizei width,
-                                        GLsizei height, GLint border, void* data,
+                                        GLsizei height, GLint border, const void* data,
                                         size_t dataSize)
 {
     const char funcName[] = "CompressedTexImage2D";
@@ -2041,7 +1920,7 @@ void
 WebGLContext::CompressedTexImage3D_base(GLenum texImagetTarget, GLint level,
                                         GLenum internalFormat, GLsizei width,
                                         GLsizei height, GLsizei depth, GLint border,
-                                        void* data, size_t dataSize)
+                                        const void* data, size_t dataSize)
 {
     const char funcName[] = "CompressedTexImage3D";
     const uint8_t funcDims = 3;
@@ -2056,7 +1935,7 @@ void
 WebGLContext::CompressedTexSubImage2D_base(GLenum texImagetTarget, GLint level,
                                            GLint xOffset, GLint yOffset, GLsizei width,
                                            GLsizei height, GLenum unpackFormat,
-                                           void* data, size_t dataSize)
+                                           const void* data, size_t dataSize)
 {
     const char funcName[] = "CompressedTexSubImage2D";
     const uint8_t funcDims = 2;
@@ -2072,7 +1951,7 @@ void
 WebGLContext::CompressedTexSubImage3D_base(GLenum texImagetTarget, GLint level,
                                            GLint xOffset, GLint yOffset, GLint zOffset,
                                            GLsizei width, GLsizei height, GLsizei depth,
-                                           GLenum unpackFormat, void* data,
+                                           GLenum unpackFormat, const void* data,
                                            size_t dataSize)
 {
     const char funcName[] = "CompressedTexSubImage3D";
@@ -2115,7 +1994,7 @@ WebGLContext::CopyTexSubImage3D_base(GLenum texImagetTarget, GLint level, GLint 
 //////////////////////////////////////////////////////////////////////////////////////////
 // WebGL entrypoints
 
-static bool
+bool
 DoesUnpackTypeMatchArrayType(GLenum unpackType, js::Scalar::Type arrayType)
 {
       js::Scalar::Type requiredArrayType;
@@ -2221,9 +2100,10 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
                          GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
                          ErrorResult* const out_rv)
 {
-    ElementTexSource* texSource = nullptr;
+    webgl::ElementTexSource* texSource = nullptr;
     bool badCORS;
-    ElementTexSource scopedTexSource(elem, &texSource, &badCORS);
+    webgl::ElementTexSource scopedTexSource(elem, mCanvasElement, this, &texSource,
+                                            &badCORS);
 
     if (!texSource) {
         if (badCORS) {
@@ -2319,9 +2199,10 @@ WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLenum unpackFormat, GLenum unpackType,
                             dom::Element* elem, ErrorResult* const out_rv)
 {
-    ElementTexSource* texSource = nullptr;
+    webgl::ElementTexSource* texSource = nullptr;
     bool badCORS;
-    ElementTexSource scopedTexSource(elem, &texSource, &badCORS);
+    webgl::ElementTexSource scopedTexSource(elem, mCanvasElement, this, &texSource,
+                                            &badCORS);
 
     if (!texSource) {
         if (badCORS) {

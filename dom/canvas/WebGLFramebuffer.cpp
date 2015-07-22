@@ -46,19 +46,9 @@ WebGLFBAttachPoint::IsDefined() const
 bool
 WebGLFBAttachPoint::HasAlpha() const
 {
-    MOZ_ASSERT(HasImage());
-
-    if (Texture() &&
-        Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
-    {
-        return FormatHasAlpha(Texture()->ImageInfoAt(mTexImageTarget,
-                                                     mTexImageLevel).EffectiveInternalFormat());
-    }
-
-    if (Renderbuffer())
-        return FormatHasAlpha(Renderbuffer()->InternalFormat());
-
-    return false;
+    auto formatUsage = Format();
+    MOZ_ASSERT(formatUsage);
+    return formatUsage->formatInfo->hasAlpha;
 }
 
 GLenum
@@ -856,7 +846,7 @@ WebGLFramebuffer::ValidateForRead(const char* funcName,
         return false;
     }
 
-    *out_format = attachPoint.EffectiveInternalFormat();
+    *out_format = attachPoint.Format();
     return true;
 }
 
