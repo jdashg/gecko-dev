@@ -131,6 +131,16 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     // OES_compressed_ETC1_RGB8_texture
     ETC1_RGB8,
 
+    Luminance16FAlpha16F,
+    Luminance16F,
+    Alpha16F,
+
+    Luminance32FAlpha32F,
+    Luminance32F,
+    Alpha32F,
+
+    Depth32,
+
     MAX,
 };
 
@@ -221,6 +231,11 @@ struct FormatUsageInfo {
     std::set<UnpackTuple> validUnpacks;
 
     bool CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const;
+
+    const UnpackTuple& RandomValidUnpack() const {
+        auto itr = validUnpacks.begin();
+        return *itr;
+    }
 };
 
 class FormatUsageAuthority

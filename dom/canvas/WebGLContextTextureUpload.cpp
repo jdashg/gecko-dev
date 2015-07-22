@@ -177,13 +177,13 @@ ElementTexSource::GetData()
 //////////////////////////////////////////////////////////////////////////////////////////
 // Utils
 
-
-static bool
-GetPackedSize(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
-              uint32_t maybeStridePixelsPerRow, uint32_t maybeStrideRowsPerImage,
-              uint32_t skipPixelsPerRow, uint32_t skipRowsPerImage, uint32_t skipImages,
-              uint32_t usedPixelsPerRow, uint32_t usedRowsPerImage, uint32_t usedImages,
-              uint32_t* const out_packedBytes)
+bool
+GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
+                       uint32_t maybeStridePixelsPerRow, uint32_t maybeStrideRowsPerImage,
+                       uint32_t skipPixelsPerRow, uint32_t skipRowsPerImage,
+                       uint32_t skipImages, uint32_t usedPixelsPerRow,
+                       uint32_t usedRowsPerImage, uint32_t usedImages,
+                       uint32_t* const out_packedBytes)
 {
     MOZ_RELEASE_ASSERT(rowByteAlignment != 0);
 
@@ -235,8 +235,7 @@ GetPackedSize(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
 
 bool
 WebGLContext::ValidateTexImageTarget(const char* funcName, uint8_t funcDims,
-                                     GLenum texImageTarget,
-                                     bool* const out_isCubeMap,
+                                     GLenum texImageTarget, bool* const out_isCubeMap,
                                      TexImageTarget* const out_target,
                                      WebGLTexture** const out_texture)
 {
@@ -513,11 +512,11 @@ WebGLContext::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
     const auto usedImages = depth;
 
     uint32_t bytesNeeded;
-    if (!GetPackedSize(bytesPerPixel, rowByteAlignment,
-         maybeStridePixelsPerRow, maybeStrideRowsPerImage,
-         skipPixelsPerRow, skipRowsPerImage, skipImages,
-         usedPixelsPerRow, usedRowsPerImage, usedImages,
-         &bytesNeeded)
+    if (!GetPackedSizeForUnpack(bytesPerPixel, rowByteAlignment,
+                                maybeStridePixelsPerRow, maybeStrideRowsPerImage,
+                                skipPixelsPerRow, skipRowsPerImage, skipImages,
+                                usedPixelsPerRow, usedRowsPerImage, usedImages,
+                                &bytesNeeded)
     {
         ErrorInvalidOperation("%s: Overflow while computing the needed buffer size.",
                               funcName);
@@ -893,7 +892,6 @@ DoChannelsMatchForCopyTexImage(const webgl::FormatInfo* srcFormat,
     }
 }
 
-
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
 // Actual (mostly generic) function implementations
@@ -931,7 +929,7 @@ DoChannelsMatchForCopyTexImage(const webgl::FormatInfo* srcFormat,
 void
 WebGLContext::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texImageTarget,
                             GLint level, GLenum internalFormat, GLsizei width,
-                            GLsizei height, GLsizei depth, GLsizei border,
+                            GLsizei height, GLsizei depth, GLint border,
                             GLenum unpackFormat, GLenum unpackType, void* data,
                             size_t dataSize, ElementTexSource* texSource)
 {
@@ -1059,21 +1057,19 @@ WebGLContext::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texIm
     MOZ_ASSERT(data);
 
     // Convert to format and type required by the driver.
-    GLenum driverType = LOCAL_GL_NONE;
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             effectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat,
-                                             &driverType);
+    GLenum driverInternalFormat;
+    GLenum driverUnpackFormat;
+    GLenum driverUnpackType;
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
 
-    if (effectiveInternalFormat != driverInternalFormat)
-        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
+    if (driverInternalFormat != internalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget, internalformat);
 
-    ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
-    GLContext::LocalErrorScope errorScope(*gl);
+    gl::ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
+
+    gl::GLContext::LocalErrorScope errorScope(*gl);
     switch (funcDims) {
     case 2:
         gl->fTexImage2D(GLenum(target), level, driverInternalFormat, width, height,
@@ -1205,17 +1201,13 @@ WebGLContext::TexSubImage_base(const char* funcName, uint8_t funcDims,
     MOZ_ASSERT(data);
 
     // Convert to format and type required by the driver.
-    GLenum driverType = LOCAL_GL_NONE;
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             effectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat,
-                                             &driverType);
+    GLenum internalFormat = 0; // unused
+    GLenum driverInternalFormat; // unused
+    GLenum driverUnpackFormat;
+    GLenum driverUnpackType;
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
 
-    if (effectiveInternalFormat != driverInternalFormat)
-        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
 
     ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
@@ -1312,9 +1304,18 @@ WebGLContext::TexStorage_base(const char* funcName, uint8_t funcDims,
     ////////////////////////////////////
     // Do the thing!
 
-    // TODO
-    //if (effectiveInternalFormat != driverInternalFormat)
-    //    SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
+    // Convert to format and type required by the driver.
+    GLenum unpackFormat = 0; // unused
+    GLenum unpackType = 0; // unused
+    GLenum driverInternalFormat;
+    GLenum driverUnpackFormat = 0; // unused
+    GLenum driverUnpackType = 0; // unused
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
+
+    if (driverInternalFormat != internalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget, internalformat);
+
 
     ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
@@ -1446,9 +1447,18 @@ WebGLContext::TexStorage2DMultisample_base(GLenum texTarget, GLsizei samples,
     ////////////////////////////////////
     // Do the thing!
 
-    // TODO
-    //if (effectiveInternalFormat != driverInternalFormat)
-    //    SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalformat.get());
+    // Convert to format and type required by the driver.
+    GLenum unpackFormat = 0; // unused
+    GLenum unpackType = 0; // unused
+    GLenum driverInternalFormat;
+    GLenum driverUnpackFormat = 0; // unused
+    GLenum driverUnpackType = 0; // unused
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
+
+    if (driverInternalFormat != internalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget, internalformat);
+
 
     ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
@@ -1490,7 +1500,7 @@ void
 WebGLContext::CompressedTexImage_base(const char* funcName, uint8_t funcDims,
                                       GLenum texImageTarget, GLint level,
                                       GLenum internalFormat, GLsizei width,
-                                      GLsizei height, GLsizei depth, GLsizei border,
+                                      GLsizei height, GLsizei depth, GLint border,
                                       void* data, size_t dataSize)
 {
     ////////////////////////////////////
@@ -1531,28 +1541,18 @@ WebGLContext::CompressedTexImage_base(const char* funcName, uint8_t funcDims,
     ////////////////////////////////////
     // Do the thing!
 
-    // Convert to format and type required by the driver.
-    GLenum driverType = LOCAL_GL_NONE;
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             effectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat,
-                                             &driverType);
-
     ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
     GLContext::LocalErrorScope errorScope(*gl);
     switch (funcDims) {
     case 2:
-        gl->fCompressedTexImage2D(GLenum(target), level, driverInternalFormat, width,
-                                  height, border, dataSize, data);
+        gl->fCompressedTexImage2D(GLenum(target), level, internalFormat, width, height,
+                                  border, dataSize, data);
         break;
 
     case 3:
-        gl->fCompressedTexImage3D(GLenum(target), level, driverInternalFormat, width,
-                                  height, depth, border, dataSize, data);
+        gl->fCompressedTexImage3D(GLenum(target), level, internalFormat, width, height,
+                                  depth, border, dataSize, data);
         break;
 
     default:
@@ -1683,15 +1683,6 @@ WebGLContext::CompressedTexSubImage_base(const char* funcName, uint8_t funcDims,
     texture->PrepareForSubImage(gl, target, level, xOffset, yOffset, zOffset, width,
                                 height, depth);
 
-    // Convert to format and type required by the driver.
-    GLenum driverType = LOCAL_GL_NONE;
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             effectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat,
-                                             &driverType);
 
     ScopedUnpackAlignment scopedUnpack(gl, unpackAlignment);
 
@@ -1730,7 +1721,7 @@ WebGLContext::CompressedTexSubImage_base(const char* funcName, uint8_t funcDims,
 void
 WebGLContext::CopyTexImage2D_base(GLenum imageTarget, GLint level, GLenum internalFormat,
                                   GLint x, GLint y, GLsizei width, GLsizei height,
-                                  GLsizei border)
+                                  GLint border)
 {
     const char funcName[] = "CopyTexImage2D";
     const uint8_t funcDims = 2;
@@ -1808,9 +1799,22 @@ WebGLContext::CopyTexImage2D_base(GLenum imageTarget, GLint level, GLenum intern
     ////////////////////////////////////
     // Do the thing!
 
+    // Convert to format and type required by the driver.
+    GLenum unpackFormat = 0; // unused
+    GLenum unpackType = 0; // unused
+    GLenum driverInternalFormat;
+    GLenum driverUnpackFormat = 0; // unused
+    GLenum driverUnpackType = 0; // unused
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
+
+    if (driverInternalFormat != internalFormat)
+        SetLegacyTextureSwizzle(gl, texImageTarget, internalformat);
+
+
     GLContext::LocalErrorScope errorScope(*gl);
 
-    gl->fCopyTexImage2D(GLenum(target), level, internalFormat, x, y, width, height,
+    gl->fCopyTexImage2D(GLenum(target), level, driverInternalFormat, x, y, width, height,
                         border);
 
     GLenum error = errorScope.GetError();
@@ -1953,7 +1957,7 @@ WebGLContext::CopyTexSubImage_base(const char* funcName, uint8_t funcDims,
 
 void
 WebGLContext::TexImage2D_base(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                              GLsizei width, GLsizei height, GLsizei border,
+                              GLsizei width, GLsizei height, GLint border,
                               GLenum unpackFormat, GLenum unpackType, void* data,
                               size_t dataSize, ElementTexSource* texSource)
 {
@@ -1969,7 +1973,7 @@ WebGLContext::TexImage2D_base(GLenum texImageTarget, GLint level, GLenum interna
 void
 WebGLContext::TexImage3D_base(GLenum texImagetTarget, GLint level, GLenum internalFormat,
                               GLsizei width, GLsizei height, GLsizei depth,
-                              GLsizei border, GLenum unpackFormat, GLenum unpackType,
+                              GLint border, GLenum unpackFormat, GLenum unpackType,
                               void* data, size_t dataSize)
 {
     const char funcName[] = "TexImage3D";
@@ -2047,7 +2051,7 @@ WebGLContext::TexStorage3D_base(GLenum texTarget, GLsizei levels, GLenum interna
 void
 WebGLContext::CompressedTexImage2D_base(GLenum texImagetTarget, GLint level,
                                         GLenum internalFormat, GLsizei width,
-                                        GLsizei height, GLsizei border, void* data,
+                                        GLsizei height, GLint border, void* data,
                                         size_t dataSize)
 {
     const char funcName[] = "CompressedTexImage2D";
@@ -2062,7 +2066,7 @@ WebGLContext::CompressedTexImage2D_base(GLenum texImagetTarget, GLint level,
 void
 WebGLContext::CompressedTexImage3D_base(GLenum texImagetTarget, GLint level,
                                         GLenum internalFormat, GLsizei width,
-                                        GLsizei height, GLsizei depth, GLsizei border,
+                                        GLsizei height, GLsizei depth, GLint border,
                                         void* data, size_t dataSize)
 {
     const char funcName[] = "CompressedTexImage3D";
@@ -2174,8 +2178,8 @@ DoesUnpackTypeMatchArrayType(GLenum unpackType, js::Scalar::Type arrayType)
 void
 WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
-                         GLenum unpackType, const Nullable<ArrayBufferView>& pixels,
-                         ErrorResult& rv)
+                         GLenum unpackType, const Nullable<ArrayBufferView>& maybeView,
+                         ErrorResult& out_rv)
 {
     if (IsContextLost())
         return;
@@ -2183,12 +2187,11 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
     const void* data;
     uint32_t dataSize;
 
-    if (pixels.IsNull()) {
+    if (maybeView.IsNull()) {
         data = nullptr;
         dataSize = 0;
-        pJSArrayType = nullptr;
     } else {
-        const ArrayBufferView& view = pixels.Value();
+        const ArrayBufferView& view = maybeView.Value();
         view.ComputeLengthAndData();
 
         data = view.Data();
@@ -2206,15 +2209,13 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
     TexImage2D_base(texImageTarget, level, internalFormat, width, height, border,
                     unpackFormat, unpackType,
 
-                    data, dataSize,
-
-                    nullptr);
+                    data, dataSize, nullptr);
 }
 
 void
 WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                          GLenum unpackFormat, GLenum unpackType, ImageData* pixels,
-                         ErrorResult& rv)
+                         ErrorResult& out_rv)
 {
     if (IsContextLost())
         return;
@@ -2225,32 +2226,29 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
     }
 
     Uint8ClampedArray arr;
-    MOZ_ALWAYS_TRUE( arr.Init(pixels->GetDataObject()) );
+    MOZ_ALWAYS_TRUE( arr.Init(imageData->GetDataObject()) );
     arr.ComputeLengthAndData();
 
-    const GLsizei width = pixels->Width();
-    const GLsizei height = pixels->Height();
-    const GLsizei border = 0;
+    const GLsizei width = imageData->Width();
+    const GLsizei height = imageData->Height();
+    const GLint border = 0;
     const void* const data = arr.Data();
     const uint32_t dataSize = arr.Length();
 
     TexImage2D_base(texImageTarget, level, internalFormat, width, height, border,
                     unpackFormat, unpackType,
 
-                    data, dataSize,
-
-                    nullptr);
+                    data, dataSize, nullptr);
 }
-
 
 void
 WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                         GLenum unpackFormat, GLenum unpackType, dom::Element& elem,
+                         GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
                          ErrorResult& out_rv)
 {
     ElementTexSource* texSource = nullptr;
     bool badCORS;
-    ElementTexSource scopedTexSource(&elem, &texSource, &badCORS);
+    ElementTexSource scopedTexSource(elem, &texSource, &badCORS);
 
     if (!texSource) {
         if (badCORS) {
@@ -2270,62 +2268,172 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
 
     const GLsizei width = texSource->Size().width;
     const GLsizei height = texSource->Size().height;
-    const GLsizei border = 0;
+    const GLint border = 0;
 
     TexImage2D_base(texImageTarget, level, internalFormat, width, height, border,
                     unpackFormat, unpackType,
 
-                    nullptr, 0,
-
-                    texSource);
+                    nullptr, 0, texSource);
 }
 
+////////////////////////////////////////
+
 void
-WebGLContext::TexSubImage2D(GLenum rawTarget, GLint level,
-                            GLint xoffset, GLint yoffset,
-                            GLsizei width, GLsizei height,
-                            GLenum format, GLenum type,
-                            const Nullable<ArrayBufferView> &pixels,
-                            ErrorResult& rv)
+WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLsizei width, GLsizei height,
+                            GLenum unpackFormat, GLenum unpackType,
+                            const Nullable<dom::ArrayBufferView>& maybeView,
+                            ErrorResult& out_rv)
 {
     if (IsContextLost())
         return;
 
-    if (pixels.IsNull())
-        return ErrorInvalidValue("texSubImage2D: pixels must not be null!");
+    const void* data;
+    uint32_t dataSize;
 
-    const ArrayBufferView& view = pixels.Value();
-    view.ComputeLengthAndData();
+    if (maybeView.IsNull()) {
+        data = nullptr;
+        dataSize = 0;
+    } else {
+        const ArrayBufferView& view = maybeView.Value();
+        view.ComputeLengthAndData();
 
-    return TexSubImage2D_base(rawTarget, level, xoffset, yoffset,
-                              width, height, 0, format, type,
-                              view.Data(), view.Length(), view.Type(),
-                              WebGLTexelFormat::Auto, false);
+        data = view.Data();
+        dataSize = view.Length();
+
+        const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
+
+        if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
+            ErrorInvalidEnum("%s: `type` must be compatible with TypedArray type.",
+                             funcName);
+            return;
+        }
+    }
+
+    TexSubImage2D_base(texImageTarget, level, xOffset, yOffset, width, height,
+                       unpackFormat, unpackType,
+
+                       data, dataSize, nullptr);
 }
-
 void
-WebGLContext::TexSubImage2D(GLenum target, GLint level,
-                            GLint xoffset, GLint yoffset,
-                            GLenum format, GLenum type, ImageData* pixels,
-                            ErrorResult& rv)
+WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                            dom::ImageData* imageData, ErrorResult& out_rv)
 {
     if (IsContextLost())
         return;
 
-    if (!pixels)
-        return ErrorInvalidValue("texSubImage2D: pixels must not be null!");
+    if (!pixels) {
+        ErrorInvalidValue("texImage2D: Null `pixels`.");
+        return
+    }
 
     Uint8ClampedArray arr;
-    DebugOnly<bool> inited = arr.Init(pixels->GetDataObject());
-    MOZ_ASSERT(inited);
+    MOZ_ALWAYS_TRUE( arr.Init(imageData->GetDataObject()) );
     arr.ComputeLengthAndData();
 
-    return TexSubImage2D_base(target, level, xoffset, yoffset,
-                              pixels->Width(), pixels->Height(),
-                              4*pixels->Width(), format, type,
-                              arr.Data(), arr.Length(),
-                              js::Scalar::MaxTypedArrayViewType,
-                              WebGLTexelFormat::RGBA8, false);
+    const GLsizei width = imageData->Width();
+    const GLsizei height = imageData->Height();
+    const GLint border = 0;
+    const void* const data = arr.Data();
+    const uint32_t dataSize = arr.Length();
+
+    TexSubImage2D_base(texImageTarget, level, xOffset, yOffset, width, height,
+                       unpackFormat, unpackType,
+
+                       data, dataSize, nullptr);
+}
+void
+WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                            dom::Element* elem, ErrorResult* const out_rv)
+{
+    ElementTexSource* texSource = nullptr;
+    bool badCORS;
+    ElementTexSource scopedTexSource(elem, &texSource, &badCORS);
+
+    if (!texSource) {
+        if (badCORS) {
+            // Nothing in the spec details this as generating a GL error.
+            GenerateWarning("It is forbidden to load a WebGL texture from a cross-domain"
+                            " element that has not been validated with CORS. See"
+                            " https://developer.mozilla.org/en/WebGL/Cross-Domain_Textures");
+            out_rv = NS_ERROR_DOM_SECURITY_ERR;
+            return;
+        }
+
+        // Nothing in the spec details this as generating a GL error.
+        GenerateWarning("Could not extract pixel data from the specified DOM element.");
+        out_rv = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+        return;
+    }
+
+    const GLsizei width = texSource->Size().width;
+    const GLsizei height = texSource->Size().height;
+
+    TexSubImage2D_base(texImageTarget, level, xOffset, yOffset, width, height,
+                       unpackFormat, unpackType,
+
+                       nullptr, 0, texSource);
+}
+
+////////////////////////////////////////
+
+void
+WebGLContext::CompressedTexImage2D(GLenum texImageTarget, GLint level,
+                                   GLenum internalFormat, GLsizei width, GLsizei height,
+                                   GLint border, const dom::ArrayBufferView& view)
+{
+    if (IsContextLost())
+        return;
+
+    view.ComputeLengthAndData();
+    const void* const data = arr.Data();
+    const uint32_t dataSize = arr.Length();
+
+    CompressedTexImage2D_base(texImageTarget, level, internalFormat, width, height,
+                              border, data, dataSize);
+}
+void
+WebGLContext::CompressedTexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                                      GLint yOffset, GLsizei width, GLsizei height,
+                                      GLenum unpackFormat,
+                                      const dom::ArrayBufferView& view)
+{
+    if (IsContextLost())
+        return;
+
+    view.ComputeLengthAndData();
+    const void* const data = arr.Data();
+    const uint32_t dataSize = arr.Length();
+
+    CompressedTexSubImage2D_base(texImageTarget, level, xOffset, yOffset, width, height,
+                                 unpackFormat, data, dataSize);
+}
+
+////////////////////////////////////////
+
+void
+WebGLContext::CopyTexImage2D(GLenum texImageTarget, GLint level, GLenum internalformat,
+                             GLint x, GLint y, GLsizei width, GLsizei height,
+                             GLint border)
+{
+    if (IsContextLost())
+        return;
+
+    CopyTexImage2D_base(texImageTarget, level, internalFormat, x, y, width, height,
+                        border);
+}
+
+void
+WebGLContext::CopyTexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                                GLint yOffset, GLint x, GLint y, GLsizei width,
+                                GLsizei height)
+{
+    if (IsContextLost())
+        return;
+
+    CopyTexSubImage2D_base(texImageTarget, level, xOffset, yOffset, x, y, width, height);
 }
 
 } // namespace mozilla

@@ -268,6 +268,17 @@ InitFormatInfoMap()
     // OES_compressed_ETC1_RGB8_texture
     AddFormatInfo(FOO(ETC1_RGB8), 0, UnsizedFormat::RGB, ComponentType::NormUInt);
 
+    // Other
+    AddFormatInfo(FOO(Depth32             ), 4, UnsizedFormat::D , ComponentType::None    );
+
+    AddFormatInfo(FOO(Luminance16FAlpha16F), 4, UnsizedFormat::LA, ComponentType::NormUInt);
+    AddFormatInfo(FOO(Luminance16F        ), 2, UnsizedFormat::L , ComponentType::NormUInt);
+    AddFormatInfo(FOO(Alpha16F            ), 2, UnsizedFormat::A , ComponentType::None    );
+
+    AddFormatInfo(FOO(Luminance32FAlpha32F), 8, UnsizedFormat::LA, ComponentType::NormUInt);
+    AddFormatInfo(FOO(Luminance32F        ), 4, UnsizedFormat::L , ComponentType::NormUInt);
+    AddFormatInfo(FOO(Alpha32F            ), 4, UnsizedFormat::A , ComponentType::None    );
+
 #undef FOO
 }
 
@@ -286,24 +297,84 @@ AddUnpackTuple(GLenum unpackFormat, GLenum unpackType, EffectiveFormat effective
 static void
 InitUnpackTupleMap()
 {
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGBA8  );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4, EffectiveFormat::RGBA4  );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1, EffectiveFormat::RGB5_A1);
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGB8   );
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  , EffectiveFormat::RGB565 );
+    // RGBA
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              , EffectiveFormat::RGBA8   );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT                 , EffectiveFormat::RGBA16F );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES             , EffectiveFormat::RGBA16F );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      , EffectiveFormat::RGBA32F );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     , EffectiveFormat::RGBA4   );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1     , EffectiveFormat::RGB5_A1 );
+    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, EffectiveFormat::RGB10_A2);
 
-    AddUnpackTuple(LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8Alpha8);
-    AddUnpackTuple(LOCAL_GL_LUMINANCE      , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8      );
-    AddUnpackTuple(LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Alpha8          );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_INT                        , EffectiveFormat::RGBA32I   );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT               , EffectiveFormat::RGBA32UI  );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_SHORT                      , EffectiveFormat::RGBA16I   );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_SHORT             , EffectiveFormat::RGBA16UI  );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_BYTE                       , EffectiveFormat::RGBA8I    );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_BYTE              , EffectiveFormat::RGBA8UI   );
+    AddUnpackTuple(LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV, EffectiveFormat::RGB10_A2UI);
 
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_FLOAT     , EffectiveFormat::RGB32F );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_FLOAT     , EffectiveFormat::RGBA32F);
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT, EffectiveFormat::RGB16F );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT, EffectiveFormat::RGBA16F);
+    // RGB
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               , EffectiveFormat::RGB8          );
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  , EffectiveFormat::RGB16F        );
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT_OES              , EffectiveFormat::RGB16F        );
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_FLOAT                       , EffectiveFormat::RGB32F        );
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_SHORT_5_6_5        , EffectiveFormat::RGB565        );
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV, EffectiveFormat::R11F_G11F_B10F);
+    AddUnpackTuple(LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV    , EffectiveFormat::RGB9_E5       );
 
-    // Everyone's favorite problem-child:
-    AddUnpackTuple(LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGB16F );
-    AddUnpackTuple(LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGBA16F);
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_BYTE          , EffectiveFormat::RGB8I  );
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::RGB8UI );
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_SHORT         , EffectiveFormat::RGB16I );
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_SHORT, EffectiveFormat::RGB16UI);
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_INT           , EffectiveFormat::RGB32I );
+    AddUnpackTuple(LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_INT  , EffectiveFormat::RGB32UI);
+
+    // RG
+    AddUnpackTuple(LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::RG8  );
+    AddUnpackTuple(LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::RG16F);
+    AddUnpackTuple(LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RG16F);
+    AddUnpackTuple(LOCAL_GL_RG, LOCAL_GL_FLOAT         , EffectiveFormat::RG32F);
+
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_BYTE          , EffectiveFormat::RG8I  );
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::RG8UI );
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_SHORT         , EffectiveFormat::RG16I );
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_SHORT, EffectiveFormat::RG16UI);
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_INT           , EffectiveFormat::RG32I );
+    AddUnpackTuple(LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_INT  , EffectiveFormat::RG32UI);
+
+    // R
+    AddUnpackTuple(LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::R8  );
+    AddUnpackTuple(LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::R16F);
+    AddUnpackTuple(LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::R16F);
+    AddUnpackTuple(LOCAL_GL_RED, LOCAL_GL_FLOAT         , EffectiveFormat::R32F);
+
+    // LA
+    AddUnpackTuple(LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::Luminance8Alpha8    );
+    AddUnpackTuple(LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::Luminance16FAlpha16F);
+    AddUnpackTuple(LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::Luminance16FAlpha16F);
+    AddUnpackTuple(LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT         , EffectiveFormat::Luminance32FAlpha32F);
+
+    // L
+    AddUnpackTuple(LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::Luminance8  );
+    AddUnpackTuple(LOCAL_GL_LUMINANCE, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::Luminance16F);
+    AddUnpackTuple(LOCAL_GL_LUMINANCE, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::Luminance16F);
+    AddUnpackTuple(LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT         , EffectiveFormat::Luminance32F);
+
+    // A
+    AddUnpackTuple(LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE , EffectiveFormat::Alpha8  );
+    AddUnpackTuple(LOCAL_GL_ALPHA, LOCAL_GL_HALF_FLOAT    , EffectiveFormat::Alpha16F);
+    AddUnpackTuple(LOCAL_GL_ALPHA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::Alpha16F);
+    AddUnpackTuple(LOCAL_GL_ALPHA, LOCAL_GL_FLOAT         , EffectiveFormat::Alpha32F);
+
+    // D
+    AddUnpackTuple(LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT, EffectiveFormat::DEPTH_COMPONENT16 );
+    AddUnpackTuple(LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  , EffectiveFormat::Depth32           );
+    AddUnpackTuple(LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_FLOAT         , EffectiveFormat::DEPTH_COMPONENT32F);
+
+    // DS
+    AddUnpackTuple(LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             , EffectiveFormat::DEPTH24_STENCIL8 );
+    AddUnpackTuple(LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV, EffectiveFormat::DEPTH32F_STENCIL8);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -776,6 +847,8 @@ void
 FormatUsageAuthority::AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
                                       EffectiveFormat effectiveFormat)
 {
+    MOZ_RELEASE_ASSERT(GetInfoByUnpackTuple(unpackFormat, unpackType));
+
     const UnpackTuple unpack = { unpackFormat, unpackType };
     FormatUsageInfo* usage = GetInfo(effectiveFormat);
     MOZ_RELEASE_ASSERT(usage);

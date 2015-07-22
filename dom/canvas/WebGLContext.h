@@ -562,11 +562,11 @@ public:
     void StencilOpSeparate(GLenum face, GLenum sfail, GLenum dpfail,
                            GLenum dppass);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLsizei width, GLsizei height, GLint border, GLenum format,
-                    GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
+                    GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
+                    GLenum unpackType, const Nullable<dom::ArrayBufferView>& maybeView,
                     ErrorResult& rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum format, GLenum type, dom::ImageData* pixels,
+                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
                     ErrorResult& rv);
 
     template<class ElementType>
@@ -687,28 +687,25 @@ public:
         TexParameter_base(target, pname, &param, nullptr);
     }
 
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLsizei width, GLsizei height,
-                       GLenum format, GLenum type,
-                       const dom::Nullable<dom::ArrayBufferView>& pixels,
-                       ErrorResult& rv);
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       dom::ImageData* pixels, ErrorResult& rv);
-
-    void TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       dom::Element* elt, ErrorResult* const out_rv);
-
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLsizei width, GLsizei height, GLenum unpackFormat,
+                       GLenum unpackType, const Nullable<dom::ArrayBufferView>& maybeView,
+                       ErrorResult& out_rv);
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                       ErrorResult& out_rv);
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                       ErrorResult* const out_rv);
     // Allow whatever element types the bindings are willing to pass
     // us in TexSubImage2D
     template<class ElementType>
-    void TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       ElementType& elt, ErrorResult& out_rv)
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                       ElementType& elem, ErrorResult& out_rv)
     {
-        TexSubImage2D(rawTexImageTarget, level, xoffset, yoffset, format, type, &elt,
-                      &out_rv);
+        TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
+                      &elem, &out_rv);
     }
 
     void Uniform1i(WebGLUniformLocation* loc, GLint x);
@@ -1747,6 +1744,14 @@ private:
 };
 
 size_t RoundUpToMultipleOf(size_t value, size_t multiple);
+
+bool
+GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
+                       uint32_t maybeStridePixelsPerRow, uint32_t maybeStrideRowsPerImage,
+                       uint32_t skipPixelsPerRow, uint32_t skipRowsPerImage,
+                       uint32_t skipImages, uint32_t usedPixelsPerRow,
+                       uint32_t usedRowsPerImage, uint32_t usedImages,
+                       uint32_t* const out_packedBytes);
 
 } // namespace mozilla
 

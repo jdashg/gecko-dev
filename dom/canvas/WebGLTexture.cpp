@@ -523,7 +523,7 @@ ClearByMask(WebGLContext* webgl, GLbitfield mask)
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
         return false;
 
-    bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = {false};
+    bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = { false };
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
         colorAttachmentsMask[0] = true;
     }
@@ -534,10 +534,8 @@ ClearByMask(WebGLContext* webgl, GLbitfield mask)
 
 // `mask` from glClear.
 static bool
-ClearWithTempFB(WebGLContext* webgl, GLuint tex,
-                TexImageTarget texImageTarget, GLint level,
-                TexInternalFormat baseInternalFormat,
-                GLsizei width, GLsizei height)
+ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget texImageTarget,
+                GLint level, webgl::UnsizedFormat unsizedFormat, GLsizei width, GLsizei height)
 {
     MOZ_ASSERT(texImageTarget == LOCAL_GL_TEXTURE_2D);
 
@@ -548,29 +546,26 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
     gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
     GLbitfield mask = 0;
 
-    switch (baseInternalFormat.get()) {
-    case LOCAL_GL_LUMINANCE:
-    case LOCAL_GL_LUMINANCE_ALPHA:
-    case LOCAL_GL_ALPHA:
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_BGR:
-    case LOCAL_GL_BGRA:
+    switch (unsizedFormat) {
+    case webgl::UnsizedFormat::R:
+    case webgl::UnsizedFormat::RG:
+    case webgl::UnsizedFormat::RGB:
+    case webgl::UnsizedFormat::RGBA:
+    case webgl::UnsizedFormat::LA:
+    case webgl::UnsizedFormat::L:
+    case webgl::UnsizedFormat::A:
         mask = LOCAL_GL_COLOR_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
                                   texImageTarget.get(), tex, level);
         break;
-    case LOCAL_GL_DEPTH_COMPONENT32_OES:
-    case LOCAL_GL_DEPTH_COMPONENT24_OES:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_DEPTH_COMPONENT:
+
+    case webgl::UnsizedFormat::D:
         mask = LOCAL_GL_DEPTH_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
                                   texImageTarget.get(), tex, level);
         break;
 
-    case LOCAL_GL_DEPTH24_STENCIL8:
-    case LOCAL_GL_DEPTH_STENCIL:
+    case webgl::UnsizedFormat::DS:
         mask = LOCAL_GL_DEPTH_BUFFER_BIT |
                LOCAL_GL_STENCIL_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
@@ -579,7 +574,7 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
                                   texImageTarget.get(), tex, level);
         break;
 
-    default:
+    case webgl::UnsizedFormat::S:
         return false;
     }
     MOZ_ASSERT(mask);
@@ -588,7 +583,7 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
         return true;
 
     // Failed to simply build an FB from the tex, but maybe it needs a
-    // color buffer to be complete.
+    // color buffer to be complete?
 
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
         // Nope, it already had one.
@@ -597,7 +592,7 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
 
     gl::ScopedRenderbuffer rb(gl);
     {
-        // Only GLES guarantees RGBA4.
+        // Only GLES guarantees RGBA4, and doesn't guarantee RGBA8.
         GLenum format = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
         gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
         gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, format, width, height);
@@ -613,118 +608,301 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
 
 
 bool
-WebGLTexture::EnsureInitializedImageData(TexImageTarget target, GLint level)
+WebGLTexture::EnsureInitializedImageData(TexImageTarget texImageTarget, GLint level)
 {
-    const ImageInfo& imageInfo = ImageInfoAt(target, level);
-    bool ok = imageInfo.EnsureInitializedImageData();
-    if (!ok) {
-        mContext->ForceLoseContext(true);
-    }
-    return ok;
+    MOZ_ASSERT(!mImmutable);
+    ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    return imageInfo.EnsureInitializedImageData(mContext, texImageTarget, level);
 }
 
 bool
-WebGLTexture::ImageInfo::ClearContents(WebGLContext* webgl)
+WebGLContext::GetDriverUnpackFormatType(const webgl::FormatUsageInfo* formatUsage,
+                                        GLenum* const out_driverUnpackFormat,
+                                        GLenum* const out_driverUnpackType)
 {
-    if (!HasUninitializedImageData())
+    webgl::UnpackTuple& validUnpack = formatUsage->RandomValidUnpack();
+
+    GLenum driverUnpackFormat = validUnpack.format;
+    GLenum driverUnpackType = validUnpack.type;
+
+    switch (driverUnpackType) {
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+        if (!gl->IsSupported(gl::GLFeature::texture_half_float))
+            return false;
+
+        if (gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float))
+            driverUnpackType = LOCAL_GL_HALF_FLOAT_OES;
+        else
+            driverUnpackType = LOCAL_GL_HALF_FLOAT;
+
+        break;
+    }
+
+
+}
+
+
+void
+DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,
+                                         TexInternalFormat effectiveinternalformat,
+                                         GLenum* const out_driverInternalFormat,
+                                         GLenum* const out_driverFormat,
+                                         GLenum* const out_driverType)
+{
+    MOZ_ASSERT(out_driverInternalFormat);
+    MOZ_ASSERT(out_driverFormat);
+    MOZ_ASSERT(out_driverType);
+
+    TexInternalFormat unsizedinternalformat = LOCAL_GL_NONE;
+    TexType type = LOCAL_GL_NONE;
+
+    UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(effectiveinternalformat,
+                                                            &unsizedinternalformat,
+                                                            &type);
+
+    // driverType: almost always the generic type that we just got, except on ES
+    // we must replace HALF_FLOAT by HALF_FLOAT_OES
+    GLenum driverType = type.get();
+    if (gl->IsGLES() && type == LOCAL_GL_HALF_FLOAT)
+        driverType = LOCAL_GL_HALF_FLOAT_OES;
+
+    // driverFormat: always just the unsized internalformat that we just got
+    GLenum driverFormat = unsizedinternalformat.get();
+
+    // driverInternalFormat: almost always the same as driverFormat, but on desktop GL,
+    // in some cases we must pass a different value. On ES, they are equal by definition
+    // as it is an error to pass internalformat!=format.
+    GLenum driverInternalFormat = driverFormat;
+    if (gl->IsCompatibilityProfile()) {
+        // Cases where desktop OpenGL requires a tweak to 'format'
+        if (driverFormat == LOCAL_GL_SRGB)
+            driverFormat = LOCAL_GL_RGB;
+        else if (driverFormat == LOCAL_GL_SRGB_ALPHA)
+            driverFormat = LOCAL_GL_RGBA;
+
+        // WebGL2's new formats are not legal values for internalformat,
+        // as using unsized internalformat is deprecated.
+        if (driverFormat == LOCAL_GL_RED ||
+            driverFormat == LOCAL_GL_RG ||
+            driverFormat == LOCAL_GL_RED_INTEGER ||
+            driverFormat == LOCAL_GL_RG_INTEGER ||
+            driverFormat == LOCAL_GL_RGB_INTEGER ||
+            driverFormat == LOCAL_GL_RGBA_INTEGER)
+        {
+            driverInternalFormat = effectiveinternalformat.get();
+        }
+
+        // Cases where desktop OpenGL requires a sized internalformat,
+        // as opposed to the unsized internalformat that had the same
+        // GLenum value as 'format', in order to get the precise
+        // semantics that we want. For example, for floating-point formats,
+        // we seem to need a sized internalformat to get non-clamped floating
+        // point texture sampling. Can't find the spec reference for that,
+        // but that's at least the case on my NVIDIA driver version 331.
+        if (unsizedinternalformat == LOCAL_GL_DEPTH_COMPONENT ||
+            unsizedinternalformat == LOCAL_GL_DEPTH_STENCIL ||
+            type == LOCAL_GL_FLOAT ||
+            type == LOCAL_GL_HALF_FLOAT)
+        {
+            driverInternalFormat = effectiveinternalformat.get();
+        }
+    }
+
+    // OpenGL core profile removed texture formats ALPHA, LUMINANCE and LUMINANCE_ALPHA
+    if (gl->IsCoreProfile()) {
+        switch (driverFormat) {
+        case LOCAL_GL_ALPHA:
+        case LOCAL_GL_LUMINANCE:
+            driverInternalFormat = driverFormat = LOCAL_GL_RED;
+            break;
+
+        case LOCAL_GL_LUMINANCE_ALPHA:
+            driverInternalFormat = driverFormat = LOCAL_GL_RG;
+            break;
+        }
+    }
+
+    *out_driverInternalFormat = driverInternalFormat;
+    *out_driverFormat = driverFormat;
+    *out_driverType = driverType;
+}
+
+void
+WebGLContext::GetDriverFormats(GLenum internalFormat, GLenum unpackFormat,
+                               GLenum unpackType, GLenum* const out_driverInternalFormat,
+                               GLenum* const out_driverUnpackFormat,
+                               GLenum* const out_driverUnpackType)
+{
+    GLenum driverInternalFormat = internalFormat;
+    GLenum driverUnpackFormat = unpackFormat;
+    GLenum driverUnpackType = unpackType;
+
+    if (gl->IsCoreProfile()) {
+        switch (driverInternalFormat) {
+        case LOCAL_GL_ALPHA:
+        case LOCAL_GL_LUMINANCE:
+            driverInternalFormat = LOCAL_GL_RED;
+            break;
+
+        case LOCAL_GL_LUMINANCE_ALPHA:
+            driverInternalFormat = LOCAL_GL_RG;
+            break;
+        }
+
+        switch (driverUnpackFormat) {
+        case LOCAL_GL_ALPHA:
+        case LOCAL_GL_LUMINANCE:
+            driverUnpackFormat = LOCAL_GL_RED;
+            break;
+
+        case LOCAL_GL_LUMINANCE_ALPHA:
+            driverUnpackFormat = LOCAL_GL_RG;
+            break;
+        }
+    }
+
+    switch (driverUnpackType) {
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+        MOZ_ASSERT(gl->IsSupported(gl::GLFeature::texture_half_float));
+
+        if (gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float))
+            driverUnpackType = LOCAL_GL_HALF_FLOAT_OES;
+        else
+            driverUnpackType = LOCAL_GL_HALF_FLOAT;
+
+        break;
+    }
+
+    *out_driverInternalFormat = driverInternalFormat;
+    *out_driverUnpackFormat = driverUnpackFormat;
+    *out_driverUnpackType = driverUnpackType;
+}
+
+
+bool
+WebGLTexture::ImageInfo::ClearContents(WebGLContext* webgl, TexImageTarget texImageTarget,
+                                       GLint level)
+{
+    if (mImageDataStatus == WebGLImageDataStatus::InitializedImageData)
         return true;
+    MOZ_ASSERT(mImageDataStatus == UninitializedImageData);
 
     gl::GLContext* gl = webgl->gl;
 
     gl->MakeCurrent();
 
+    const webgl::FormatInfo* format = imageInfo.mFormat->formatInfo;
+
     // Try to clear with glClear.
     if (imageTarget == LOCAL_GL_TEXTURE_2D) {
-        bool cleared = ClearWithTempFB(webgl, mGLName, imageTarget, level,
-                                       imageInfo.mEffectiveInternalFormat,
-                                       imageInfo.mHeight, imageInfo.mWidth);
+        bool cleared = ClearWithTempFB(webgl, mGLName, texImageTarget, level,
+                                       format->unsizedFormat, mHeight, mWidth);
         if (cleared) {
-            mStatus = WebGLImageDataStatus::InitializedImageData;
+            mImageDataStatus = WebGLImageDataStatus::InitializedImageData;
             return true;
         }
     }
 
-    // That didn't work. Try uploading zeros then.
-    size_t bitspertexel = GetBitsPerTexel(imageInfo.mEffectiveInternalFormat);
-    MOZ_ASSERT((bitspertexel % 8) == 0); // That would only happen for
-                                         // compressed images, which cannot use
-                                         // deferred initialization.
-    size_t bytespertexel = bitspertexel / 8;
-    CheckedUint32 checked_byteLength
-        = WebGLContext::GetImageSize(
-                        imageInfo.mHeight,
-                        imageInfo.mWidth,
-                        imageInfo.mDepth,
-                        bytespertexel,
-                        mContext->mPixelStoreUnpackAlignment);
-    MOZ_ASSERT(checked_byteLength.isValid()); // Should have been checked
-                                              // earlier.
+    webgl::UnpackTuple& validUnpack = mFormat->RandomValidUnpack();
+    GLenum unpackFormat = validUnpack.format;
+    GLenum unpackType = validUnpack.type;
 
-    size_t byteCount = checked_byteLength.value();
+    GLenum internalFormat = 0; // unused
+    GLenum driverInternalFormat; // unused
+    GLenum driverUnpackFormat;
+    GLenum driverUnpackType;
+    GetDriverFormats(internalFormat, unpackFormat, unpackType, &driverInternalFormat,
+                     &driverUnpackFormat, &driverUnpackType);
 
-    UniquePtr<uint8_t> zeros((uint8_t*)calloc(1, byteCount));
-    if (zeros == nullptr) {
-        // Failed to allocate memory. Lose the context. Return OOM error.
-        NS_WARNING("Failed to calloc for WebGLTexture::ImageInfo::ClearContents.");
+    const webgl::FormatInfo* driverUnpackFormat = GetInfoByUnpackTuple(driverUnpackFormat,
+                                                                       driverUnpackType);
+    if (!driverUnpackFormat) {
+        NS_ERROR("Failed to lookup FormatInfo for driver unpackFormat/Type.");
+        MOZ_ASSERT(false);
+
+        webgl->ForceLoseContext(true);
         return false;
     }
 
-    gl::GLContext* gl = mContext->gl;
+    // That didn't work. Try uploading zeros then.
+    const auto bytesPerPixel = driverUnpackFormat->bytesPerPixel;
+    const auto rowByteAlignment = 8; // Largest possible alignment is a decent default for
+                                     // speed.
+    const auto maybeStridePixelsPerRow = 0;
+    const auto maybeStrideRowsPerImage = 0;
+    const auto skipPixelsPerRow = 0;
+    const auto skipRowsPerImage = 0;
+    const auto skipImages = 0;
+    const auto usedPixelsPerRow = mWidth;
+    const auto usedRowsPerImage = mHeight;
+    const auto usedImages = mDepth;
+
+    uint32_t bytesNeeded;
+    if (!GetPackedSizeForUnpack(bytesPerPixel, rowByteAlignment,
+                                maybeStridePixelsPerRow, maybeStrideRowsPerImage,
+                                skipPixelsPerRow, skipRowsPerImage, skipImages,
+                                usedPixelsPerRow, usedRowsPerImage, usedImages,
+                                &bytesNeeded)
+    {
+        MOZ_ASSERT(false, "Packed size for needed zeros overflowed.");
+        NS_ERROR("Packed size for needed zeros overflowed.");
+
+        webgl->ForceLoseContext(true);
+        return false;
+    }
+
+    UniquePtr<uint8_t> zeros = (uint8_t*)calloc(1, bytesNeeded);
+    if (!zeros) {
+        // Failed to allocate memory. Lose the context. Return OOM error.
+        NS_WARNING("Failed to calloc for WebGLTexture::ImageInfo::ClearContents.");
+        webgl->ForceLoseContext(true);
+        return false;
+    }
+
     gl::ScopedBindTexture autoBindTex(gl, mGLName, mTarget);
 
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverFormat = LOCAL_GL_NONE;
-    GLenum driverType = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl,
-                                             imageInfo.mEffectiveInternalFormat,
-                                             &driverInternalFormat,
-                                             &driverFormat, &driverType);
+    gl::GLContext::LocalErrorScope errorScope(*gl);
 
-    mContext->GetAndFlushUnderlyingGLErrors();
-    if (imageTarget == LOCAL_GL_TEXTURE_3D) {
-        MOZ_ASSERT(mImmutable,
-                   "Shouldn't be possible to have non-immutable-format 3D"
-                   " textures in WebGL");
-        gl->fTexSubImage3D(imageTarget.get(), level, 0, 0, 0, imageInfo.mWidth,
-                           imageInfo.mHeight, imageInfo.mDepth, driverFormat,
-                           driverType, zeros.get());
-    } else {
-        if (mImmutable) {
-            gl->fTexSubImage2D(imageTarget.get(), level, 0, 0, imageInfo.mWidth,
-                               imageInfo.mHeight, driverFormat, driverType,
-                               zeros.get());
-        } else {
-            gl->fTexImage2D(imageTarget.get(), level, driverInternalFormat,
-                            imageInfo.mWidth, imageInfo.mHeight, 0,
-                            driverFormat, driverType, zeros.get());
-        }
+    switch (texImageTarget.get()) {
+    case LOCAL_GL_TEXTURE_3D:
+        gl->fTexSubImage3D(texImageTarget.get(), level, 0, 0, 0, mWidth, mHeight, mDepth,
+                           driverUnpackFormat, driverUnpackType, zeros.get());
+        break;
+
+    default:
+        gl->fTexSubImage2D(texImageTarget.get(), level, 0, 0, 0, mWidth, mHeight,
+                           driverUnpackFormat, driverUnpackType, zeros.get());
+        break;
     }
-    GLenum error = mContext->GetAndFlushUnderlyingGLErrors();
+
+    GLenum error = errorScope.GetError();
     if (error) {
         // Should only be OUT_OF_MEMORY. Anyway, there's no good way to recover
         // from this here.
-        gfxCriticalError() << "GL context GetAndFlushUnderlyingGLErrors " << gfx::hexa(error);
-        printf_stderr("Error: 0x%4x\n", error);
-        if (error != LOCAL_GL_OUT_OF_MEMORY) {
-            // Errors on texture upload have been related to video
-            // memory exposure in the past, which is a security issue.
-            // Force loss of context.
-            mContext->ForceLoseContext(true);
+        if (error == LOCAL_GL_OUT_OF_MEMORY) {
+            // Out-of-memory uploading pixels to GL. Lose context and report OOM.
+            webgl->ForceLoseContext(true);
+            webgl->ErrorOutOfMemory("EnsureNoUninitializedImageData: Failed to "
+                                    "upload texture of width: %u, height: %u, "
+                                    "depth: %u to target %s level %d.",
+                                    mWidth, mHeight, mDepth,
+                                    mContext->EnumName(texImageTarget.get()), level);
             return false;
         }
 
-        // Out-of-memory uploading pixels to GL. Lose context and report OOM.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureNoUninitializedImageData: Failed to "
-                                   "upload texture of width: %u, height: %u, "
-                                   "depth: %u to target %s level %d.",
-                                   imageInfo.mWidth, imageInfo.mHeight, imageInfo.mDepth,
-                                   mContext->EnumName(imageTarget.get()), level);
+
+        // Errors on texture upload have been related to video
+        // memory exposure in the past, which is a security issue.
+        // Force loss of context.
+        webgl->ForceLoseContext(true);
+        gfxCriticalError() << "While trying to upload zeros, unexpected error: 0x"
+                           << gfx::hexa(error);
         return false;
     }
 
-    SetImageDataStatus(imageTarget, level, WebGLImageDataStatus::InitializedImageData);
-
+    mImageDataStatus = WebGLImageDataStatus::InitializedImageData;
     return true;
 }
 
@@ -736,12 +914,14 @@ WebGLTexture::SetFakeBlackStatus(WebGLTextureFakeBlackStatus x)
 }
 
 void
-WebGLTexture::ImageInfo::PrepareForSubImage(gl::GLContext* gl, GLint xOffset,
-                                            GLint yOffset, GLint zOffset, GLsizei width,
-                                            GLsizei height, GLsizei depth)
+WebGLTexture::ImageInfo::PrepareForSubImage(WebGLContext* webgl,
+                                            TexImageTarget texImageTarget, GLint level,
+                                            GLint xOffset, GLint yOffset, GLint zOffset,
+                                            GLsizei width, GLsizei height, GLsizei depth)
 {
     if (mStatus == WebGLImageDataStatus::InitializedImageData)
         return;
+    MOZ_ASSERT(mImageDataStatus == UninitializedImageData);
 
     if (!xOffset && !yOffset && !zOffset &&
         width == mWidth &&
@@ -752,7 +932,7 @@ WebGLTexture::ImageInfo::PrepareForSubImage(gl::GLContext* gl, GLint xOffset,
         return;
     }
 
-
+    ClearContents(webgl, texImageTarget, level);
 }
 
 
