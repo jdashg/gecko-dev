@@ -69,37 +69,47 @@ public:
     // -------------------------------------------------------------------------
     // Texture objects - WebGL2ContextTextures.cpp
 
-    void TexStorage2D(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);
-    void TexStorage3D(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height,
-                      GLsizei depth);
-    void TexImage3D(GLenum target, GLint level, GLenum internalformat,
-                    GLsizei width, GLsizei height, GLsizei depth,
-                    GLint border, GLenum format, GLenum type,
-                    const dom::Nullable<dom::ArrayBufferView>& pixels,
-                    ErrorResult& rv);
-    void TexSubImage3D(GLenum target, GLint level,
-                       GLint xoffset, GLint yoffset, GLint zoffset,
-                       GLsizei width, GLsizei height, GLsizei depth,
-                       GLenum format, GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
-                       ErrorResult& rv);
-    void TexSubImage3D(GLenum target, GLint level,
-                       GLint xoffset, GLint yoffset, GLint zoffset,
-                       GLenum format, GLenum type, dom::ImageData* data,
-                       ErrorResult& rv);
-    template<class ElementType>
-    void TexSubImage3D(GLenum target, GLint level,
-                       GLint xoffset, GLint yoffset, GLint zoffset,
-                       GLenum format, GLenum type, ElementType& elt, ErrorResult& rv)
-    {}
+    void TexStorage2D(GLenum texTarget, GLsizei levels, GLenum internalFormat,
+                      GLsizei width, GLsizei height);
+    void TexStorage3D(GLenum texTarget, GLsizei levels, GLenum internalFormat,
+                      GLsizei width, GLsizei height, GLsizei depth);
 
-    void CopyTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset,
-                           GLint x, GLint y, GLsizei width, GLsizei height);
-    void CompressedTexImage3D(GLenum target, GLint level, GLenum internalformat,
-                              GLsizei width, GLsizei height, GLsizei depth,
-                              GLint border, GLsizei imageSize, const dom::ArrayBufferView& data);
-    void CompressedTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset,
-                                 GLsizei width, GLsizei height, GLsizei depth,
-                                 GLenum format, GLsizei imageSize, const dom::ArrayBufferView& data);
+    void TexImage3D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                    GLsizei width, GLsizei height, GLsizei depth, GLint border,
+                    GLenum unpackFormat, GLenum unpackType,
+                    const Nullable<dom::ArrayBufferView>& maybeView,
+                    ErrorResult& out_rv);
+
+    void TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLsizei width, GLsizei height, GLsizei depth,
+                       GLenum unpackFormat, GLenum unpackType,
+                       const Nullable<dom::ArrayBufferView>& pixels, ErrorResult& out_rv);
+    void TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::ImageData* imageData, ErrorResult& out_rv);
+    template<class ElementType>
+    void TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLenum unpackFormat, GLenum unpackType,
+                       ElementType& elem, ErrorResult& out_rv)
+    {
+        TexSubImage3D(texImageTarget, level, xOffset, yOffset, zOffset, unpackFormat,
+                      unpackType, &elem, &out_rv);
+    }
+
+    void TexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::Element* elem, ErrorResult* const out_rv);
+
+    void CopyTexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
+                           GLint yOffset, GLint zOffset, GLint x, GLint y, GLsizei width,
+                           GLsizei height);
+    void CompressedTexImage3D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                              GLsizei width, GLsizei height, GLsizei depth, GLint border,
+                              const dom::ArrayBufferView& view);
+    void CompressedTexSubImage3D(GLenum texImageTarget, GLint level, GLint xOffset,
+                                 GLint yOffset, GLint zOffset, GLsizei width,
+                                 GLsizei height, GLsizei depth, GLenum unpackFormat,
+                                 const dom::ArrayBufferView& view);
 
 
     // -------------------------------------------------------------------------

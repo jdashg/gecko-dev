@@ -285,20 +285,20 @@ WebGLContext::ValidateTexImageTarget(const char* funcName, uint8_t funcDims,
 }
 
 
-bool
-WebGLContext::ValidateTexImage(const char* funcName, WebGLTexture* texture,
-                               TexImageTarget target, GLint level,
-                               WebGLTexture::ImageInfo** const out_imageInfo)
+static bool
+ValidateTexImage(const char* funcName, WebGLTexture* texture, TexImageTarget target,
+                 GLint level, WebGLContext* webgl,
+                 WebGLTexture::ImageInfo** const out_imageInfo)
 {
     // Check level
     if (level < 0) {
-        ErrorInvalidValue("%s: `level` must be >= 0.", funcName);
+        webgl->ErrorInvalidValue("%s: `level` must be >= 0.", funcName);
         return false;
     }
 
     if (level > 31) {
         // Right-shift is only defined for bits-1, so 31 for GLsizei.
-        ErrorInvalidValue("%s: `level` is too large.", funcName);
+        webgl->ErrorInvalidValue("%s: `level` is too large.", funcName);
         return false;
     }
 
@@ -312,7 +312,7 @@ WebGLContext::ValidateTexImage(const char* funcName, WebGLTexture* texture,
 // For *TexImage*
 bool
 WebGLContext::ValidateTexImageSpecification(const char* funcName, uint8_t funcDims,
-                                            GLenum rawImageTarget, GLint level,
+                                            GLenum texImageTarget, GLint level,
                                             GLsizei width, GLsizei height, GLsizei depth,
                                             GLint border,
                                             TexImageTarget* const out_target,
@@ -322,7 +322,7 @@ WebGLContext::ValidateTexImageSpecification(const char* funcName, uint8_t funcDi
     bool isCubeMap;
     TexImageTarget target;
     WebGLTexture* texture;
-    if (!ValidateTexImageTarget(funcName, funcDims, rawImageTarget, level, &isCubeMap,
+    if (!ValidateTexImageTarget(funcName, funcDims, texImageTarget, level, &isCubeMap,
                                 &target, &texture))
     {
         return false;
@@ -334,7 +334,7 @@ WebGLContext::ValidateTexImageSpecification(const char* funcName, uint8_t funcDi
     }
 
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImage(funcName, texture, target, level, &imageInfo))
+    if (!ValidateTexImage(funcName, texture, target, level, this, &imageInfo))
         return false;
 
     // Check border
@@ -366,7 +366,7 @@ WebGLContext::ValidateTexImageSpecification(const char* funcName, uint8_t funcDi
     GLsizei maxWidthHeight;
     GLsizei maxDepth;
 
-    switch (texImageTarget.get()) {
+    switch (texImageTarget) {
     case LOCAL_GL_TEXTURE_2D:
         maxWidthHeight = mImplMaxTextureSize >> level;
         maxDepth = 1;
@@ -445,7 +445,7 @@ WebGLContext::ValidateTexImageSelection(const char* funcName, uint8_t funcDims,
     }
 
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImage(funcName, texture, target, level, &imageInfo))
+    if (!ValidateTexImage(funcName, texture, target, level, this, &imageInfo))
         return false;
 
     if (imageInfo->IsValid()) {
@@ -535,11 +535,11 @@ WebGLContext::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
 }
 
 
-bool
-WebGLContext::ValidateCompressedTexUnpack(const char* funcName, size_t funcDims,
-                                          GLsizei width, GLsizei height, GLsizei depth,
-                                          GLenum unpackFormat, size_t dataSize,
-                                          const webgl::FormatInfo** const out_format)
+static bool
+ValidateCompressedTexUnpack(const char* funcName, size_t funcDims, GLsizei width,
+                            GLsizei height, GLsizei depth, GLenum unpackFormat,
+                            size_t dataSize, WebGLContext* webgl,
+                            const webgl::FormatInfo** const out_format)
 {
     const webgl::FormatInfo* format = GetInfoBySizedFormat(unpackFormat);
 
@@ -561,15 +561,16 @@ WebGLContext::ValidateCompressedTexUnpack(const char* funcName, size_t funcDims,
     uint32_t bytesNeeded;
     if (!bytesNeeded.isValid())
     {
-        ErrorInvalidOperation("%s: Overflow while computing the needed buffer size.",
-                              funcName);
+        webgl->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
+                                     " size.",
+                                     funcName);
         return false;
     }
 
     if (dataSize != bytesNeeded.value()) {
-        ErrorInvalidOperation("%s: Provided buffer's size must match expected size."
-                              " (needs %u, has %u)",
-                              funcName, bytesNeeded.value(), dataSize);
+        webgl->ErrorInvalidOperation("%s: Provided buffer's size must match expected"
+                                     " size. (needs %u, has %u)",
+                                     funcName, bytesNeeded.value(), dataSize);
         return false;
     }
 
@@ -1386,7 +1387,8 @@ WebGLContext::TexStorage_base(const char* funcName, uint8_t funcDims,
 void
 WebGLContext::TexStorage2DMultisample_base(GLenum texTarget, GLsizei samples,
                                            GLenum sizedInternalFormat, GLsizei width,
-                                           GLsizei height, GLbool fixedSampleLocations)
+                                           GLsizei height,
+                                           realGLboolean fixedSampleLocations)
 {
     const char funcName[] = "TexStorage2DMultisample";
     const uint8_t funcDims = 2;
@@ -1523,7 +1525,7 @@ WebGLContext::CompressedTexImage_base(const char* funcName, uint8_t funcDims,
 
     const webgl::FormatInfo* format;
     if (!ValidateCompressedTexUnpack(funcName, funcDims, width, height, depth,
-                                     internalFormat, dataSize, &format))
+                                     internalFormat, dataSize, this, &format))
     {
         return;
     }
@@ -1663,7 +1665,7 @@ WebGLContext::CompressedTexSubImage_base(const char* funcName, uint8_t funcDims,
 
     const webgl::FormatInfo* srcFormat;
     if (!ValidateCompressedTexUnpack(funcName, funcDims, width, height, depth,
-                                     unpackFormat, dataSize, &srcFormat))
+                                     unpackFormat, dataSize, this, &srcFormat))
     {
         return;
     }
@@ -1925,33 +1927,6 @@ WebGLContext::CopyTexSubImage_base(const char* funcName, uint8_t funcDims,
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 //////////////////////////////////////////////////////////////////////////////////////////
 // Specific->Generic redirection functions.
 
@@ -2009,12 +1984,11 @@ void
 WebGLContext::TexSubImage3D_base(GLenum texImagetTarget, GLint level, GLint xOffset,
                                  GLint yOffset, GLint zOffset, GLsizei width,
                                  GLsizei height, GLsizei depth, GLenum unpackFormat,
-                                 GLenum unpackType, void* data, size_t dataSize)
+                                 GLenum unpackType, void* data, size_t dataSize,
+                                 ElementTexSource* texSource)
 {
     const char funcName[] = "TexSubImage3D";
     const uint8_t funcDims = 3;
-
-    ElementTexSource* const texSource = nullptr;
 
     TexSubImage_base(funcName, funcDims, texImageTarget, xOffset, yOffset, zOffset, width,
                      height, depth, border, unpackFormat, unpackType, data, dataSize,
@@ -2200,7 +2174,8 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
         const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
 
         if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
-            ErrorInvalidEnum("%s: `type` must be compatible with TypedArray type.",
+            ErrorInvalidEnum("texImage2D: `type` must be compatible with TypedArray"
+                             " type.",
                              funcName);
             return;
         }
@@ -2244,7 +2219,7 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
 void
 WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                          GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
-                         ErrorResult& out_rv)
+                         ErrorResult* const out_rv)
 {
     ElementTexSource* texSource = nullptr;
     bool badCORS;
@@ -2256,13 +2231,13 @@ WebGLContext::TexImage2D(GLenum texImageTarget, GLint level, GLenum internalForm
             GenerateWarning("It is forbidden to load a WebGL texture from a cross-domain"
                             " element that has not been validated with CORS. See"
                             " https://developer.mozilla.org/en/WebGL/Cross-Domain_Textures");
-            out_rv = NS_ERROR_DOM_SECURITY_ERR;
+            *out_rv = NS_ERROR_DOM_SECURITY_ERR;
             return;
         }
 
         // Nothing in the spec details this as generating a GL error.
         GenerateWarning("Could not extract pixel data from the specified DOM element.");
-        out_rv = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+        *out_rv = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
         return;
     }
 
@@ -2288,26 +2263,23 @@ WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
     if (IsContextLost())
         return;
 
-    const void* data;
-    uint32_t dataSize;
-
     if (maybeView.IsNull()) {
-        data = nullptr;
-        dataSize = 0;
-    } else {
-        const ArrayBufferView& view = maybeView.Value();
-        view.ComputeLengthAndData();
+        ErrorInvalidValue("texSubImage2D: Null `pixels`.");
+        return
+    }
 
-        data = view.Data();
-        dataSize = view.Length();
+    const ArrayBufferView& view = maybeView.Value();
 
-        const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
+    view.ComputeLengthAndData();
+    const void* data = view.Data();
+    uint32_t dataSize = view.Length();
 
-        if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
-            ErrorInvalidEnum("%s: `type` must be compatible with TypedArray type.",
-                             funcName);
-            return;
-        }
+    const js::Scalar::Type arrayType = JS_GetArrayBufferViewType(view.Obj());
+
+    if (!DoesUnpackTypeMatchArrayType(unpackType, arrayType)) {
+        ErrorInvalidEnum("texSubImage2D: `type` must be compatible with TypedArray type.",
+                         funcName);
+        return;
     }
 
     TexSubImage2D_base(texImageTarget, level, xOffset, yOffset, width, height,
@@ -2324,7 +2296,7 @@ WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
         return;
 
     if (!pixels) {
-        ErrorInvalidValue("texImage2D: Null `pixels`.");
+        ErrorInvalidValue("texSubImage2D: Null `pixels`.");
         return
     }
 
@@ -2334,7 +2306,6 @@ WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
 
     const GLsizei width = imageData->Width();
     const GLsizei height = imageData->Height();
-    const GLint border = 0;
     const void* const data = arr.Data();
     const uint32_t dataSize = arr.Length();
 
@@ -2358,13 +2329,13 @@ WebGLContext::TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
             GenerateWarning("It is forbidden to load a WebGL texture from a cross-domain"
                             " element that has not been validated with CORS. See"
                             " https://developer.mozilla.org/en/WebGL/Cross-Domain_Textures");
-            out_rv = NS_ERROR_DOM_SECURITY_ERR;
+            *out_rv = NS_ERROR_DOM_SECURITY_ERR;
             return;
         }
 
         // Nothing in the spec details this as generating a GL error.
         GenerateWarning("Could not extract pixel data from the specified DOM element.");
-        out_rv = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+        *out_rv = NS_ERROR_DOM_NOT_SUPPORTED_ERR;
         return;
     }
 

@@ -82,20 +82,18 @@ WebGLFramebuffer::GetFormatForAttachment(const WebGLFBAttachPoint& attachment) c
     return LOCAL_GL_NONE;
 }
 
-TexInternalFormat
-WebGLFBAttachPoint::EffectiveInternalFormat() const
+webgl::FormatUsageInfo*
+WebGLFBAttachPointt::Format() const
 {
     const WebGLTexture* tex = Texture();
-    if (tex && tex->HasImageInfoAt(mTexImageTarget, mTexImageLevel)) {
-        return tex->ImageInfoAt(mTexImageTarget,
-                                mTexImageLevel).EffectiveInternalFormat();
-    }
+    if (tex)
+        return tex->ImageInfoAt(mTexImageTarget, mTexImageLevel).Format();
 
     const WebGLRenderbuffer* rb = Renderbuffer();
     if (rb)
-        return rb->InternalFormat();
+        return rb->Format();
 
-    return LOCAL_GL_NONE;
+    return nullptr;
 }
 
 bool
@@ -830,7 +828,8 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* funcName, TexInternalFormat* const out_format)
+WebGLFramebuffer::ValidateForRead(const char* funcName,
+                                  webgl::FormatUsageInfo** const out_format)
 {
     if (mReadBufferMode == LOCAL_GL_NONE) {
         mContext->ErrorInvalidOperation("%s: Read buffer mode must not be"

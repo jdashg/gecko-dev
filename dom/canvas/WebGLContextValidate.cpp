@@ -838,8 +838,6 @@ WebGLContext::ValidateCompTexImageSize(GLint level, GLenum format,
     return true;
 }
 
-static size_t
-
 /**
  * Return true if the enough data is present to satisfy compressed
  * texture format constraints.
@@ -1157,31 +1155,6 @@ WebGLContext::ValidateTexImageFormat(GLenum internalFormat, GLenum unpackFormat,
 
     *out_formatUsage = formatUsage;
     return true;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
 }
 
 bool

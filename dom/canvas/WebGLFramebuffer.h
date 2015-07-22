@@ -48,7 +48,7 @@ public:
     bool IsDefined() const;
     bool IsDeleteRequested() const;
 
-    TexInternalFormat EffectiveInternalFormat() const;
+    webgl::FormatUsageInfo* Format() const;
 
     bool HasAlpha() const;
     bool IsReadableFloat() const;

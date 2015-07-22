@@ -320,12 +320,12 @@ public:
     // Clamping (from ES 3.0.4, section 3.8 - Texturing). When not immutable,
     // the ranges must be guarded.
     size_t EffectiveBaseMipmapLevel() const {
-        if (IsImmutable())
+        if (mImmutable)
             return std::min(mBaseMipmapLevel, mMaxLevelWithCustomImages);
         return mBaseMipmapLevel;
     }
     size_t EffectiveMaxMipmapLevel() const {
-        if (IsImmutable()) {
+        if (mImmutable) {
             return mozilla::clamped(mMaxMipmapLevel, EffectiveBaseMipmapLevel(),
                                     mMaxLevelWithCustomImages);
         }

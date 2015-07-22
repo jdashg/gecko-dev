@@ -690,8 +690,9 @@ WebGLContext::BindFakeBlackTexturesHelper(
             continue;
         }
 
-        bool alpha = s == WebGLTextureFakeBlackStatus::UninitializedImageData &&
-                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().EffectiveInternalFormat());
+        auto formatUsage = boundTexturesArray[i]->ImageInfoBase().Format();
+        bool alpha = (s == WebGLTextureFakeBlackStatus::UninitializedImageData &&
+                      formatUsage->formatInfo->hasAlpha);
         UniquePtr<FakeBlackTexture>&
             blackTexturePtr = alpha
                               ? transparentTextureScopedPtr
@@ -703,8 +704,7 @@ WebGLContext::BindFakeBlackTexturesHelper(
         }
 
         gl->fActiveTexture(LOCAL_GL_TEXTURE0 + i);
-        gl->fBindTexture(target,
-                         blackTexturePtr->GLName());
+        gl->fBindTexture(target, blackTexturePtr->GLName());
     }
 }
 
