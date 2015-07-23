@@ -102,4 +102,79 @@ WebGLContext::BindTexture(GLenum rawTarget, WebGLTexture* newTex)
     }
 }
 
+// here we have to support all pnames with both int and float params.
+// See this discussion:
+//  https://www.khronos.org/webgl/public-mailing-list/archives/1008/msg00014.html
+void WebGLContext::TexParameter_base(GLenum rawTexTarget, GLenum pname,
+                                     GLint* maybeIntParam, GLfloat* maybeFloatParam)
+{
+    MOZ_ASSERT(maybeIntParam || maybeFloatParam);
+
+    if (IsContextLost())
+        return;
+
+    if (!ValidateTextureTargetEnum(rawTexTarget, "texParameter: target"))
+        return;
+
+    const TexTarget texTarget(rawTexTarget);
+
+    WebGLTexture* tex = ActiveBoundTextureForTarget(texTarget);
+    if (!tex)
+        return ErrorInvalidOperation("texParameter: No texture is bound to this target.");
+
+    tex->TexParameter(texTarget, GLenum pname, maybeIntParam, maybeFloatParam);
+}
+
+JS::Value
+WebGLContext::GetTexParameter(GLenum rawTarget, GLenum pname)
+{
+    if (IsContextLost())
+        return JS::NullValue();
+
+    MakeContextCurrent();
+
+    if (!ValidateTextureTargetEnum(rawTarget, "getTexParameter: target"))
+        return JS::NullValue();
+
+    const TexTarget target(rawTarget);
+
+    if (!ActiveBoundTextureForTarget(target)) {
+        ErrorInvalidOperation("getTexParameter: no texture bound");
+        return JS::NullValue();
+    }
+
+    return GetTexParameterInternal(target, pname);
+}
+
+JS::Value
+WebGLContext::GetTexParameterInternal(const TexTarget& target, GLenum pname)
+{
+    switch (pname) {
+        case LOCAL_GL_TEXTURE_MIN_FILTER:
+        case LOCAL_GL_TEXTURE_MAG_FILTER:
+        case LOCAL_GL_TEXTURE_WRAP_S:
+        case LOCAL_GL_TEXTURE_WRAP_T:
+        {
+            GLint i = 0;
+            gl->fGetTexParameteriv(target.get(), pname, &i);
+            return JS::NumberValue(uint32_t(i));
+        }
+        case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
+            if (IsExtensionEnabled(WebGLExtensionID::EXT_texture_filter_anisotropic)) {
+                GLfloat f = 0.f;
+                gl->fGetTexParameterfv(target.get(), pname, &f);
+                return JS::DoubleValue(f);
+            }
+
+            ErrorInvalidEnumInfo("getTexParameter: parameter", pname);
+            break;
+
+        default:
+            ErrorInvalidEnumInfo("getTexParameter: parameter", pname);
+    }
+
+    return JS::NullValue();
+}
+
+
 } // namespace mozilla

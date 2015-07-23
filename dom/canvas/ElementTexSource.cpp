@@ -10,7 +10,7 @@
 #include "GLDefs.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/dom/HTMLMediaElement.h"
 #include "nsLayoutUtils.h"
 #include "WebGLContext.h"
 #include "WebGLTexelConversions.h"
@@ -30,7 +30,7 @@ ElementTexSource::ElementTexSource(dom::Element* elem, dom::HTMLCanvasElement* c
     *out_onlyIfValid = nullptr;
     *out_badCORS = false;
 
-    dom::HTMLVideoElement* media = dom::HTMLVideoElement::FromContent(elem);;
+    dom::HTMLMediaElement* media = dom::HTMLMediaElement::FromContent(elem);;
     if (!media)
         return;
 

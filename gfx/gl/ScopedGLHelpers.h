@@ -359,16 +359,16 @@ protected:
     void UnwrapImpl();
 };
 
-struct ScopedUnPackAlignment
-    : public ScopedGLWrapper<ScopedUnPackAlignment>
+struct ScopedUnpackAlignment
+    : public ScopedGLWrapper<ScopedUnpackAlignment>
 {
-    friend struct ScopedGLWrapper<ScopedUnPackAlignment>;
+    friend struct ScopedGLWrapper<ScopedUnpackAlignment>;
 
 protected:
     GLint mOldVal;
 
 public:
-    ScopedUnPackAlignment(GLContext* aGL, GLint scopedVal);
+    ScopedUnpackAlignment(GLContext* aGL, GLint scopedVal);
 
 protected:
     void UnwrapImpl();

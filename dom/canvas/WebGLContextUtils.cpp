@@ -60,40 +60,20 @@ StringValue(JSContext* cx, const char* chars, ErrorResult& rv)
     return JS::StringValue(str);
 }
 
-GLComponents::GLComponents(TexInternalFormat internalformat)
+GLComponents::GLComponents(const webgl::FormatInfo* format)
+    : mComponents(0)
 {
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(internalformat);
-    mComponents = 0;
-
-    switch (unsizedformat.get()) {
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGBA8:
-    case LOCAL_GL_RGB5_A1:
-    // Luminance + Alpha can be converted
-    // to and from RGBA
-    case LOCAL_GL_LUMINANCE_ALPHA:
-        mComponents |= Components::Alpha;
-    // Drops through
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGB565:
-    // Luminance can be converted to and from RGB
-    case LOCAL_GL_LUMINANCE:
+    if (format->hasColor)
         mComponents |= Components::Red | Components::Green | Components::Blue;
-        break;
-    case LOCAL_GL_ALPHA:
+
+    if (format->hasAlpha)
         mComponents |= Components::Alpha;
-        break;
-    case LOCAL_GL_DEPTH_COMPONENT:
+
+    if (format->hasDepth)
         mComponents |= Components::Depth;
-        break;
-    case LOCAL_GL_DEPTH_STENCIL:
+
+    if (format->hasStencil)
         mComponents |= Components::Stencil;
-        break;
-    default:
-        MOZ_ASSERT(false, "Unhandled case - GLComponents");
-        break;
-    }
 }
 
 bool

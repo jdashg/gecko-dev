@@ -13,7 +13,7 @@
 #include "ScopedGLHelpers.h"
 #include "WebGLContext.h"
 #include "WebGLContextUtils.h"
-#include "WebGLFormat.h"
+#include "WebGLFormats.h"
 #include "WebGLTexelConversions.h"
 #include "mozilla/gfx/Logging.h"
 
@@ -58,8 +58,8 @@ WebGLTexture::ImageInfo::MemoryUsage() const
     if (mImageDataStatus == WebGLImageDataStatus::NoImageData)
         return 0;
 
-    size_t bitsPerTexel = GetBitsPerTexel(mEffectiveInternalFormat);
-    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bitsPerTexel / 8;
+    auto bytesPerPixel = mFormat->formatInfo->bytesPerPixel;
+    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bytesPerPixel;
 }
 
 size_t
@@ -68,67 +68,95 @@ WebGLTexture::MemoryUsage() const
     if (IsDeleted())
         return 0;
 
-    size_t result = 0;
-    for(size_t face = 0; face < mFacesCount; face++) {
-        for(size_t level = 0; level <= mMaxLevelWithCustomImages; level++) {
-            result += ImageInfoAtFace(face, level).MemoryUsage();
-        }
+    size_t ret = 0;
+    for (size_t i = 0; i < mImageInfos.Length(); i++) {
+        ret += mImageInfos[i].MemoryUsage();
     }
-    return result;
-}
-
-static inline size_t
-MipmapLevelsForSize(const WebGLTexture::ImageInfo& info)
-{
-    GLsizei size = std::max(std::max(info.Width(), info.Height()), info.Depth());
-
-    // Find floor(log2(size)). (ES 3.0.4, 3.8 - Mipmapping).
-    return mozilla::FloorLog2(size);
+    return ret;
 }
 
 bool
-WebGLTexture::DoesMipmapHaveAllLevelsConsistentlyDefined(TexImageTarget texImageTarget) const
+WebGLTexture::IsMipmapComplete() const
 {
-    // We could not have generated a mipmap if the base image wasn't defined.
-    if (mHaveGeneratedMipmap)
-        return true;
+    // GLES 3.0.4, p161
 
-    if (!IsMipmapRangeValid())
+    // "* `level_base <= level_max`"
+    if (mBaseMipmapLevel > mMaxMipmapLevel)
         return false;
 
-    // We want a copy here so we can modify it temporarily.
-    ImageInfo expected = ImageInfoAt(texImageTarget,
-                                     EffectiveBaseMipmapLevel());
-    if (!expected.IsPositive())
-        return false;
+    // Make a copy so we can modify it.
+    ImageInfo reference = ImageInfoAtFace(0, mBaseMipmapLevel);
 
-    // If Level{max} is > mMaxLevelWithCustomImages, then check if we are
-    // missing any image levels.
-    if (mMaxMipmapLevel > mMaxLevelWithCustomImages) {
-        if (MipmapLevelsForSize(expected) > mMaxLevelWithCustomImages)
-            return false;
+    for (size_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
+        // "A cube map texture is mipmap complete if each of the six texture images,
+        //  considered individually, is mipmap complete."
+
+        for (size_t face = 0; face < mFaceCount; face++) {
+            const ImageInfo& cur = ImageInfoAtFace(face, level);
+
+            // "* The set of mipmap arrays `level_base` through `q` (where `q` is defined
+            //    the "Mipmapping" discussion of section 3.8.10) were each specified with
+            //    the same effective internal format."
+
+            // "* The dimensions of the arrays follow the sequence described in the
+            //    "Mipmapping" discussion of section 3.8.10."
+
+            if (cur.mWidth != reference.mWidth ||
+                cur.mHeight != reference.mHeight ||
+                cur.mDepth != reference.mDepth ||
+                cur.mFormat != reference.mFormat)
+            {
+                return false;
+            }
+        }
+
+        // GLES 3.0.4, p158:
+        // "[...] until the last array is reached with dimension 1 x 1 x 1."
+        if (reference.mWidth == 1 &&
+            reference.mHeight == 1 &&
+            reference.mDepth == 1)
+        {
+            break;
+        }
+
+        reference.mWidth  = std::max(1, reference.mWidth  / 2);
+        reference.mHeight = std::max(1, reference.mHeight / 2);
+        reference.mDepth  = std::max(1, reference.mDepth  / 2);
     }
 
-    // Checks if custom images are all defined up to the highest level and
-    // have the expected dimensions.
-    for (size_t level = EffectiveBaseMipmapLevel();
-         level <= EffectiveMaxMipmapLevel(); ++level)
-    {
-        const ImageInfo& actual = ImageInfoAt(texImageTarget, level);
-        if (actual != expected)
-            return false;
+    return true;
+}
 
-        expected.mWidth = std::max(1, expected.mWidth / 2);
-        expected.mHeight = std::max(1, expected.mHeight / 2);
-        expected.mDepth = std::max(1, expected.mDepth / 2);
 
-        // If the current level has size 1x1, we can stop here: The spec doesn't
-        // seem to forbid the existence of extra useless levels.
-        if (actual.mWidth == 1 &&
-            actual.mHeight == 1 &&
-            actual.mDepth == 1)
+bool
+WebGLTexture::IsCubeComplete() const
+{
+    // GLES 3.0.4, p161
+    // "[...] a cube map texture is cube complete if the following conditions all hold
+    //  true:
+    //  * The `level_base` arrays of each of the six texture images making up the cube map
+    //    have identical, positive, and square dimensions.
+    //  * The `level_base` arrays were each specified with the same effective internal
+    //    format."
+
+    // Note that "cube complete" does not imply "mipmap complete".
+
+    const ImageInfo& reference = BaseImageInfoAtFace(0);
+    auto refWidth = reference.mWidth;
+    auto refFormat = reference.mFormat;
+
+    if (!refWidth || !refFormat)
+        return false;
+
+    for (size_t face = 0; face < mFaceCount; face++) {
+        const ImageInfo& cur = BaseImageInfoAtFace(face);
+
+        MOZ_ASSERT(cur.mDepth == 1);
+        if (cur.mFormat != refFormat || // Check effective formats.
+            cur.mWidth != refWidth ||   // Check both width and height against refWidth to
+            cur.mHeight != refWidth)    // to enforce positive and square dimensions.
         {
-            return true;
+            return false;
         }
     }
 
@@ -176,7 +204,7 @@ WebGLTexture::Bind(TexTarget texTarget)
 void
 WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level, GLsizei width,
                            GLsizei height, GLsizei depth,
-                           const webgl::FormatInfo* format,
+                           const webgl::FormatUsageInfo* format,
                            WebGLImageDataStatus status)
 {
     MOZ_ASSERT(depth == 1 || texImageTarget == LOCAL_GL_TEXTURE_3D);
@@ -911,6 +939,250 @@ WebGLTexture::SetFakeBlackStatus(WebGLTextureFakeBlackStatus x)
 {
     mFakeBlackStatus = x;
     mContext->SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
+}
+
+void
+WebGLTexture::GenerateMipmap(TexTarget target)
+{
+    if (mBaseMipmapLevel > mMaxMipmapLevel) {
+        ErrorInvalidOperation("generateMipmap: Texture does not have a valid mipmap"
+                              " range.");
+        return;
+    }
+
+    if (IsCubeMap() && !IsCubeComplete()) {
+        ErrorInvalidOperation("generateMipmap: Cube maps must be \"cube complete\".");
+        return;
+    }
+
+    const ImageInfo& baseImageInfo = tex->BaseImageInfo();
+    if (!baseImageInfo.IsDefined()) {
+        ErrorInvalidOperation("generateMipmap: The base level of the texture is not"
+                              " defined.");
+        return;
+    }
+
+    if (!IsWebGL2() && !baseImageInfo.IsPowerOfTwo()) {
+        ErrorInvalidOperation("generateMipmap: The base level of the texture does not"
+                              " have power-of-two dimensions.");
+        return;
+    }
+
+    auto formatUsage = baseImageInfo.Format();
+    auto formatInfo = formatUsage->formatInfo;
+    if (formatInfo->compression) {
+        ErrorInvalidOperation("generateMipmap: Texture data at base level is"
+                              " compressed.");
+        return;
+    }
+
+    if (formatInfo->hasDepth)
+        return ErrorInvalidOperation("generateMipmap: Depth textures are not supported");
+
+    // Done with validation. Do the operation.
+
+    MakeContextCurrent();
+
+    if (gl->WorkAroundDriverBugs()) {
+        // bug 696495 - to work around failures in the texture-mips.html test on various drivers, we
+        // set the minification filter before calling glGenerateMipmap. This should not carry a significant performance
+        // overhead so we do it unconditionally.
+        //
+        // note that the choice of GL_NEAREST_MIPMAP_NEAREST really matters. See Chromium bug 101105.
+        gl->fTexParameteri(target.get(), LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST_MIPMAP_NEAREST);
+        gl->fGenerateMipmap(target.get());
+        gl->fTexParameteri(target.get(), LOCAL_GL_TEXTURE_MIN_FILTER, tex->MinFilter().get());
+    } else {
+        gl->fGenerateMipmap(target.get());
+    }
+
+    // Record the results.
+
+    // Make a copy so we can modify it.
+    ImageInfo reference = baseImageInfo;
+
+    for (size_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
+        for (size_t face = 0; face < mFaceCount; face++) {
+            ImageInfo& cur = ImageInfoAtFace(face, level);
+            cur = reference;
+        }
+
+        // Higher levels are unaffected.
+        if (reference.mWidth == 1 &&
+            reference.mHeight == 1 &&
+            reference.mDepth == 1)
+        {
+            break;
+        }
+
+        reference.mWidth  = std::max(1, reference.mWidth  / 2);
+        reference.mHeight = std::max(1, reference.mHeight / 2);
+        reference.mDepth  = std::max(1, reference.mDepth  / 2);
+    }
+}
+
+void
+WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntParam,
+                           GLfloat* maybeFloatParam)
+{
+    MOZ_ASSERT(maybeIntParam || maybeFloatParam);
+
+    GLint   intParam   = maybeIntParam   ? *maybeIntParam   : GLint(*maybeFloatParam);
+    GLfloat floatParam = maybeFloatParam ? *maybeFloatParam : GLfloat(*maybeIntParam);
+
+
+    bool pnameAndParamAreIncompatible = false;
+    bool paramValueInvalid = false;
+
+    switch (pname) {
+    case LOCAL_GL_TEXTURE_BASE_LEVEL:
+    case LOCAL_GL_TEXTURE_MAX_LEVEL:
+        if (!mContext->IsWebGL2())
+            return ErrorInvalidEnumInfo("texParameter: pname", pname);
+
+        if (intParam < 0) {
+            paramValueInvalid = true;
+            break;
+        }
+        if (pname == LOCAL_GL_TEXTURE_BASE_LEVEL)
+            mBaseMipmapLevel = intParam;
+        else
+            mMaxMipmapLevel = intParam;
+
+        InvalidateFakeBlack();
+        break;
+
+    case LOCAL_GL_TEXTURE_COMPARE_MODE:
+        if (!IsWebGL2())
+            return ErrorInvalidEnumInfo("texParameter: pname", pname);
+
+        paramValueInvalid = (intParam != LOCAL_GL_NONE &&
+                             intParam != LOCAL_GL_COMPARE_REF_TO_TEXTURE);
+        break;
+
+    case LOCAL_GL_TEXTURE_COMPARE_FUNC:
+        if (!IsWebGL2())
+            return ErrorInvalidEnumInfo("texParameter: pname", pname);
+
+        switch (intParam) {
+        case LOCAL_GL_LEQUAL:
+        case LOCAL_GL_GEQUAL:
+        case LOCAL_GL_LESS:
+        case LOCAL_GL_GREATER:
+        case LOCAL_GL_EQUAL:
+        case LOCAL_GL_NOTEQUAL:
+        case LOCAL_GL_ALWAYS:
+        case LOCAL_GL_NEVER:
+            break;
+
+        default:
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    case LOCAL_GL_TEXTURE_MIN_FILTER:
+        switch (intParam) {
+        case LOCAL_GL_NEAREST:
+        case LOCAL_GL_LINEAR:
+        case LOCAL_GL_NEAREST_MIPMAP_NEAREST:
+        case LOCAL_GL_LINEAR_MIPMAP_NEAREST:
+        case LOCAL_GL_NEAREST_MIPMAP_LINEAR:
+        case LOCAL_GL_LINEAR_MIPMAP_LINEAR:
+            mMinFilter = intParam;
+            InvalidateFakeBlack();
+            break;
+
+        default:
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    case LOCAL_GL_TEXTURE_MAG_FILTER:
+        switch (intParam) {
+        case LOCAL_GL_NEAREST:
+        case LOCAL_GL_LINEAR:
+            mMagFilter = intParam;
+            InvalidateFakeBlack();
+            break;
+
+        default:
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    case LOCAL_GL_TEXTURE_WRAP_S:
+        switch (intParam) {
+        case LOCAL_GL_CLAMP_TO_EDGE:
+        case LOCAL_GL_MIRRORED_REPEAT:
+        case LOCAL_GL_REPEAT:
+            mWrapS = intParam;
+            InvalidateFakeBlack();
+            break;
+
+        default:
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    case LOCAL_GL_TEXTURE_WRAP_T:
+        switch (intParam) {
+        case LOCAL_GL_CLAMP_TO_EDGE:
+        case LOCAL_GL_MIRRORED_REPEAT:
+        case LOCAL_GL_REPEAT:
+            mWrapT = intParam;
+            InvalidateFakeBlack();
+            break;
+
+        default:
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
+        if (IsExtensionEnabled(WebGLExtensionID::EXT_texture_filter_anisotropic)) {
+            if (floatParamPtr && floatParam < 1.0f)
+                paramValueInvalid = true;
+            else if (intParamPtr && intParam < 1)
+                paramValueInvalid = true;
+        } else {
+            pnameAndParamAreIncompatible = true;
+        }
+        break;
+
+    default:
+        return ErrorInvalidEnumInfo("texParameter: pname", pname);
+    }
+
+
+    if (pnameAndParamAreIncompatible) {
+        if (maybeIntParam) {
+            ErrorInvalidEnum("texParameteri: pname 0x%04x and param %i (0x%x) are"
+                             " mutually incompatible.",
+                             pname, intParam, intParam);
+        } else {
+            ErrorInvalidEnum("texParameterf: pname 0x%04x and param %g are mutually"
+                             " incompatible.",
+                             pname, floatParam);
+        }
+        return;
+    }
+
+    if (paramValueInvalid) {
+        if (maybeIntParam) {
+            ErrorInvalidValue("texParameteri: pname 0x%04: param %i (0x%x) is invalid.",
+                              pname, intParam, intParam);
+        } else {
+            ErrorInvalidValue("texParameterf: pname 0x%04: param %g is invalid.",
+                              pname, floatParam);
+        }
+        return;
+    }
+
+    MakeContextCurrent();
+    if (maybeIntParam)
+        gl->fTexParameteri(texTarget.get(), pname, intParam);
+    else
+        gl->fTexParameterf(texTarget.get(), pname, floatParam);
 }
 
 void

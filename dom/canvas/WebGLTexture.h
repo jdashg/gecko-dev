@@ -18,7 +18,13 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
+
+namespace gl {
+class GLContext;
+} // namespace gl
+
 namespace webgl {
+struct FormatInfo;
 struct FormatUsageInfo;
 } // namespace webgl
 
@@ -115,8 +121,10 @@ public:
         bool IsPowerOfTwo() const {
             MOZ_ASSERT(mWidth >= 0);
             MOZ_ASSERT(mHeight >= 0);
+            MOZ_ASSERT(mDepth >= 0);
             return IsPOTAssumingNonnegative(mWidth) &&
-                   IsPOTAssumingNonnegative(mHeight);
+                   IsPOTAssumingNonnegative(mHeight) &&
+                   IsPOTAssumingNonnegative(mDepth);
         }
         bool HasUninitializedImageData() const {
             return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
@@ -125,6 +133,18 @@ public:
 
         const webgl::FormatUsageInfo* Format() const { return mFormat; }
         GLsizei Depth() const { return mDepth; }
+
+        bool IsDefined() const {
+            if (!mFormat) {
+                MOZ_ASSERT(mImageDataStatus == WebGLImageDataStatus::NoImageData);
+                MOZ_ASSERT(!mWidth && !mHeight && !mDepth);
+                return false;
+            }
+
+            MOZ_ASSERT(mImageDataStatus != WebGLImageDataStatus::NoImageData);
+            MOZ_ASSERT(mWidth && mHeight && mDepth);
+            return true;
+        }
 
     protected:
         bool EnsureInitializedImageData();
@@ -176,6 +196,10 @@ private:
         return const_cast<const ImageInfo&>(
             const_cast<WebGLTexture*>(this)->ImageInfoAtFace(face, level)
         );
+    }
+
+    const ImageInfo& BaseImageInfoAtFace(size_t face) const {
+        return ImageInfoAtFace(face, mBaseMipmapLevel);
     }
 
 public:
@@ -233,10 +257,9 @@ protected:
     TexMagFilter mMagFilter;
     TexWrap mWrapS, mWrapT;
 
-    size_t mFacesCount, mMaxLevelWithCustomImages;
+    size_t mFaceCount;
     nsTArray<ImageInfo> mImageInfos;
 
-    bool mHaveGeneratedMipmap; // Set by generateMipmap
 public:
     bool mImmutable; // Set by texStorage*
 protected:
@@ -244,12 +267,6 @@ protected:
     size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
 
     WebGLTextureFakeBlackStatus mFakeBlackStatus;
-
-    void EnsureMaxLevelWithCustomImagesAtLeast(size_t maxLevelWithCustomImages) {
-        mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages,
-                                             maxLevelWithCustomImages);
-        mImageInfos.EnsureLengthAtLeast((mMaxLevelWithCustomImages + 1) * mFacesCount);
-    }
 
     bool CheckFloatTextureFilterParams() const {
         // Without OES_texture_float_linear, only NEAREST and
@@ -264,32 +281,12 @@ protected:
                mWrapT == LOCAL_GL_CLAMP_TO_EDGE;
     }
 
-    bool DoesMipmapHaveAllLevelsConsistentlyDefined(TexImageTarget texImageTarget) const;
-
 public:
     void Bind(TexTarget texTarget);
 
-    void SetImageInfo(TexImageTarget target, GLint level, GLsizei width, GLsizei height,
-                      GLsizei depth, const webgl::FormatInfo* format,
-                      WebGLImageDataStatus status);
-
-    void SetMinFilter(TexMinFilter minFilter) {
-        mMinFilter = minFilter;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+    void InvalidateFakeBlack() {
+        mFakeBlackStatus = WebGLTextureFakeBlackStatus::Unknown;
     }
-    void SetMagFilter(TexMagFilter magFilter) {
-        mMagFilter = magFilter;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-    }
-    void SetWrapS(TexWrap wrapS) {
-        mWrapS = wrapS;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-    }
-    void SetWrapT(TexWrap wrapT) {
-        mWrapT = wrapT;
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-    }
-    TexMinFilter MinFilter() const { return mMinFilter; }
 
     bool DoesMinFilterRequireMipmap() const {
         return !(mMinFilter == LOCAL_GL_NEAREST ||
@@ -312,11 +309,6 @@ public:
 
     bool IsMipmapCubeComplete() const;
 
-    void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
-
-    void SetBaseMipmapLevel(size_t level) { mBaseMipmapLevel = level; }
-    void SetMaxMipmapLevel(size_t level) { mMaxMipmapLevel = level; }
-
     // Clamping (from ES 3.0.4, section 3.8 - Texturing). When not immutable,
     // the ranges must be guarded.
     size_t EffectiveBaseMipmapLevel() const {
@@ -338,6 +330,10 @@ public:
     // Returns the current fake-black-status, except if it was Unknown,
     // in which case this function resolves it first, so it never returns Unknown.
     WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
+
+    void GenerateMipmap(TexTarget target);
+
+    bool IsCubeMap() const { return mFaceCount != 1; }
 };
 
 inline TexImageTarget

@@ -64,7 +64,7 @@ JS::Value StringValue(JSContext* cx, const char* str, ErrorResult& rv);
 
 struct GLComponents
 {
-    unsigned char mComponents;
+    uint8_t mComponents;
 
     enum Components {
         Red     = (1 << 0),
@@ -77,9 +77,9 @@ struct GLComponents
 
     GLComponents()
         : mComponents(0)
-    {}
+    { }
 
-    explicit GLComponents(TexInternalFormat format);
+    explicit GLComponents(const webgl::FormatInfo* format);
 
     // Returns true iff other has all (or more) of
     // the components present in this GLComponents

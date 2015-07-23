@@ -34,6 +34,7 @@
 #include "WebGLFormats.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
+#include "WebGLTexture.h"
 
 // Generated
 #include "nsIDOMEventListener.h"
@@ -934,21 +935,23 @@ private:
 // -----------------------------------------------------------------------------
 // Texture specification and uploading (WebGLContextTextureUpload.cpp)
 
+public:
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType, const Nullable<dom::ArrayBufferView>& maybeView,
-                    ErrorResult& rv);
+                    ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                    ErrorResult& rv);
+                    ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
                     ErrorResult* const out_rv);
 
     template<class ElementType>
     void
-    TexImage2D(GLenum target, GLint level, GLenum internalFormat, GLenum unpackFormat,
-               GLenum unpackType, ElementType& elem, ErrorResult& out_rv)
+    TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+               GLenum unpackFormat, GLenum unpackType, ElementType& elem,
+               ErrorResult& out_rv)
     {
         TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, &elem,
                    &out_rv);

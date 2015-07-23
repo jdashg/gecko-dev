@@ -93,7 +93,7 @@ public:
 
   explicit HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMediaElement, mediaa)
+  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMediaElement, media)
 
   /**
    * This is used when the browser is constructing a video element to play

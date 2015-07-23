@@ -351,7 +351,7 @@ ConvertImage(size_t width, size_t height, bool yFlip,
         // So the case we're handling here is when even though no format conversion is needed,
         // we still might have to flip vertically and/or to adjust to a different stride.
 
-        MOZ_ASSERT(mPixelStoreFlipY || srcStride != dstStride, "Performance trap -- should handle this case earlier, to avoid memcpy");
+        MOZ_ASSERT(yFlip || srcStride != dstStride, "Performance trap -- should handle this case earlier, to avoid memcpy");
 
         size_t texelSize = TexelBytesForFormat(dstFormat); // Doesn't matter which, since
                                                            // src and dst formats agree.

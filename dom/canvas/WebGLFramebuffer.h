@@ -157,9 +157,6 @@ public:
     FBStatus PrecheckFramebufferStatus() const;
     FBStatus CheckFramebufferStatus() const;
 
-    GLenum
-    GetFormatForAttachment(const WebGLFBAttachPoint& attachment) const;
-
     bool HasDepthStencilConflict() const {
         return int(mDepthAttachment.IsDefined()) +
                int(mStencilAttachment.IsDefined()) +
