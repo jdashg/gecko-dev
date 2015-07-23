@@ -36,13 +36,40 @@ class WebGLTexture final
     , public WebGLContextBoundObject
     , public WebGLFramebufferAttachable
 {
+    friend class WebGLContext;
+    friend class WebGLFramebuffer;
+
+public:
+    const GLuint mGLName;
+
+protected:
+    GLenum mTarget;
+
+    TexMinFilter mMinFilter;
+    TexMagFilter mMagFilter;
+    TexWrap mWrapS, mWrapT;
+
+    size_t mFacesCount, mMaxLevelWithCustomImages;
+
+public:
+    class ImageInfo;
+protected:
+    nsTArray<ImageInfo> mImageInfos;
+
+    bool mHaveGeneratedMipmap; // Set by generateMipmap
+    bool mImmutable; // Set by texStorage*
+
+    size_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
+    size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
+
+    WebGLTextureFakeBlackStatus mFakeBlackStatus;
+
 public:
     explicit WebGLTexture(WebGLContext* webgl, GLuint tex);
 
     void Delete();
 
     bool HasEverBeenBound() const { return mTarget != LOCAL_GL_NONE; }
-    GLenum Target() const { return mTarget; }
 
     WebGLContext* GetParentObject() const {
         return Context();
@@ -58,28 +85,41 @@ protected:
         DeleteOnce();
     }
 
-    friend class WebGLContext;
-    friend class WebGLFramebuffer;
-
-    // We store information about the various images that are part of this
-    // texture. (cubemap faces, mipmap levels)
-
 public:
-    const GLuint mGLName;
-
-protected:
-    GLenum mTarget;
+    // GL calls
+    bool BindTexture(TexTarget texTarget);
+    void GenerateMipmap(TexTarget texTarget);
+    JS::Value GetTexParameter(TexTarget texTarget, GLenum pname);
+    bool IsTexture() const;
+    void TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntParam,
+                      GLfloat* maybeFloatParam);
 
 public:
     class ImageInfo
         : public WebGLRectangleObject
     {
+        friend class WebGLTexture;
+
+        // This is the "effective internal format" of the texture, an official
+        // OpenGL spec concept, see OpenGL ES 3.0.3 spec, section 3.8.3, page
+        // 126 and below.
+        TexInternalFormat mEffectiveInternalFormat;
+
+        /* Used only for 3D textures.
+         * Note that mWidth and mHeight are inherited from WebGLRectangleObject.
+         * It's a pity to store a useless mDepth on non-3D texture images, but
+         * the size of GLsizei is negligible compared to the typical size of a texture image.
+         */
+        GLsizei mDepth;
+
+        WebGLImageDataStatus mImageDataStatus;
+
     public:
         ImageInfo()
             : mEffectiveInternalFormat(LOCAL_GL_NONE)
             , mDepth(0)
             , mImageDataStatus(WebGLImageDataStatus::NoImageData)
-        {}
+        { }
 
         ImageInfo(GLsizei width, GLsizei height, GLsizei depth,
                   TexInternalFormat effectiveInternalFormat,
@@ -100,47 +140,37 @@ public:
                    mDepth == a.mDepth &&
                    mEffectiveInternalFormat == a.mEffectiveInternalFormat;
         }
+
         bool operator!=(const ImageInfo& a) const {
             return !(*this == a);
         }
+
         bool IsSquare() const {
             return mWidth == mHeight;
         }
+
         bool IsPositive() const {
             return mWidth > 0 && mHeight > 0 && mDepth > 0;
         }
+
         bool IsPowerOfTwo() const {
             MOZ_ASSERT(mWidth >= 0);
             MOZ_ASSERT(mHeight >= 0);
             return IsPOTAssumingNonnegative(mWidth) &&
                    IsPOTAssumingNonnegative(mHeight);
         }
+
         bool HasUninitializedImageData() const {
             return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
         }
+
         size_t MemoryUsage() const;
 
         TexInternalFormat EffectiveInternalFormat() const {
             return mEffectiveInternalFormat;
         }
+
         GLsizei Depth() const { return mDepth; }
-
-    protected:
-        // This is the "effective internal format" of the texture, an official
-        // OpenGL spec concept, see OpenGL ES 3.0.3 spec, section 3.8.3, page
-        // 126 and below.
-        TexInternalFormat mEffectiveInternalFormat;
-
-        /* Used only for 3D textures.
-         * Note that mWidth and mHeight are inherited from WebGLRectangleObject.
-         * It's a pity to store a useless mDepth on non-3D texture images, but
-         * the size of GLsizei is negligible compared to the typical size of a texture image.
-         */
-        GLsizei mDepth;
-
-        WebGLImageDataStatus mImageDataStatus;
-
-        friend class WebGLTexture;
     };
 
 private:
@@ -216,20 +246,6 @@ public:
     bool EnsureInitializedImageData(TexImageTarget imageTarget, GLint level);
 
 protected:
-    TexMinFilter mMinFilter;
-    TexMagFilter mMagFilter;
-    TexWrap mWrapS, mWrapT;
-
-    size_t mFacesCount, mMaxLevelWithCustomImages;
-    nsTArray<ImageInfo> mImageInfos;
-
-    bool mHaveGeneratedMipmap; // Set by generateMipmap
-    bool mImmutable; // Set by texStorage*
-
-    size_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
-    size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
-
-    WebGLTextureFakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t maxLevelWithCustomImages) {
         mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages,
@@ -327,6 +343,8 @@ public:
     // Returns the current fake-black-status, except if it was Unknown,
     // in which case this function resolves it first, so it never returns Unknown.
     WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
+
+    TexTarget Target() const { return mTarget; }
 };
 
 inline TexImageTarget

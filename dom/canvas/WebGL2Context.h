@@ -357,7 +357,7 @@ public:
 private:
     WebGL2Context();
 
-    JS::Value GetTexParameterInternal(const TexTarget& target, GLenum pname) override;
+    virtual bool IsTexParamValid(GLenum pname) const override;
 
     void UpdateBoundQuery(GLenum target, WebGLQuery* query);
 
