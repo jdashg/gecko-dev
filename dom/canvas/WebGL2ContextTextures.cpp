@@ -161,6 +161,8 @@ WebGL2Context::TexStorage2D(GLenum target, GLsizei levels, GLenum internalformat
         w = std::max(1, w / 2);
         h = std::max(1, h / 2);
     }
+
+    tex->ClampLevelBaseAndMax();
 }
 
 void
@@ -199,6 +201,8 @@ WebGL2Context::TexStorage3D(GLenum target, GLsizei levels, GLenum internalformat
         h = std::max(1, h >> 1);
         d = std::max(1, d >> 1);
     }
+
+    tex->ClampLevelBaseAndMax();
 }
 
 void
