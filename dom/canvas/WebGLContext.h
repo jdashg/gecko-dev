@@ -847,128 +847,83 @@ protected:
 // -----------------------------------------------------------------------------
 // Texture upload funcions (WebGLTextureUpload.cpp)
 public:
-    void CompressedTexImage2D(GLenum target, GLint level,
-                              GLenum internalformat, GLsizei width,
-                              GLsizei height, GLint border,
+    void CompressedTexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                              GLsizei width, GLsizei height, GLint border,
                               const dom::ArrayBufferView& view);
-    void CompressedTexSubImage2D(GLenum texImageTarget, GLint level,
-                                 GLint xoffset, GLint yoffset, GLsizei width,
-                                 GLsizei height, GLenum format,
-                                 const dom::ArrayBufferView& view);
-    void CopyTexImage2D(GLenum texImageTarget, GLint level,
-                        GLenum internalformat, GLint x, GLint y, GLsizei width,
-                        GLsizei height, GLint border);
-    void CopyTexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                           GLint yoffset, GLint x, GLint y, GLsizei width,
+    void CompressedTexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                                 GLint yOffset, GLsizei width, GLsizei height,
+                                 GLenum unpackFormat, const dom::ArrayBufferView& view);
+
+    void CopyTexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                        GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+    void CopyTexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset,
+                           GLint yOffset, GLint x, GLint y, GLsizei width,
                            GLsizei height);
 
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLsizei width, GLsizei height, GLint border, GLenum format,
-                    GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
-                    ErrorResult& rv);
+                    GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
+                    GLenum unpackType,
+                    const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                    ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum format, GLenum type, dom::ImageData* pixels,
-                    ErrorResult& rv);
-    // Allow whatever element types the bindings are willing to pass
-    // us in TexImage2D
-    bool TexImageFromVideoElement(TexImageTarget texImageTarget, GLint level,
-                                  GLenum internalFormat, GLenum format,
-                                  GLenum type, mozilla::dom::Element& image);
+                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                    ErrorResult& out_rv);
 
-    template<class ElementType>
-    void TexImage2D(GLenum rawTexImageTarget, GLint level,
-                    GLenum internalFormat, GLenum format, GLenum type,
-                    ElementType& elt, ErrorResult& rv)
+    void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                    GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                    ErrorResult* const out_rv)
+
+
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLsizei width, GLsizei height, GLenum unpackFormat,
+                       GLenum unpackType,
+                       const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                       ErrorResult& out_rv);
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                       ErrorResult& out_rv);
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                       ErrorResult* const out_rv);
+
+    // Allow whatever element unpackTypes the bindings are willing to pass
+    // us in Tex(Sub)Image2D
+    template<typename ElementT>
+    void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+                    GLenum unpackFormat, GLenum unpackType, ElementT& elem,
+                    ErrorResult& out_rv)
     {
-        if (IsContextLost())
-            return;
-
-        if (!ValidateTexImageTarget(rawTexImageTarget,
-                                    WebGLTexImageFunc::TexImage,
-                                    WebGLTexDimensions::Tex2D))
-        {
-            ErrorInvalidEnumInfo("texSubImage2D: target", rawTexImageTarget);
-            return;
-        }
-
-        const TexImageTarget texImageTarget(rawTexImageTarget);
-
-        if (level < 0)
-            return ErrorInvalidValue("texImage2D: level is negative");
-
-        const int32_t maxLevel = MaxTextureLevelForTexImageTarget(texImageTarget);
-        if (level > maxLevel) {
-            ErrorInvalidValue("texImage2D: level %d is too large, max is %d",
-                              level, maxLevel);
-            return;
-        }
-
-        WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
-
-        if (!tex)
-            return ErrorInvalidOperation("no texture is bound to this target");
-
-        // Trying to handle the video by GPU directly first
-        if (TexImageFromVideoElement(texImageTarget, level, internalFormat,
-                                     format, type, elt))
-        {
-            return;
-        }
-
-        RefPtr<gfx::DataSourceSurface> data;
-        WebGLTexelFormat srcFormat;
-        nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
-        rv = SurfaceFromElementResultToImageSurface(res, data, &srcFormat);
-        if (rv.Failed() || !data)
-            return;
-
-        gfx::IntSize size = data->GetSize();
-        uint32_t byteLength = data->Stride() * size.height;
-        return TexImage2D_base(texImageTarget, level, internalFormat,
-                               size.width, size.height, data->Stride(), 0,
-                               format, type, data->GetData(), byteLength,
-                               js::Scalar::MaxTypedArrayViewType, srcFormat,
-                               res.mIsPremultiplied);
+        TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, &elem,
+                   &out_rv);
+    }
+    template<typename ElementT>
+    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                       GLenum unpackFormat, GLenum unpackType, ElementT& elem,
+                       ErrorResult& out_rv)
+    {
+        TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
+                      &elem, &out_rv);
     }
 
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLsizei width, GLsizei height,
-                       GLenum format, GLenum type,
-                       const dom::Nullable<dom::ArrayBufferView>& pixels,
-                       ErrorResult& rv);
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       dom::ImageData* pixels, ErrorResult& rv);
-
-    void TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       dom::Element* elt, ErrorResult* const out_rv);
-
-    // Allow whatever element types the bindings are willing to pass
-    // us in TexSubImage2D
-    template<class ElementType>
-    void TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xoffset,
-                       GLint yoffset, GLenum format, GLenum type,
-                       ElementType& elt, ErrorResult& out_rv)
-    {
-        TexSubImage2D(rawTexImageTarget, level, xoffset, yoffset, format, type, &elt,
-                      &out_rv);
-    }
 
 protected:
+    bool TexImageFromVideoElement(TexImageTarget texImageTarget, GLint level,
+                                  GLenum internalFormat, GLenum unpackFormat,
+                                  GLenum unpackType, dom::Element* elem);
+
     // If jsArrayType is MaxTypedArrayViewType, it means no array.
     void TexImage2D_base(TexImageTarget texImageTarget, GLint level,
-                         GLenum internalFormat, GLsizei width,
-                         GLsizei height, GLsizei srcStrideOrZero, GLint border,
-                         GLenum format, GLenum type, void* data,
-                         uint32_t byteLength, js::Scalar::Type jsArrayType,
-                         WebGLTexelFormat srcFormat, bool srcPremultiplied);
-    void TexSubImage2D_base(GLenum texImageTarget, GLint level,
-                            GLint xoffset, GLint yoffset, GLsizei width,
-                            GLsizei height, GLsizei srcStrideOrZero,
-                            GLenum format, GLenum type, void* pixels,
-                            uint32_t byteLength, js::Scalar::Type jsArrayType,
-                            WebGLTexelFormat srcFormat, bool srcPremultiplied);
+                         GLenum internalFormat, GLsizei width, GLsizei height,
+                         GLsizei srcStrideOrZero, GLint border, GLenum unpackFormat,
+                         GLenum unpackType, void* data, uint32_t byteLength,
+                         js::Scalar::Type jsArrayType, WebGLTexelFormat srcFormat,
+                         bool srcPremultiplied);
+    void TexSubImage2D_base(GLenum texImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLsizei width, GLsizei height,
+                            GLsizei srcStrideOrZero, GLenum unpackFormat,
+                            GLenum unpackType, void* pixels, uint32_t byteLength,
+                            js::Scalar::Type jsArrayType, WebGLTexelFormat srcFormat,
+                            bool srcPremultiplied);
 
 // -----------------------------------------------------------------------------
 // Vertices Feature (WebGLContextVertices.cpp)
@@ -1256,8 +1211,6 @@ protected:
                           GLint width, GLint height, GLint depth,
                           GLint border, GLenum format, GLenum type,
                           WebGLTexImageFunc func, WebGLTexDimensions dims);
-    bool ValidateTexImageTarget(GLenum texImageTarget, WebGLTexImageFunc func,
-                                WebGLTexDimensions dims);
     bool ValidateTexImageFormat(GLenum internalFormat, WebGLTexImageFunc func,
                                 WebGLTexDimensions dims);
     bool ValidateTexImageType(GLenum type, WebGLTexImageFunc func,
@@ -1701,6 +1654,14 @@ private:
 };
 
 size_t RoundUpToMultipleOf(size_t value, size_t multiple);
+
+bool
+ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName,
+                  TexTarget* const out_texTarget, WebGLTexture** const out_tex);
+bool
+ValidateTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
+                       const char* funcName, TexImageTarget* const out_texImageTarget,
+                       WebGLTexture** const out_tex);
 
 } // namespace mozilla
 

@@ -60,6 +60,62 @@ namespace mozilla {
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexImage
 
+void
+TexImage2D(GLenum texImageTarget, GLint level,
+           GLenum internalFormat, GLenum unpackFormat, GLenum unpackType,
+           dom::Element* elem, ErrorResult* const out_rv)
+{
+    if (IsContextLost())
+        return;
+
+    if (!ValidateTexImageTarget(rawTexImageTarget,
+                                WebGLTexImageFunc::TexImage,
+                                WebGLTexDimensions::Tex2D))
+    {
+        ErrorInvalidEnumInfo("texSubImage2D: target", rawTexImageTarget);
+        return;
+    }
+
+    const TexImageTarget texImageTarget(rawTexImageTarget);
+
+    if (level < 0)
+        return ErrorInvalidValue("texImage2D: level is negative");
+
+    const int32_t maxLevel = MaxTextureLevelForTexImageTarget(texImageTarget);
+    if (level > maxLevel) {
+        ErrorInvalidValue("texImage2D: level %d is too large, max is %d",
+                          level, maxLevel);
+        return;
+    }
+
+    WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
+
+    if (!tex)
+        return ErrorInvalidOperation("no texture is bound to this target");
+
+    // Trying to handle the video by GPU directly first
+    if (TexImageFromVideoElement(texImageTarget, level, internalFormat,
+                                 format, type, elt))
+    {
+        return;
+    }
+
+    RefPtr<gfx::DataSourceSurface> data;
+    WebGLTexelFormat srcFormat;
+    nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
+    rv = SurfaceFromElementResultToImageSurface(res, data, &srcFormat);
+    if (rv.Failed() || !data)
+        return;
+
+    gfx::IntSize size = data->GetSize();
+    uint32_t byteLength = data->Stride() * size.height;
+    return TexImage2D_base(texImageTarget, level, internalFormat,
+                           size.width, size.height, data->Stride(), 0,
+                           format, type, data->GetData(), byteLength,
+                           js::Scalar::MaxTypedArrayViewType, srcFormat,
+                           res.mIsPremultiplied);
+}
+
 bool
 WebGLContext::TexImageFromVideoElement(const TexImageTarget texImageTarget,
                                        GLint level, GLenum internalFormat,

@@ -73,7 +73,7 @@ IsValidTexTarget(WebGLContext* webgl, GLenum rawTexTarget, TexTarget* const out)
     return true;
 }
 
-static bool
+bool
 ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName,
                   TexTarget* const out_texTarget, WebGLTexture** const out_tex)
 {
@@ -93,6 +93,31 @@ ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName
     }
 
     *out_texTarget = texTarget;
+    *out_tex = tex;
+    return true;
+}
+
+bool
+ValidateTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
+                       const char* funcName, TexImageTarget* const out_texImageTarget,
+                       WebGLTexture** const out_tex)
+{
+    if (webgl->IsContextLost())
+        return false;
+
+    TexImageTarget texImageTarget;
+    if (!IsValidTexImageTarget(webgl, rawTexImageTarget, &texImageTarget)) {
+        webgl->ErrorInvalidEnum("%s: Invalid texImageTarget.", funcName);
+        return false;
+    }
+
+    WebGLTexture* tex = webgl->ActiveBoundTextureForTexImageTarget(texImageTarget);
+    if (!tex) {
+        webgl->ErrorInvalidOperation("%s: No texture is bound to this target.", funcName);
+        return false;
+    }
+
+    *out_texImageTarget = texImageTarget;
     *out_tex = tex;
     return true;
 }

@@ -99,6 +99,19 @@ public:
     void TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntParam,
                       GLfloat* maybeFloatParam);
 
+    // WebGLTextureUpload.cpp
+    void TexStorage2D(TexTarget texTarget, GLsizei levels, GLenum rawInternalFormat,
+                      GLsizei width, GLsizei height);
+    void TexStorage3D(TexTarget texTarget, GLsizei levels, GLenum rawInternalFormat,
+                      GLsizei width, GLsizei height, GLsizei depth);
+
+protected:
+    bool ValidateTexStorage(GLenum target, GLsizei levels, GLenum internalFormat,
+                            GLsizei width, GLsizei height, GLsizei depth,
+                            const char* funcName);
+    void SpecifyTexStorage(GLsizei levels, TexInternalFormat internalFormat,
+                           GLsizei width, GLsizei height, GLsizei depth);
+
 public:
     class ImageInfo
         : public WebGLRectangleObject
