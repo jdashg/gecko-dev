@@ -36,7 +36,35 @@ class WebGLTexture final
     , public WebGLContextBoundObject
     , public WebGLFramebufferAttachable
 {
+    friend class WebGLContext;
+    friend class WebGLFramebuffer;
+
 public:
+    class ImageInfo;
+
+    const GLuint mGLName;
+
+protected:
+    GLenum mTarget;
+    TexMinFilter mMinFilter;
+    TexMagFilter mMagFilter;
+    TexWrap mWrapS, mWrapT;
+
+    size_t mFacesCount, mMaxLevelWithCustomImages;
+    nsTArray<ImageInfo> mImageInfos;
+
+    bool mHaveGeneratedMipmap; // Set by generateMipmap
+    bool mImmutable; // Set by texStorage*
+
+    size_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
+    size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
+
+    WebGLTextureFakeBlackStatus mFakeBlackStatus;
+
+public:
+    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLTexture)
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLTexture)
+
     explicit WebGLTexture(WebGLContext* webgl, GLuint tex);
 
     void Delete();
@@ -50,27 +78,14 @@ public:
 
     virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLTexture)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLTexture)
-
 protected:
     ~WebGLTexture() {
         DeleteOnce();
     }
 
-    friend class WebGLContext;
-    friend class WebGLFramebuffer;
-
+public:
     // We store information about the various images that are part of this
     // texture. (cubemap faces, mipmap levels)
-
-public:
-    const GLuint mGLName;
-
-protected:
-    GLenum mTarget;
-
-public:
     class ImageInfo
         : public WebGLRectangleObject
     {
@@ -216,20 +231,6 @@ public:
     bool EnsureInitializedImageData(TexImageTarget imageTarget, GLint level);
 
 protected:
-    TexMinFilter mMinFilter;
-    TexMagFilter mMagFilter;
-    TexWrap mWrapS, mWrapT;
-
-    size_t mFacesCount, mMaxLevelWithCustomImages;
-    nsTArray<ImageInfo> mImageInfos;
-
-    bool mHaveGeneratedMipmap; // Set by generateMipmap
-    bool mImmutable; // Set by texStorage*
-
-    size_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
-    size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
-
-    WebGLTextureFakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t maxLevelWithCustomImages) {
         mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages,
