@@ -79,7 +79,6 @@ UNIFIED_SOURCES += [
     'WebGLContextLossHandler.cpp',
     'WebGLContextState.cpp',
     'WebGLContextTextures.cpp',
-    'WebGLContextTextureUpload.cpp',
     'WebGLContextUnchecked.cpp',
     'WebGLContextUtils.cpp',
     'WebGLContextValidate.cpp',

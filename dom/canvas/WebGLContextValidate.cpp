@@ -1360,7 +1360,8 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
     }
 
     if (IsSubFunc(func)) {
-        if (!tex->HasImageInfoAt(texImageTarget, level)) {
+        const auto& imageInfo = tex->ImageInfoAt(texImageTarget, level);
+        if (!imageInfo.IsDefined()) {
             ErrorInvalidOperation("%s: No texture image previously defined for"
                                   " target %s at level %d.", info,
                                   WebGLContext::EnumName(texImageTarget.get()),
@@ -1368,7 +1369,6 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
             return false;
         }
 
-        const auto& imageInfo = tex->ImageInfoAt(texImageTarget, level);
         if (!ValidateTexSubImageSize(xoffset, yoffset, zoffset, width, height,
                                      depth, imageInfo.Width(),
                                      imageInfo.Height(), 0, func, dims))

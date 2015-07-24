@@ -73,6 +73,34 @@ IsValidTexTarget(WebGLContext* webgl, GLenum rawTexTarget, TexTarget* const out)
     return true;
 }
 
+static bool
+IsValidTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
+                      TexImageTarget* const out)
+{
+    switch (rawTexImageTarget) {
+    case LOCAL_GL_TEXTURE_2D:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+        if (!webgl->IsWebGL2())
+            return false;
+
+        break;
+
+    default:
+        return false;
+    }
+
+    *out = rawTexImageTarget;
+    return true;
+}
+
 bool
 ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName,
                   TexTarget* const out_texTarget, WebGLTexture** const out_tex)
@@ -239,6 +267,203 @@ WebGLContext::TexParameter_base(GLenum rawTexTarget, GLenum pname, GLint* maybeI
         return;
 
     tex->TexParameter(texTarget, pname, maybeIntParam, maybeFloatParam);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////
+// Uploads
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// TexImage
+
+void
+WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
+                         GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                         ErrorResult* const out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, elem,
+                    out_rv);
+}
+
+void
+WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
+                         GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
+                         GLenum unpackType,
+                         const dom::Nullable<ArrayBufferView>& maybeView,
+                         ErrorResult& out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexImage2D(texImageTarget, level, internalFormat, width, height, border,
+                    unpackFormat, unpackType, maybeView, &out_rv);
+}
+
+void
+WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
+                         GLenum unpackFormat, GLenum unpackType,
+                         dom::ImageData* imageData, ErrorResult& out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType,
+                    imageData, &out_rv);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// TexSubImage
+
+
+void
+WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                            dom::Element* elem, ErrorResult* const out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texSubImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
+                       elem, out_rv);
+}
+
+void
+WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                            GLint yOffset, GLsizei width, GLsizei height,
+                            GLenum unpackFormat, GLenum unpackType,
+                            const dom::Nullable<ArrayBufferView>& maybeView,
+                            ErrorResult& out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texSubImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexSubImage2D(texImageTarget, level, xOffset, yOffset, width, height,
+                       unpackFormat, unpackType, maybeView, &out_rv);
+}
+
+void
+WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                            GLenum unpackFormat, GLenum unpackType, ImageData* imageData,
+                            ErrorResult& out_rv)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "texSubImage2D", &texImageTarget,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
+                       imageData, &out_rv);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// CopyTex(Sub)Image
+
+
+void
+WebGLContext::CopyTexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
+                             GLint x, GLint y, GLsizei width, GLsizei height,
+                             GLint border)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "copyTexImage2D",
+                                &texImageTarget, &tex))
+    {
+        return;
+    }
+
+    tex->CopyTexImage2D(texImageTarget, level, internalFormat, x, y, width, height,
+                        border);
+}
+
+void
+WebGLContext::CopyTexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                                GLint yOffset, GLint x, GLint y, GLsizei width,
+                                GLsizei height)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "copyTexSubImage2D",
+                                &texImageTarget, &tex))
+    {
+        return;
+    }
+
+    tex->CopyTexSubImage2D(texImageTarget, level, xOffset, yOffset, x, y, width, height);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// CompressedTex(Sub)Image
+
+
+void
+WebGLContext::CompressedTexImage2D(GLenum rawTexImageTarget, GLint level,
+                                   GLenum internalFormat, GLsizei width, GLsizei height,
+                                   GLint border, const ArrayBufferView& view)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "compressedTexImage2D",
+                                &texImageTarget, &tex))
+    {
+        return;
+    }
+
+    tex->CompressedTexImage2D(texImageTarget, level, internalFormat, width, height,
+                              border, view);
+}
+
+void
+WebGLContext::CompressedTexSubImage2D(GLenum rawTexImageTarget, GLint level,
+                                      GLint xOffset, GLint yOffset, GLsizei width,
+                                      GLsizei height, GLenum unpackFormat,
+                                      const ArrayBufferView& view)
+{
+    TexImageTarget texImageTarget;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, rawTexImageTarget, "compressedTexSubImage2D",
+                                &texImageTarget, &tex))
+    {
+        return;
+    }
+
+    tex->CompressedTexSubImage2D(texImageTarget, level, xOffset, yOffset, width, height,
+                                 unpackFormat, view);
 }
 
 } // namespace mozilla

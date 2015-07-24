@@ -171,7 +171,7 @@ WebGL2Context::TexImage3D(GLenum rawTexImageTarget, GLint level, GLenum internal
 void
 WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                              GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
-                             Lsizei depth, GLenum unpackFormat, GLenum unpackType,
+                             GLsizei depth, GLenum unpackFormat, GLenum unpackType,
                              const dom::Nullable<dom::ArrayBufferView>& maybeView,
                              ErrorResult& out_rv)
 {

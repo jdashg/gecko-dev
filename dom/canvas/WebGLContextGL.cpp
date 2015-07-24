@@ -836,7 +836,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
              case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
                     const TexInternalFormat effectiveInternalFormat =
-                        fba.Texture()->ImageInfoBase().EffectiveInternalFormat();
+                        fba.Texture()->BaseImageInfo().EffectiveInternalFormat();
 
                     if (effectiveInternalFormat == LOCAL_GL_NONE) {
                         ErrorInvalidOperation("getFramebufferAttachmentParameter: "

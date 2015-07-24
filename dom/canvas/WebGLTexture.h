@@ -91,6 +91,7 @@ protected:
     }
 
 public:
+    ////////////////////////////////////
     // GL calls
     bool BindTexture(TexTarget texTarget);
     void GenerateMipmap(TexTarget texTarget);
@@ -99,11 +100,93 @@ public:
     void TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntParam,
                       GLfloat* maybeFloatParam);
 
+    ////////////////////////////////////
     // WebGLTextureUpload.cpp
-    void TexStorage2D(TexTarget texTarget, GLsizei levels, GLenum rawInternalFormat,
+
+    void CompressedTexImage2D(TexImageTarget texImageTarget, GLint level,
+                              GLenum internalFormat, GLsizei width, GLsizei height,
+                              GLint border, const dom::ArrayBufferView& view);
+
+    void CompressedTexImage3D(TexImageTarget texImageTarget, GLint level,
+                              GLenum internalFormat, GLsizei width, GLsizei height,
+                              GLsizei depth, GLint border, GLsizei imageSize,
+                              const dom::ArrayBufferView& view);
+
+
+    void CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level,
+                                 GLint xOffset, GLint yOffset, GLsizei width,
+                                 GLsizei height, GLenum unpackFormat,
+                                 const dom::ArrayBufferView& view);
+
+    void CompressedTexSubImage3D(TexImageTarget texImageTarget, GLint level,
+                                 GLint xOffset, GLint yOffset, GLint zOffset,
+                                 GLsizei width, GLsizei height, GLsizei depth,
+                                 GLenum unpackFormat, GLsizei imageSize,
+                                 const dom::ArrayBufferView& view);
+
+
+    void CopyTexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
+                        GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+
+
+    void CopyTexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                           GLint yOffset, GLint x, GLint y, GLsizei width,
+                           GLsizei height);
+
+    void CopyTexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                           GLint yOffset, GLint zOffset, GLint x, GLint y, GLsizei width,
+                           GLsizei height);
+
+
+    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
+                    GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
+                    GLenum unpackType,
+                    const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                    ErrorResult* const out_rv);
+    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
+                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                    ErrorResult* const out_rv);
+    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
+                    GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                    ErrorResult* const out_rv);
+
+    void TexImage3D(TexImageTarget target, GLint level, GLenum internalFormat,
+                    GLsizei width, GLsizei height, GLsizei depth, GLint border,
+                    GLenum unpackFormat, GLenum unpackType,
+                    const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                    ErrorResult* const out_rv);
+
+
+    void TexStorage2D(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
                       GLsizei width, GLsizei height);
-    void TexStorage3D(TexTarget texTarget, GLsizei levels, GLenum rawInternalFormat,
+    void TexStorage3D(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
                       GLsizei width, GLsizei height, GLsizei depth);
+
+
+    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLsizei width, GLsizei height, GLenum unpackFormat,
+                       GLenum unpackType,
+                       const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                       ErrorResult* const out_rv);
+    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::ImageData* imageData, ErrorResult* const out_rv);
+    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::Element* elem, ErrorResult* const out_rv);
+
+    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
+                       GLsizei depth, GLenum unpackFormat, GLenum unpackType,
+                       const dom::Nullable<dom::ArrayBufferView>& maybeView,
+                       ErrorResult* const out_rv);
+    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                       GLenum unpackType, dom::ImageData* imageData,
+                       ErrorResult* const out_rv);
+    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
+                       GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                       GLenum unpackType, dom::Element* elem, ErrorResult* const out_rv);
 
 protected:
     bool ValidateTexStorage(GLenum target, GLsizei levels, GLenum internalFormat,
@@ -283,6 +366,10 @@ public:
     {
         uint8_t face = FaceForTarget(texImageTarget);
         return SetImageInfoAtFace(face, level, val);
+    }
+
+    const ImageInfo& BaseImageInfo() const {
+        return ImageInfoAtFace(0, mBaseMipmapLevel);
     }
 
     size_t MemoryUsage() const;
