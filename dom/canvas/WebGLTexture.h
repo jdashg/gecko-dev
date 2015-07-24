@@ -223,6 +223,11 @@ protected:
                             js::Scalar::Type jsArrayType, WebGLTexelFormat srcFormat,
                             bool srcPremultiplied);
 
+    bool ValidateTexStorage(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
+                                      GLsizei width, GLsizei height, GLsizei depth,
+                                      const char* info);
+    bool ValidateSizedInternalFormat(GLenum internalFormat, const char* info);
+
 
 public:
     // We store information about the various images that are part of this

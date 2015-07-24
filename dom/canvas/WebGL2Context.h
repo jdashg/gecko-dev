@@ -361,11 +361,6 @@ private:
 
     void UpdateBoundQuery(GLenum target, WebGLQuery* query);
 
-    bool ValidateSizedInternalFormat(GLenum internalFormat, const char* info);
-    bool ValidateTexStorage(GLenum target, GLsizei levels, GLenum internalformat,
-                                GLsizei width, GLsizei height, GLsizei depth,
-                                const char* info);
-
     // CreateVertexArrayImpl is assumed to be infallible.
     virtual WebGLVertexArray* CreateVertexArrayImpl() override;
     virtual bool ValidateAttribPointerType(bool integerMode, GLenum type, GLsizei* alignment, const char* info) override;
