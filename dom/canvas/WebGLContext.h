@@ -340,10 +340,6 @@ public:
     // all context resources to be lost.
     uint32_t Generation() { return mGeneration.value(); }
 
-    // Returns null if the current bound FB is not likely complete.
-    const WebGLRectangleObject* CurValidDrawFBRectObject() const;
-    const WebGLRectangleObject* CurValidReadFBRectObject() const;
-
     static const size_t kMaxColorAttachments = 16;
 
     // This is similar to GLContext::ClearSafely, but tries to minimize the
@@ -1028,16 +1024,6 @@ private:
 // -----------------------------------------------------------------------------
 // PROTECTED
 protected:
-    void SetFakeBlackStatus(WebGLContextFakeBlackStatus x) {
-        mFakeBlackStatus = x;
-    }
-    // Returns the current fake-black-status, except if it was Unknown,
-    // in which case this function resolves it first, so it never returns Unknown.
-    WebGLContextFakeBlackStatus ResolvedFakeBlackStatus();
-
-    void BindFakeBlackTextures();
-    void UnbindFakeBlackTextures();
-
     WebGLVertexAttrib0Status WhatDoesVertexAttrib0Need();
     bool DoFakeVertexAttrib0(GLuint vertexCount);
     void UndoFakeVertexAttrib0();
@@ -1118,7 +1104,7 @@ public:
     }
 
 
-    bool IsFormatValidForFB(GLenum sizedFormat) const;
+    bool IsFormatValidForFB(TexInternalFormat format) const;
 
 protected:
     // Represents current status of the context with respect to context loss.
@@ -1155,9 +1141,11 @@ protected:
     WebGLExtensionBase* EnableSupportedExtension(JSContext* js,
                                                  WebGLExtensionID ext);
 
+public:
     // returns true if the extension has been enabled by calling getExtension.
     bool IsExtensionEnabled(WebGLExtensionID ext) const;
 
+protected:
     // returns true if the extension is supported for this JSContext (this decides what getSupportedExtensions exposes)
     bool IsExtensionSupported(JSContext* cx, WebGLExtensionID ext) const;
     bool IsExtensionSupported(WebGLExtensionID ext) const;
@@ -1207,8 +1195,8 @@ protected:
                                WebGLintptr byteOffset, const char* info);
     bool ValidateStencilParamsForDrawCall();
 
-    bool ValidateCopyTexImage(GLenum internalFormat, WebGLTexImageFunc func,
-                              WebGLTexDimensions dims);
+    bool ValidateCopyTexImage(TexInternalFormat srcFormat, TexInternalFormat dstformat,
+                              WebGLTexImageFunc func, WebGLTexDimensions dims);
 
     bool ValidateSamplerParameterName(GLenum pname, const char* info);
     bool ValidateSamplerParameterParams(GLenum pname, const WebGLIntOrFloat& param, const char* info);
@@ -1254,6 +1242,9 @@ protected:
     bool ValidateUniformLocationForProgram(WebGLUniformLocation* location,
                                            WebGLProgram* program,
                                            const char* funcName);
+
+    bool ValidateCurFBForRead(const char* funcName, TexInternalFormat* const out_format,
+                              uint32_t* const out_width, uint32_t* const out_height);
 
     void Invalidate();
     void DestroyResourcesAndContext();
@@ -1397,8 +1388,8 @@ protected:
     bool mPixelStoreFlipY;
     bool mPixelStorePremultiplyAlpha;
 
-    WebGLContextFakeBlackStatus mFakeBlackStatus;
-
+    // Fake-black
+public:
     class FakeBlackTexture {
         gl::GLContext* const mGL;
         GLuint mGLName;
@@ -1409,16 +1400,18 @@ protected:
         GLuint GLName() const { return mGLName; }
     };
 
-    UniquePtr<FakeBlackTexture> mBlackOpaqueTexture2D;
-    UniquePtr<FakeBlackTexture> mBlackOpaqueTextureCubeMap;
-    UniquePtr<FakeBlackTexture> mBlackTransparentTexture2D;
-    UniquePtr<FakeBlackTexture> mBlackTransparentTextureCubeMap;
+    void InvalidateFakeBlackCache() { mCanSkipFakeBlack = false; }
 
-    void
-    BindFakeBlackTexturesHelper(GLenum target,
-                                const nsTArray<WebGLRefPtr<WebGLTexture> >& boundTexturesArray,
-                                UniquePtr<FakeBlackTexture>& opaqueTextureScopedPtr,
-                                UniquePtr<FakeBlackTexture>& transparentTextureScopedPtr);
+protected:
+    bool mCanSkipFakeBlack;
+
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Opaque;
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Alpha;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Opaque;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Alpha;
+
+    void BindFakeBlackTextures();
+    void UnbindFakeBlackTextures();
 
     // Generic Vertex Attributes
     UniquePtr<GLenum[]> mVertexAttribType;

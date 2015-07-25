@@ -13,107 +13,12 @@
 
 namespace mozilla {
 
-using gl::GLContext;
-using gl::GLFormats;
-using webgl::EffectiveFormat;
-using webgl::FormatInfo;
-using webgl::ComponentType;
-
-// Returns one of FLOAT, INT, UNSIGNED_INT.
-// Fixed-points (normalized ints) are considered FLOAT.
-static GLenum
-ValueTypeForFormat(GLenum internalFormat)
-{
-    switch (internalFormat) {
-    // Fixed-point
-    case LOCAL_GL_R8:
-    case LOCAL_GL_RG8:
-    case LOCAL_GL_RGB565:
-    case LOCAL_GL_RGB8:
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGB5_A1:
-    case LOCAL_GL_RGBA8:
-    case LOCAL_GL_RGB10_A2:
-    case LOCAL_GL_ALPHA8:
-    case LOCAL_GL_LUMINANCE8:
-    case LOCAL_GL_LUMINANCE8_ALPHA8:
-    case LOCAL_GL_SRGB8:
-    case LOCAL_GL_SRGB8_ALPHA8:
-    case LOCAL_GL_R8_SNORM:
-    case LOCAL_GL_RG8_SNORM:
-    case LOCAL_GL_RGB8_SNORM:
-    case LOCAL_GL_RGBA8_SNORM:
-
-    // Floating-point
-    case LOCAL_GL_R16F:
-    case LOCAL_GL_RG16F:
-    case LOCAL_GL_RGB16F:
-    case LOCAL_GL_RGBA16F:
-    case LOCAL_GL_ALPHA16F_EXT:
-    case LOCAL_GL_LUMINANCE16F_EXT:
-    case LOCAL_GL_LUMINANCE_ALPHA16F_EXT:
-
-    case LOCAL_GL_R32F:
-    case LOCAL_GL_RG32F:
-    case LOCAL_GL_RGB32F:
-    case LOCAL_GL_RGBA32F:
-    case LOCAL_GL_ALPHA32F_EXT:
-    case LOCAL_GL_LUMINANCE32F_EXT:
-    case LOCAL_GL_LUMINANCE_ALPHA32F_EXT:
-
-    case LOCAL_GL_R11F_G11F_B10F:
-    case LOCAL_GL_RGB9_E5:
-        return LOCAL_GL_FLOAT;
-
-    // Int
-    case LOCAL_GL_R8I:
-    case LOCAL_GL_RG8I:
-    case LOCAL_GL_RGB8I:
-    case LOCAL_GL_RGBA8I:
-
-    case LOCAL_GL_R16I:
-    case LOCAL_GL_RG16I:
-    case LOCAL_GL_RGB16I:
-    case LOCAL_GL_RGBA16I:
-
-    case LOCAL_GL_R32I:
-    case LOCAL_GL_RG32I:
-    case LOCAL_GL_RGB32I:
-    case LOCAL_GL_RGBA32I:
-        return LOCAL_GL_INT;
-
-    // Unsigned int
-    case LOCAL_GL_R8UI:
-    case LOCAL_GL_RG8UI:
-    case LOCAL_GL_RGB8UI:
-    case LOCAL_GL_RGBA8UI:
-
-    case LOCAL_GL_R16UI:
-    case LOCAL_GL_RG16UI:
-    case LOCAL_GL_RGB16UI:
-    case LOCAL_GL_RGBA16UI:
-
-    case LOCAL_GL_R32UI:
-    case LOCAL_GL_RG32UI:
-    case LOCAL_GL_RGB32UI:
-    case LOCAL_GL_RGBA32UI:
-
-    case LOCAL_GL_RGB10_A2UI:
-        return LOCAL_GL_UNSIGNED_INT;
-
-    default:
-        MOZ_CRASH("Bad `internalFormat`.");
-    }
-}
-
-// -------------------------------------------------------------------------
-// Framebuffer objects
-
 static bool
 GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
                  const char* const fbInfo, GLsizei* const out_samples,
-                 GLenum* const out_colorFormat, GLenum* const out_depthFormat,
-                 GLenum* const out_stencilFormat)
+                 const webgl::FormatInfo** const out_colorFormat,
+                 const webgl::FormatInfo** const out_depthFormat,
+                 const webgl::FormatInfo** const out_stencilFormat)
 {
     auto status = fb->PrecheckFramebufferStatus();
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
@@ -125,29 +30,29 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
     *out_samples = 1; // TODO
 
     if (fb->ColorAttachment(0).IsDefined()) {
-        const auto& attachement = fb->ColorAttachment(0);
-        *out_colorFormat = attachement.EffectiveInternalFormat().get();
+        const auto& attachment = fb->ColorAttachment(0);
+        *out_colorFormat = attachment.Format().get();
     } else {
-        *out_colorFormat = 0;
+        *out_colorFormat = nullptr;
     }
 
     if (fb->DepthStencilAttachment().IsDefined()) {
-        const auto& attachement = fb->DepthStencilAttachment();
-        *out_depthFormat = attachement.EffectiveInternalFormat().get();
+        const auto& attachment = fb->DepthStencilAttachment();
+        *out_depthFormat = attachment.Format().get();
         *out_stencilFormat = *out_depthFormat;
     } else {
         if (fb->DepthAttachment().IsDefined()) {
-            const auto& attachement = fb->DepthAttachment();
-            *out_depthFormat = attachement.EffectiveInternalFormat().get();
+            const auto& attachment = fb->DepthAttachment();
+            *out_depthFormat = attachment.Format().get();
         } else {
-            *out_depthFormat = 0;
+            *out_depthFormat = nullptr;
         }
 
         if (fb->StencilAttachment().IsDefined()) {
-            const auto& attachement = fb->StencilAttachment();
-            *out_stencilFormat = attachement.EffectiveInternalFormat().get();
+            const auto& attachment = fb->StencilAttachment();
+            *out_stencilFormat = attachment.Format().get();
         } else {
-            *out_stencilFormat = 0;
+            *out_stencilFormat = nullptr;
         }
     }
     return true;
@@ -196,9 +101,9 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     }
 
     GLsizei srcSamples;
-    GLenum srcColorFormat = 0;
-    GLenum srcDepthFormat = 0;
-    GLenum srcStencilFormat = 0;
+    const webgl::FormatInfo* srcColorFormat;
+    const webgl::FormatInfo* srcDepthFormat;
+    const webgl::FormatInfo* srcStencilFormat;
 
     if (mBoundReadFramebuffer) {
         if (!GetFBInfoForBlit(mBoundReadFramebuffer, this, "READ_FRAMEBUFFER",
@@ -378,7 +283,7 @@ WebGL2Context::FramebufferTextureLayer(GLenum target, GLenum attachment,
         if (level < 0)
             return ErrorInvalidValue("framebufferTextureLayer: layer must be >= 0.");
 
-        switch (texture->Target()) {
+        switch (texture->Target().get()) {
         case LOCAL_GL_TEXTURE_3D:
             if ((GLuint) layer >= mGLMax3DTextureSize) {
                 return ErrorInvalidValue("framebufferTextureLayer: layer must be < "
