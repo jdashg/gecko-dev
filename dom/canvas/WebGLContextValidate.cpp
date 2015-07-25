@@ -793,8 +793,8 @@ WebGLContext::ValidateCompTexImageSize(GLint level, GLenum format,
     case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
     case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
     case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-        if (!IsPOTAssumingNonnegative(width) ||
-            !IsPOTAssumingNonnegative(height))
+        if (!IsPowerOfTwo(width) ||
+            !IsPowerOfTwo(height))
         {
             ErrorInvalidValue("%s: Width and height must be powers of two.",
                               InfoFrom(func, dims));
@@ -953,14 +953,14 @@ WebGLContext::ValidateTexImageSize(TexImageTarget texImageTarget, GLint level,
          * This restriction does not apply to GL ES Version 3.0+.
          */
         if (!IsWebGL2() && level > 0) {
-            if (!IsPOTAssumingNonnegative(width)) {
+            if (!IsPowerOfTwo(width)) {
                 ErrorInvalidValue("%s: For level > 0, width of %d must be a"
                                   " power of two.", InfoFrom(func, dims),
                                   width);
                 return false;
             }
 
-            if (!IsPOTAssumingNonnegative(height)) {
+            if (!IsPowerOfTwo(height)) {
                 ErrorInvalidValue("%s: For level > 0, height of %d must be a"
                                   " power of two.", InfoFrom(func, dims),
                                   height);
@@ -976,7 +976,7 @@ WebGLContext::ValidateTexImageSize(TexImageTarget texImageTarget, GLint level,
             return false;
         }
 
-        if (!IsWebGL2() && !IsPOTAssumingNonnegative(depth)) {
+        if (!IsWebGL2() && !IsPowerOfTwo(depth)) {
             ErrorInvalidValue("%s: Depth of %d must be a power of two.",
                               InfoFrom(func, dims), depth);
             return false;
@@ -1245,11 +1245,12 @@ WebGLContext::ValidateTexInputData(GLenum type, js::Scalar::Type jsArrayType,
  *   are available)
  */
 bool
-WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
+WebGLContext::ValidateCopyTexImage(TexInternalFormat srcFormat,
+                                   TexInternalFormat dstformat, WebGLTexImageFunc func,
                                    WebGLTexDimensions dims)
 {
     MOZ_ASSERT(IsCopyFunc(func));
-
+/*
     // Default framebuffer format
     GLenum fboFormat = mOptions.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB;
 
@@ -1260,16 +1261,16 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
 
         fboFormat = srcFormat.get();
     }
-
-    // Make sure the format of the framebuffer is a superset of the format
-    // requested by the CopyTex[Sub]Image2D functions.
-    const GLComponents formatComps = GLComponents(format);
-    const GLComponents fboComps = GLComponents(fboFormat);
-    if (!formatComps.IsSubsetOf(fboComps)) {
+*/
+    // Make sure the format of the framebuffer (srcFormat) is a superset of the format
+    // requested by the CopyTex[Sub]Image2D functions (dstFormat).
+    const GLComponents srcComps = GLComponents(srcFormat);
+    const GLComponents dstComps = GLComponents(dstformat);
+    if (!dstComps.IsSubsetOf(srcComps)) {
         ErrorInvalidOperation("%s: Format %s is not a subset of the current"
                               " framebuffer format, which is %s.",
-                              InfoFrom(func, dims), EnumName(format),
-                              EnumName(fboFormat));
+                              InfoFrom(func, dims), EnumName(dstformat.get()),
+                              EnumName(srcFormat.get()));
         return false;
     }
 
@@ -1383,7 +1384,8 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
     }
 
     if (IsSubFunc(func)) {
-        if (!tex->HasImageInfoAt(texImageTarget, level)) {
+        const auto& imageInfo = tex->ImageInfoAt(texImageTarget, level);
+        if (!imageInfo.IsDefined()) {
             ErrorInvalidOperation("%s: No texture image previously defined for"
                                   " target %s at level %d.", info,
                                   WebGLContext::EnumName(texImageTarget.get()),
@@ -1391,10 +1393,9 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
             return false;
         }
 
-        const auto& imageInfo = tex->ImageInfoAt(texImageTarget, level);
         if (!ValidateTexSubImageSize(xoffset, yoffset, zoffset, width, height,
-                                     depth, imageInfo.Width(),
-                                     imageInfo.Height(), 0, func, dims))
+                                     depth, imageInfo.mWidth,
+                                     imageInfo.mHeight, 0, func, dims))
         {
             return false;
         }
@@ -1577,7 +1578,7 @@ WebGLContext::ValidateAttribPointer(bool integerMode, GLuint index, GLint size, 
         return false;
 
     // requiredAlignment should always be a power of two
-    MOZ_ASSERT(IsPOTAssumingNonnegative(requiredAlignment));
+    MOZ_ASSERT(IsPowerOfTwo(requiredAlignment));
     GLsizei requiredAlignmentMask = requiredAlignment - 1;
 
     if (size < 1 || size > 4) {

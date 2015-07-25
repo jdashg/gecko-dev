@@ -115,8 +115,6 @@ WebGLContext::WebGLContext()
     mPixelStorePremultiplyAlpha = false;
     mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
-    mFakeBlackStatus = WebGLContextFakeBlackStatus::NotNeeded;
-
     mVertexAttrib0Vector[0] = 0;
     mVertexAttrib0Vector[1] = 0;
     mVertexAttrib0Vector[2] = 0;
@@ -128,6 +126,8 @@ WebGLContext::WebGLContext()
     mFakeVertexAttrib0BufferObjectSize = 0;
     mFakeVertexAttrib0BufferObject = 0;
     mFakeVertexAttrib0BufferStatus = WebGLVertexAttrib0Status::Default;
+
+    mCanSkipFakeBlack = false;
 
     mViewportX = 0;
     mViewportY = 0;
@@ -267,10 +267,10 @@ WebGLContext::DestroyResourcesAndContext()
     while (!mTransformFeedbacks.isEmpty())
         mTransformFeedbacks.getLast()->DeleteOnce();
 
-    mBlackOpaqueTexture2D = nullptr;
-    mBlackOpaqueTextureCubeMap = nullptr;
-    mBlackTransparentTexture2D = nullptr;
-    mBlackTransparentTextureCubeMap = nullptr;
+    mFakeBlack_2D_Opaque      = nullptr;
+    mFakeBlack_2D_Alpha       = nullptr;
+    mFakeBlack_CubeMap_Opaque = nullptr;
+    mFakeBlack_CubeMap_Alpha  = nullptr;
 
     if (mFakeVertexAttrib0BufferObject)
         gl->fDeleteBuffers(1, &mFakeVertexAttrib0BufferObject);
@@ -1824,6 +1824,25 @@ CheckedUint32
 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
 {
     return ((x + y - 1) / y) * y;
+}
+
+bool
+WebGLContext::ValidateCurFBForRead(const char* funcName,
+                                   TexInternalFormat* const out_format,
+                                   uint32_t* const out_width, uint32_t* const out_height)
+{
+    if (!mBoundReadFramebuffer) {
+        ClearBackbufferIfNeeded();
+        // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
+        // that might not always be true, say if we had a 16bpp default framebuffer.
+        *out_format = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
+        *out_width = mWidth;
+        *out_height = mHeight;
+        return true;
+    }
+
+    return mBoundReadFramebuffer->ValidateForRead(funcName, out_format, out_width,
+                                                  out_height);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

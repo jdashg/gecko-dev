@@ -59,37 +59,6 @@ using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
-static const WebGLRectangleObject*
-CurValidFBRectObject(const WebGLContext* webgl,
-                     const WebGLFramebuffer* boundFB)
-{
-    const WebGLRectangleObject* rect = nullptr;
-
-    if (boundFB) {
-        // We don't really need to ask the driver.
-        // Use 'precheck' to just check that our internal state looks good.
-        FBStatus precheckStatus = boundFB->PrecheckFramebufferStatus();
-        if (precheckStatus == LOCAL_GL_FRAMEBUFFER_COMPLETE)
-            rect = &boundFB->RectangleObject();
-    } else {
-        rect = static_cast<const WebGLRectangleObject*>(webgl);
-    }
-
-    return rect;
-}
-
-const WebGLRectangleObject*
-WebGLContext::CurValidDrawFBRectObject() const
-{
-    return CurValidFBRectObject(this, mBoundDrawFramebuffer);
-}
-
-const WebGLRectangleObject*
-WebGLContext::CurValidReadFBRectObject() const
-{
-    return CurValidFBRectObject(this, mBoundReadFramebuffer);
-}
-
 //
 //  WebGL API
 //
@@ -423,8 +392,6 @@ WebGLContext::DeleteTexture(WebGLTexture* tex)
     if (mBoundReadFramebuffer)
         mBoundReadFramebuffer->DetachTexture(tex);
 
-    tex->InvalidateStatusOfAttachedFBs();
-
     GLuint activeTexture = mActiveTexture;
     for (int32_t i = 0; i < mGLMaxTextureUnits; i++) {
         if ((mBound2DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_2D) ||
@@ -432,7 +399,7 @@ WebGLContext::DeleteTexture(WebGLTexture* tex)
             (mBound3DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_3D))
         {
             ActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            BindTexture(tex->Target(), nullptr);
+            BindTexture(tex->Target().get(), nullptr);
         }
     }
     ActiveTexture(LOCAL_GL_TEXTURE0 + activeTexture);
@@ -837,7 +804,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
              case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
                     const TexInternalFormat effectiveInternalFormat =
-                        fba.Texture()->ImageInfoBase().EffectiveInternalFormat();
+                        fba.Texture()->BaseImageInfo().mFormat;
 
                     if (effectiveInternalFormat == LOCAL_GL_NONE) {
                         ErrorInvalidOperation("getFramebufferAttachmentParameter: "
@@ -890,7 +857,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                     return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
 
                 TexInternalFormat effectiveInternalFormat =
-                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).EffectiveInternalFormat();
+                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).mFormat;
                 TexType type = TypeFromInternalFormat(effectiveInternalFormat);
                 GLenum ret = LOCAL_GL_NONE;
                 switch (type.get()) {
@@ -1429,10 +1396,6 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
     if (!IsFormatAndTypeUnpackable(format, type))
         return ErrorInvalidEnum("readPixels: Bad format or type.");
 
-    const WebGLRectangleObject* framebufferRect = CurValidReadFBRectObject();
-    GLsizei framebufferWidth = framebufferRect ? framebufferRect->Width() : 0;
-    GLsizei framebufferHeight = framebufferRect ? framebufferRect->Height() : 0;
-
     int channels = 0;
 
     // Check the format param
@@ -1516,27 +1479,21 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
     MakeContextCurrent();
 
-    bool isSourceTypeFloat;
-    if (mBoundReadFramebuffer) {
-        TexInternalFormat srcFormat;
-        if (!mBoundReadFramebuffer->ValidateForRead("readPixels", &srcFormat))
-            return;
+    TexInternalFormat srcFormat;
+    uint32_t srcWidth;
+    uint32_t srcHeight;
+    if (!ValidateCurFBForRead("readPixels", &srcFormat, &srcWidth, &srcHeight))
+        return;
 
-        MOZ_ASSERT(srcFormat != LOCAL_GL_NONE);
-        TexType texType = TypeFromInternalFormat(srcFormat);
-        isSourceTypeFloat = (texType == LOCAL_GL_FLOAT ||
-                             texType == LOCAL_GL_HALF_FLOAT);
-    } else {
-        ClearBackbufferIfNeeded();
-
-        isSourceTypeFloat = false;
-    }
+    const TexType srcType = TypeFromInternalFormat(srcFormat);
+    const bool isSrcTypeFloat = (srcType == LOCAL_GL_FLOAT ||
+                                 srcType == LOCAL_GL_HALF_FLOAT);
 
     // Check the format and type params to assure they are an acceptable pair (as per spec)
 
     const GLenum mainReadFormat = LOCAL_GL_RGBA;
-    const GLenum mainReadType = isSourceTypeFloat ? LOCAL_GL_FLOAT
-                                                  : LOCAL_GL_UNSIGNED_BYTE;
+    const GLenum mainReadType = isSrcTypeFloat ? LOCAL_GL_FLOAT
+                                               : LOCAL_GL_UNSIGNED_BYTE;
 
     GLenum auxReadFormat = mainReadFormat;
     GLenum auxReadType = mainReadType;
@@ -1572,7 +1529,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
     if (width == 0 || height == 0)
         return DummyFramebufferOperation("readPixels");
 
-    if (CanvasUtils::CheckSaneSubrectSize(x, y, width, height, framebufferWidth, framebufferHeight)) {
+    if (CanvasUtils::CheckSaneSubrectSize(x, y, width, height, srcWidth, srcHeight)) {
         // the easy case: we're not reading out-of-range pixels
 
         // Effectively: gl->fReadPixels(x, y, width, height, format, type, dest);
@@ -1589,9 +1546,9 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // Zero the whole pixel dest area in the destination buffer.
         memset(data, 0, checked_neededByteLength.value());
 
-        if (   x >= framebufferWidth
+        if (   x >= int32_t(srcWidth)
             || x+width <= 0
-            || y >= framebufferHeight
+            || y >= int32_t(srcHeight)
             || y+height <= 0)
         {
             // we are completely outside of range, can exit now with buffer filled with zeros
@@ -1600,16 +1557,18 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
         // compute the parameters of the subrect we're actually going to call glReadPixels on
         GLint   subrect_x      = std::max(x, 0);
-        GLint   subrect_end_x  = std::min(x+width, framebufferWidth);
+        GLint   subrect_end_x  = std::min(x+width, int32_t(srcWidth));
         GLsizei subrect_width  = subrect_end_x - subrect_x;
 
         GLint   subrect_y      = std::max(y, 0);
-        GLint   subrect_end_y  = std::min(y+height, framebufferHeight);
+        GLint   subrect_end_y  = std::min(y+height, int32_t(srcHeight));
         GLsizei subrect_height = subrect_end_y - subrect_y;
 
         if (subrect_width < 0 || subrect_height < 0 ||
             subrect_width > width || subrect_height > height)
+        {
             return ErrorInvalidOperation("readPixels: integer overflow computing clipped rect size");
+        }
 
         // now we know that subrect_width is in the [0..width] interval, and same for heights.
 

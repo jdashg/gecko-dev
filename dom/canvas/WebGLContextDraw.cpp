@@ -385,17 +385,28 @@ void WebGLContext::Draw_cleanup()
         }
     }
 
-    // Let's check the viewport
-    const WebGLRectangleObject* rect = CurValidDrawFBRectObject();
-    if (rect) {
-        if (mViewportWidth > rect->Width() ||
-            mViewportHeight > rect->Height())
-        {
-            if (!mAlreadyWarnedAboutViewportLargerThanDest) {
-                GenerateWarning("Drawing to a destination rect smaller than the viewport rect. "
-                                "(This warning will only be given once)");
-                mAlreadyWarnedAboutViewportLargerThanDest = true;
-            }
+    // Let's check for a really common error: Viewport is larger than the actual
+    // destination framebuffer.
+    uint32_t destWidth = mViewportWidth;
+    uint32_t destHeight = mViewportHeight;
+
+    if (mBoundDrawFramebuffer) {
+        const auto& fba = mBoundDrawFramebuffer->ColorAttachment(0);
+        if (fba.IsDefined()) {
+            fba.Size(&destWidth, &destHeight);
+        }
+    } else {
+        destWidth = mWidth;
+        destHeight = mHeight;
+    }
+
+    if (mViewportWidth > int32_t(destWidth) ||
+        mViewportHeight > int32_t(destHeight))
+    {
+        if (!mAlreadyWarnedAboutViewportLargerThanDest) {
+            GenerateWarning("Drawing to a destination rect smaller than the viewport rect. "
+                            "(This warning will only be given once)");
+            mAlreadyWarnedAboutViewportLargerThanDest = true;
         }
     }
 }
@@ -645,104 +656,123 @@ WebGLContext::UndoFakeVertexAttrib0()
     gl->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mBoundArrayBuffer ? mBoundArrayBuffer->mGLName : 0);
 }
 
-WebGLContextFakeBlackStatus
-WebGLContext::ResolvedFakeBlackStatus()
+static bool
+BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
+                    const nsTArray<WebGLRefPtr<WebGLTexture>>& texArray,
+                    WebGLContext::FakeBlackTexture* opaqueTex,
+                    WebGLContext::FakeBlackTexture* alphaTex)
 {
-    // handle this case first, it's the generic case
-    if (MOZ_LIKELY(mFakeBlackStatus == WebGLContextFakeBlackStatus::NotNeeded))
-        return mFakeBlackStatus;
+    MOZ_ASSERT(opaqueTex && alphaTex);
 
-    if (mFakeBlackStatus == WebGLContextFakeBlackStatus::Needed)
-        return mFakeBlackStatus;
+    bool wasNeeded = false;
 
-    for (int32_t i = 0; i < mGLMaxTextureUnits; ++i) {
-        if ((mBound2DTextures[i] && mBound2DTextures[i]->ResolvedFakeBlackStatus() != WebGLTextureFakeBlackStatus::NotNeeded) ||
-            (mBoundCubeMapTextures[i] && mBoundCubeMapTextures[i]->ResolvedFakeBlackStatus() != WebGLTextureFakeBlackStatus::NotNeeded))
-        {
-            mFakeBlackStatus = WebGLContextFakeBlackStatus::Needed;
-            return mFakeBlackStatus;
-        }
-    }
-
-    // we have exhausted all cases where we do need fakeblack, so if the status is still unknown,
-    // that means that we do NOT need it.
-    mFakeBlackStatus = WebGLContextFakeBlackStatus::NotNeeded;
-    return mFakeBlackStatus;
-}
-
-void
-WebGLContext::BindFakeBlackTexturesHelper(
-    GLenum target,
-    const nsTArray<WebGLRefPtr<WebGLTexture> > & boundTexturesArray,
-    UniquePtr<FakeBlackTexture> & opaqueTextureScopedPtr,
-    UniquePtr<FakeBlackTexture> & transparentTextureScopedPtr)
-{
-    for (int32_t i = 0; i < mGLMaxTextureUnits; ++i) {
-        if (!boundTexturesArray[i]) {
+    int32_t len = texArray.Length();
+    for (int32_t i = 0; i < len; i++) {
+        WebGLTexture* tex = texArray[i];
+        if (!tex)
             continue;
-        }
 
-        WebGLTextureFakeBlackStatus s = boundTexturesArray[i]->ResolvedFakeBlackStatus();
-        MOZ_ASSERT(s != WebGLTextureFakeBlackStatus::Unknown);
+        WebGLTextureFakeBlackStatus status;
+        if (!tex->ResolveFakeBlackStatus(&status))
+            return true; // Technically this should propagate up as a critical failure.
+                         // I believe this is currently harmless.
+        MOZ_ASSERT(status != WebGLTextureFakeBlackStatus::Unknown);
 
-        if (MOZ_LIKELY(s == WebGLTextureFakeBlackStatus::NotNeeded)) {
+        if (MOZ_LIKELY(status == WebGLTextureFakeBlackStatus::NotNeeded))
             continue;
-        }
 
-        bool alpha = s == WebGLTextureFakeBlackStatus::UninitializedImageData &&
-                     FormatHasAlpha(boundTexturesArray[i]->ImageInfoBase().EffectiveInternalFormat());
-        UniquePtr<FakeBlackTexture>&
-            blackTexturePtr = alpha
-                              ? transparentTextureScopedPtr
-                              : opaqueTextureScopedPtr;
+        // Ok, needs fake-black.
+        wasNeeded = true;
 
-        if (!blackTexturePtr) {
-            GLenum format = alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB;
-            blackTexturePtr = MakeUnique<FakeBlackTexture>(gl, target, format);
+        // Default to (0, 0, 0, 1) for incomplete textures, as well as uninit'd alpha-less
+        // formats.
+        WebGLContext::FakeBlackTexture* fakeTex = opaqueTex;
+
+        if (status == WebGLTextureFakeBlackStatus::UninitializedImageData) {
+            const auto& imageInfo = tex->BaseImageInfo();
+            if (FormatHasAlpha(imageInfo.mFormat)) {
+                fakeTex = alphaTex;
+            }
         }
 
         gl->fActiveTexture(LOCAL_GL_TEXTURE0 + i);
-        gl->fBindTexture(target,
-                         blackTexturePtr->GLName());
+        gl->fBindTexture(target.get(), fakeTex->GLName());
     }
+
+    return wasNeeded;
+}
+
+static bool
+UnbindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
+                      const nsTArray<WebGLRefPtr<WebGLTexture>>& texArray)
+{
+    bool changedActiveTex = false;
+
+    const int32_t len = texArray.Length();
+    for (int32_t i = 0; i < len; i++) {
+        WebGLTexture* tex = texArray[i];
+        if (!tex)
+            continue;
+
+        auto status = tex->FakeBlackStatus();
+        MOZ_ASSERT(status != WebGLTextureFakeBlackStatus::Unknown);
+        if (MOZ_LIKELY(status == WebGLTextureFakeBlackStatus::NotNeeded))
+            continue;
+
+        gl->fActiveTexture(LOCAL_GL_TEXTURE0 + i);
+        changedActiveTex = true;
+
+        gl->fBindTexture(target.get(), tex->mGLName);
+    }
+
+    return changedActiveTex;
 }
 
 void
 WebGLContext::BindFakeBlackTextures()
 {
-    // this is the generic case: try to return early
-    if (MOZ_LIKELY(ResolvedFakeBlackStatus() == WebGLContextFakeBlackStatus::NotNeeded))
+    if (mCanSkipFakeBlack)
         return;
 
-    BindFakeBlackTexturesHelper(LOCAL_GL_TEXTURE_2D,
-                                mBound2DTextures,
-                                mBlackOpaqueTexture2D,
-                                mBlackTransparentTexture2D);
-    BindFakeBlackTexturesHelper(LOCAL_GL_TEXTURE_CUBE_MAP,
-                                mBoundCubeMapTextures,
-                                mBlackOpaqueTextureCubeMap,
-                                mBlackTransparentTextureCubeMap);
+    if (!mFakeBlack_2D_Opaque) {
+        typedef FakeBlackTexture T;
+
+        mFakeBlack_2D_Opaque = MakeUnique<T>(gl, LOCAL_GL_TEXTURE_2D, LOCAL_GL_RGB);
+        mFakeBlack_2D_Alpha = MakeUnique<T>(gl, LOCAL_GL_TEXTURE_2D, LOCAL_GL_RGBA);
+
+        mFakeBlack_CubeMap_Opaque = MakeUnique<T>(gl, LOCAL_GL_TEXTURE_CUBE_MAP,
+                                                  LOCAL_GL_RGB);
+        mFakeBlack_CubeMap_Alpha = MakeUnique<T>(gl, LOCAL_GL_TEXTURE_CUBE_MAP,
+                                                 LOCAL_GL_RGBA);
+    }
+
+    bool wasNeeded = false;
+
+    wasNeeded |= BindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_2D, mBound2DTextures,
+                                     mFakeBlack_2D_Opaque.get(),
+                                     mFakeBlack_2D_Alpha.get());
+    wasNeeded |= BindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_CUBE_MAP, mBoundCubeMapTextures,
+                                     mFakeBlack_CubeMap_Opaque.get(),
+                                     mFakeBlack_CubeMap_Alpha.get());
+
+    mCanSkipFakeBlack = !wasNeeded;
 }
 
 void
 WebGLContext::UnbindFakeBlackTextures()
 {
-    // this is the generic case: try to return early
-    if (MOZ_LIKELY(ResolvedFakeBlackStatus() == WebGLContextFakeBlackStatus::NotNeeded))
+    if (mCanSkipFakeBlack)
         return;
 
-    for (int32_t i = 0; i < mGLMaxTextureUnits; ++i) {
-        if (mBound2DTextures[i] && mBound2DTextures[i]->ResolvedFakeBlackStatus() != WebGLTextureFakeBlackStatus::NotNeeded) {
-            gl->fActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            gl->fBindTexture(LOCAL_GL_TEXTURE_2D, mBound2DTextures[i]->mGLName);
-        }
-        if (mBoundCubeMapTextures[i] && mBoundCubeMapTextures[i]->ResolvedFakeBlackStatus() != WebGLTextureFakeBlackStatus::NotNeeded) {
-            gl->fActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            gl->fBindTexture(LOCAL_GL_TEXTURE_CUBE_MAP, mBoundCubeMapTextures[i]->mGLName);
-        }
-    }
+    bool changedActiveTex = false;
 
-    gl->fActiveTexture(LOCAL_GL_TEXTURE0 + mActiveTexture);
+    changedActiveTex |= UnbindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_2D, mBound2DTextures);
+    changedActiveTex |= UnbindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_CUBE_MAP,
+                                              mBoundCubeMapTextures);
+
+    if (changedActiveTex) {
+        gl->fActiveTexture(LOCAL_GL_TEXTURE0 + mActiveTexture);
+    }
 }
 
 WebGLContext::FakeBlackTexture::FakeBlackTexture(gl::GLContext* gl, TexTarget target, GLenum format)

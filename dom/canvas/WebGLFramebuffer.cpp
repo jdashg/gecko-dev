@@ -28,6 +28,12 @@ WebGLFBAttachPoint::~WebGLFBAttachPoint()
     MOZ_ASSERT(!mTexturePtr);
 }
 
+void
+WebGLFBAttachPoint::Unlink()
+{
+    Clear();
+}
+
 bool
 WebGLFBAttachPoint::IsDeleteRequested() const
 {
@@ -39,26 +45,29 @@ WebGLFBAttachPoint::IsDeleteRequested() const
 bool
 WebGLFBAttachPoint::IsDefined() const
 {
-    return Renderbuffer() ||
-           (Texture() && Texture()->HasImageInfoAt(ImageTarget(), 0));
+    return (Renderbuffer() && Renderbuffer()->IsDefined()) ||
+           (Texture() && Texture()->ImageInfoAt(mTexImageTarget,
+                                                mTexImageLevel).IsDefined());
+}
+
+TexInternalFormat
+WebGLFBAttachPoint::Format() const
+{
+    MOZ_ASSERT(IsDefined());
+
+    if (Texture())
+        return Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).mFormat;
+
+    if (Renderbuffer())
+        return Renderbuffer()->InternalFormat();
+
+    return LOCAL_GL_NONE;
 }
 
 bool
 WebGLFBAttachPoint::HasAlpha() const
 {
-    MOZ_ASSERT(HasImage());
-
-    if (Texture() &&
-        Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
-    {
-        return FormatHasAlpha(Texture()->ImageInfoAt(mTexImageTarget,
-                                                     mTexImageLevel).EffectiveInternalFormat());
-    }
-
-    if (Renderbuffer())
-        return FormatHasAlpha(Renderbuffer()->InternalFormat());
-
-    return false;
+    return FormatHasAlpha(Format());
 }
 
 GLenum
@@ -67,57 +76,35 @@ WebGLFramebuffer::GetFormatForAttachment(const WebGLFBAttachPoint& attachment) c
     MOZ_ASSERT(attachment.IsDefined());
     MOZ_ASSERT(attachment.Texture() || attachment.Renderbuffer());
 
-    if (attachment.Texture()) {
-        const WebGLTexture& tex = *attachment.Texture();
-        MOZ_ASSERT(tex.HasImageInfoAt(attachment.ImageTarget(), 0));
-
-        const WebGLTexture::ImageInfo& imgInfo = tex.ImageInfoAt(attachment.ImageTarget(),
-                                                                 0);
-        return imgInfo.EffectiveInternalFormat().get();
-    }
-
-    if (attachment.Renderbuffer())
-        return attachment.Renderbuffer()->InternalFormat();
-
-    return LOCAL_GL_NONE;
-}
-
-TexInternalFormat
-WebGLFBAttachPoint::EffectiveInternalFormat() const
-{
-    const WebGLTexture* tex = Texture();
-    if (tex && tex->HasImageInfoAt(mTexImageTarget, mTexImageLevel)) {
-        return tex->ImageInfoAt(mTexImageTarget,
-                                mTexImageLevel).EffectiveInternalFormat();
-    }
-
-    const WebGLRenderbuffer* rb = Renderbuffer();
-    if (rb)
-        return rb->InternalFormat();
-
-    return LOCAL_GL_NONE;
+    return attachment.Format().get();
 }
 
 bool
 WebGLFBAttachPoint::IsReadableFloat() const
 {
-    TexInternalFormat internalformat = EffectiveInternalFormat();
+    TexInternalFormat internalformat = Format();
     MOZ_ASSERT(internalformat != LOCAL_GL_NONE);
+
     TexType type = TypeFromInternalFormat(internalformat);
     return type == LOCAL_GL_FLOAT ||
            type == LOCAL_GL_HALF_FLOAT_OES ||
            type == LOCAL_GL_HALF_FLOAT;
 }
 
-static void
-UnmarkAttachment(WebGLFBAttachPoint& attachment)
+void
+WebGLFBAttachPoint::Clear()
 {
-    WebGLFramebufferAttachable* maybe = attachment.Texture();
-    if (!maybe)
-        maybe = attachment.Renderbuffer();
+    if (mRenderbufferPtr) {
+        MOZ_ASSERT(!mTexturePtr);
+        mRenderbufferPtr->UnmarkAttachment(*this);
+    } else if (mTexturePtr) {
+        mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).RemoveAttachPoint(this);
+    }
 
-    if (maybe)
-        maybe->UnmarkAttachment(attachment);
+    mTexturePtr = nullptr;
+    mRenderbufferPtr = nullptr;
+
+    OnBackingStoreRespecified();
 }
 
 void
@@ -130,32 +117,28 @@ void
 WebGLFBAttachPoint::SetTexImageLayer(WebGLTexture* tex, TexImageTarget target,
                                      GLint level, GLint layer)
 {
-    mFB->InvalidateFramebufferStatus();
-
-    UnmarkAttachment(*this);
+    Clear();
 
     mTexturePtr = tex;
-    mRenderbufferPtr = nullptr;
     mTexImageTarget = target;
     mTexImageLevel = level;
     mTexImageLayer = layer;
 
-    if (tex)
-        tex->MarkAttachment(*this);
+    if (mTexturePtr) {
+        mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).AddAttachPoint(this);
+    }
 }
 
 void
 WebGLFBAttachPoint::SetRenderbuffer(WebGLRenderbuffer* rb)
 {
-    mFB->InvalidateFramebufferStatus();
+    Clear();
 
-    UnmarkAttachment(*this);
-
-    mTexturePtr = nullptr;
     mRenderbufferPtr = rb;
 
-    if (rb)
-        rb->MarkAttachment(*this);
+    if (mRenderbufferPtr) {
+        mRenderbufferPtr->MarkAttachment(*this);
+    }
 }
 
 bool
@@ -164,17 +147,15 @@ WebGLFBAttachPoint::HasUninitializedImageData() const
     if (!HasImage())
         return false;
 
-    if (Renderbuffer())
-        return Renderbuffer()->HasUninitializedImageData();
+    if (mRenderbufferPtr)
+        return mRenderbufferPtr->HasUninitializedImageData();
 
-    if (Texture()) {
-        MOZ_ASSERT(Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel));
-        return Texture()->ImageInfoAt(mTexImageTarget,
-                                      mTexImageLevel).HasUninitializedImageData();
-    }
+    MOZ_ASSERT(mTexturePtr);
 
-    MOZ_ASSERT(false, "Should not get here.");
-    return false;
+    auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+    MOZ_ASSERT(imageInfo.IsDefined());
+
+    return !imageInfo.IsDataInitialized();
 }
 
 void
@@ -183,24 +164,24 @@ WebGLFBAttachPoint::SetImageDataStatus(WebGLImageDataStatus newStatus)
     if (!HasImage())
         return;
 
-    if (Renderbuffer()) {
-        Renderbuffer()->SetImageDataStatus(newStatus);
+    if (mRenderbufferPtr) {
+        mRenderbufferPtr->SetImageDataStatus(newStatus);
         return;
     }
 
-    if (Texture()) {
-        Texture()->SetImageDataStatus(mTexImageTarget, mTexImageLevel,
-                                      newStatus);
-        return;
-    }
+    MOZ_ASSERT(mTexturePtr);
 
-    MOZ_ASSERT(false, "Should not get here.");
+    auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+    MOZ_ASSERT(imageInfo.IsDefined());
+
+    const bool isDataInitialized = (newStatus == WebGLImageDataStatus::InitializedImageData);
+    imageInfo.SetIsDataInitialized(isDataInitialized, mTexturePtr);
 }
 
 bool
 WebGLFBAttachPoint::HasImage() const
 {
-    if (Texture() && Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
+    if (Texture() && Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).IsDefined())
         return true;
 
     if (Renderbuffer())
@@ -209,6 +190,32 @@ WebGLFBAttachPoint::HasImage() const
     return false;
 }
 
+void
+WebGLFBAttachPoint::Size(uint32_t* const out_width, uint32_t* const out_height) const
+{
+    MOZ_ASSERT(HasImage());
+
+    if (Renderbuffer()) {
+        *out_width = Renderbuffer()->Width();
+        *out_height = Renderbuffer()->Height();
+        return;
+    }
+
+    MOZ_ASSERT(Texture());
+    MOZ_ASSERT(Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).IsDefined());
+    const auto& imageInfo = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+
+    *out_width = imageInfo.mWidth;
+    *out_height = imageInfo.mHeight;
+}
+
+void
+WebGLFBAttachPoint::OnBackingStoreRespecified() const
+{
+    mFB->InvalidateFramebufferStatus();
+}
+
+/*
 const WebGLRectangleObject&
 WebGLFBAttachPoint::RectangleObject() const
 {
@@ -225,7 +232,7 @@ WebGLFBAttachPoint::RectangleObject() const
 
     MOZ_CRASH("Should not get here.");
 }
-
+*/
 // The following IsValidFBOTextureXXX functions check the internal format that
 // is used by GL or GL ES texture formats.  This corresponds to the state that
 // is stored in WebGLTexture::ImageInfo::InternalFormat()
@@ -265,9 +272,9 @@ IsValidFBORenderbufferStencilFormat(GLenum internalFormat)
 }
 
 bool
-WebGLContext::IsFormatValidForFB(GLenum sizedFormat) const
+WebGLContext::IsFormatValidForFB(TexInternalFormat format) const
 {
-    switch (sizedFormat) {
+    switch (format.get()) {
     case LOCAL_GL_RGB8:
     case LOCAL_GL_RGBA8:
     case LOCAL_GL_RGB565:
@@ -297,22 +304,20 @@ WebGLFBAttachPoint::IsComplete() const
     if (!HasImage())
         return false;
 
-    const WebGLRectangleObject& rect = RectangleObject();
-
-    if (!rect.Width() ||
-        !rect.Height())
-    {
+    uint32_t width;
+    uint32_t height;
+    Size(&width, &height);
+    if (!width || !height)
         return false;
-    }
 
     if (Texture()) {
-        MOZ_ASSERT(Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel));
-        const WebGLTexture::ImageInfo& imageInfo =
-            Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
-        GLenum sizedFormat = imageInfo.EffectiveInternalFormat().get();
+        const auto& imageInfo = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+        MOZ_ASSERT(imageInfo.IsDefined());
+
+        const auto format = imageInfo.mFormat;
 
         if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-            return IsValidFBOTextureDepthFormat(sizedFormat);
+            return IsGLDepthFormat(format);
 
         if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT) {
             // Textures can't have the correct format for stencil buffers.
@@ -320,42 +325,39 @@ WebGLFBAttachPoint::IsComplete() const
         }
 
         if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return IsValidFBOTextureDepthStencilFormat(sizedFormat);
+            return IsGLDepthStencilFormat(format);
 
         if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
             mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
                                              WebGLContext::kMaxColorAttachments))
         {
             WebGLContext* webgl = Texture()->Context();
-            return webgl->IsFormatValidForFB(sizedFormat);
+            return webgl->IsFormatValidForFB(format);
         }
         MOZ_ASSERT(false, "Invalid WebGL attachment point?");
         return false;
     }
 
-    if (Renderbuffer()) {
-        GLenum internalFormat = Renderbuffer()->InternalFormat();
+    MOZ_ASSERT(Renderbuffer());
+    GLenum internalFormat = Renderbuffer()->InternalFormat();
 
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-            return IsValidFBORenderbufferDepthFormat(internalFormat);
+    if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+        return IsValidFBORenderbufferDepthFormat(internalFormat);
 
-        if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
-            return IsValidFBORenderbufferStencilFormat(internalFormat);
+    if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
+        return IsValidFBORenderbufferStencilFormat(internalFormat);
 
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-            return IsValidFBORenderbufferDepthStencilFormat(internalFormat);
+    if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+        return IsValidFBORenderbufferDepthStencilFormat(internalFormat);
 
-        if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-            mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
-                                             WebGLContext::kMaxColorAttachments))
-        {
-            WebGLContext* webgl = Renderbuffer()->Context();
-            return webgl->IsFormatValidForFB(internalFormat);
-        }
-        MOZ_ASSERT(false, "Invalid WebGL attachment point?");
-        return false;
+    if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+        mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
+                                         WebGLContext::kMaxColorAttachments))
+    {
+        WebGLContext* webgl = Renderbuffer()->Context();
+        return webgl->IsFormatValidForFB(internalFormat);
     }
-    MOZ_ASSERT(false, "Should not get here.");
+    MOZ_ASSERT(false, "Invalid WebGL attachment point?");
     return false;
 }
 
@@ -589,7 +591,7 @@ WebGLFramebuffer::FramebufferTextureLayer(FBAttachment attachment, WebGLTexture*
     MOZ_ASSERT(tex);
 
     WebGLFBAttachPoint& attachPoint = GetAttachPoint(attachment);
-    TexImageTarget texImageTarget = tex->Target();
+    TexImageTarget texImageTarget = tex->Target().get();
     attachPoint.SetTexImageLayer(tex, texImageTarget, level, layer);
 
     InvalidateFramebufferStatus();
@@ -712,37 +714,26 @@ WebGLFramebuffer::HasIncompleteAttachments() const
     return hasIncomplete;
 }
 
-const WebGLRectangleObject&
-WebGLFramebuffer::GetAnyRectObject() const
+static bool
+MatchOrReplaceSize(const WebGLFBAttachPoint& cur, uint32_t* const out_width,
+                   uint32_t* const out_height)
 {
-    MOZ_ASSERT(HasDefinedAttachments());
+    if (!cur.HasImage())
+        return true;
 
-    if (mColorAttachment0.HasImage())
-        return mColorAttachment0.RectangleObject();
+    uint32_t width;
+    uint32_t height;
+    cur.Size(&width, &height);
 
-    if (mDepthAttachment.HasImage())
-        return mDepthAttachment.RectangleObject();
-
-    if (mStencilAttachment.HasImage())
-        return mStencilAttachment.RectangleObject();
-
-    if (mDepthStencilAttachment.HasImage())
-        return mDepthStencilAttachment.RectangleObject();
-
-    const size_t moreColorAttachmentCount = mMoreColorAttachments.Length();
-    for (size_t i = 0; i < moreColorAttachmentCount; i++) {
-        if (mMoreColorAttachments[i].HasImage())
-            return mMoreColorAttachments[i].RectangleObject();
+    if (!*out_width) {
+        MOZ_ASSERT(!*out_height);
+        *out_width = width;
+        *out_height = height;
+        return true;
     }
 
-    MOZ_CRASH("Should not get here.");
-}
-
-static bool
-RectsMatch(const WebGLFBAttachPoint& attachment,
-           const WebGLRectangleObject& rect)
-{
-    return attachment.RectangleObject().HasSameDimensionsAs(rect);
+    return (width == *out_width &&
+            height == *out_height);
 }
 
 bool
@@ -751,39 +742,21 @@ WebGLFramebuffer::AllImageRectsMatch() const
     MOZ_ASSERT(HasDefinedAttachments());
     MOZ_ASSERT(!HasIncompleteAttachments());
 
-    const WebGLRectangleObject& rect = GetAnyRectObject();
-
-    // Alright, we have *a* rect, let's check all the others.
+    uint32_t width = 0;
+    uint32_t height = 0;
     bool imageRectsMatch = true;
 
-    if (mColorAttachment0.HasImage())
-        imageRectsMatch &= RectsMatch(mColorAttachment0, rect);
-
-    if (mDepthAttachment.HasImage())
-        imageRectsMatch &= RectsMatch(mDepthAttachment, rect);
-
-    if (mStencilAttachment.HasImage())
-        imageRectsMatch &= RectsMatch(mStencilAttachment, rect);
-
-    if (mDepthStencilAttachment.HasImage())
-        imageRectsMatch &= RectsMatch(mDepthStencilAttachment, rect);
+    imageRectsMatch &= MatchOrReplaceSize(mColorAttachment0, &width, &height);
+    imageRectsMatch &= MatchOrReplaceSize(mDepthAttachment, &width, &height);
+    imageRectsMatch &= MatchOrReplaceSize(mStencilAttachment, &width, &height);
+    imageRectsMatch &= MatchOrReplaceSize(mDepthStencilAttachment, &width, &height);
 
     const size_t moreColorAttachmentCount = mMoreColorAttachments.Length();
     for (size_t i = 0; i < moreColorAttachmentCount; i++) {
-        if (mMoreColorAttachments[i].HasImage())
-            imageRectsMatch &= RectsMatch(mMoreColorAttachments[i], rect);
+        imageRectsMatch &= MatchOrReplaceSize(mMoreColorAttachments[i], &width, &height);
     }
 
     return imageRectsMatch;
-}
-
-const WebGLRectangleObject&
-WebGLFramebuffer::RectangleObject() const
-{
-    // If we're using this as the RectObj of an FB, we need to be sure the FB
-    // has a consistent rect.
-    MOZ_ASSERT(AllImageRectsMatch(), "Did you mean `GetAnyRectObject`?");
-    return GetAnyRectObject();
 }
 
 FBStatus
@@ -1016,7 +989,8 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format)
+WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format,
+                                  uint32_t* const out_width, uint32_t* const out_height)
 {
     if (mReadBufferMode == LOCAL_GL_NONE) {
         mContext->ErrorInvalidOperation("%s: Read buffer mode must not be"
@@ -1043,7 +1017,8 @@ WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out
         return false;
     }
 
-    *out_format = attachPoint.EffectiveInternalFormat();
+    *out_format = attachPoint.Format();
+    attachPoint.Size(out_width, out_height);
     return true;
 }
 

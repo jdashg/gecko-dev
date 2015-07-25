@@ -41,22 +41,17 @@ public:
     WebGLFBAttachPoint(WebGLFramebuffer* fb, FBAttachment attachmentPoint);
     ~WebGLFBAttachPoint();
 
-    void Unlink() {
-        mRenderbufferPtr = nullptr;
-        mTexturePtr = nullptr;
-    }
+    void Unlink();
 
     bool IsDefined() const;
     bool IsDeleteRequested() const;
 
-    TexInternalFormat EffectiveInternalFormat() const;
+    TexInternalFormat Format() const;
 
     bool HasAlpha() const;
     bool IsReadableFloat() const;
 
-    void Clear() {
-        SetRenderbuffer(nullptr);
-    }
+    void Clear();
 
     void SetTexImage(WebGLTexture* tex, TexImageTarget target, GLint level);
     void SetTexImageLayer(WebGLTexture* tex, TexImageTarget target, GLint level,
@@ -88,7 +83,8 @@ public:
     bool HasUninitializedImageData() const;
     void SetImageDataStatus(WebGLImageDataStatus x);
 
-    const WebGLRectangleObject& RectangleObject() const;
+    void Size(uint32_t* const out_width, uint32_t* const out_height) const;
+    //const WebGLRectangleObject& RectangleObject() const;
 
     bool HasImage() const;
     bool IsComplete() const;
@@ -97,6 +93,8 @@ public:
                             FBAttachment attachmentLoc) const;
 
     JS::Value GetParameter(WebGLContext* context, GLenum pname);
+
+    void OnBackingStoreRespecified() const;
 };
 
 class WebGLFramebuffer final
@@ -199,8 +197,6 @@ public:
 
     void DetachRenderbuffer(const WebGLRenderbuffer* rb);
 
-    const WebGLRectangleObject& RectangleObject() const;
-
     WebGLContext* GetParentObject() const {
         return Context();
     }
@@ -226,7 +222,8 @@ public:
         mStatus = 0;
     }
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format);
+    bool ValidateForRead(const char* info, TexInternalFormat* const out_format,
+                         uint32_t* const out_width, uint32_t* const out_height);
 
     JS::Value GetAttachmentParameter(JSContext* cx, GLenum attachment, GLenum pname,
                                      ErrorResult& rv);
