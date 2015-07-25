@@ -52,6 +52,23 @@ FormatHasAlpha(TexInternalFormat internalformat)
            unsizedformat == LOCAL_GL_RGBA_INTEGER;
 }
 
+bool
+FormatHasDepth(TexInternalFormat format)
+{
+    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
+    return unsizedformat == LOCAL_GL_DEPTH_COMPONENT ||
+           unsizedformat == LOCAL_GL_DEPTH_STENCIL;
+}
+
+bool
+FormatHasColor(TexInternalFormat format)
+{
+    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
+    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
+           unsizedformat != LOCAL_GL_DEPTH_STENCIL &&
+           unsizedformat != LOCAL_GL_ALPHA;
+}
+
 TexTarget
 TexImageTargetToTexTarget(TexImageTarget texImageTarget)
 {

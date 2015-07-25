@@ -38,6 +38,15 @@ public:
         mImageDataStatus = x;
     }
 
+    bool IsDefined() const {
+      if (mInternalFormat == LOCAL_GL_NONE) {
+          MOZ_ASSERT(!mWidth && !mHeight);
+          return false;
+      }
+      MOZ_ASSERT(mWidth && mHeight);
+      return true;
+    }
+
     GLsizei Samples() const { return mSamples; }
     void SetSamples(GLsizei samples) { mSamples = samples; }
 

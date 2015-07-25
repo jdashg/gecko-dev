@@ -837,7 +837,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
              case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
                     const TexInternalFormat effectiveInternalFormat =
-                        fba.Texture()->ImageInfoBase().EffectiveInternalFormat();
+                        fba.Texture()->BaseImageInfo().Format();
 
                     if (effectiveInternalFormat == LOCAL_GL_NONE) {
                         ErrorInvalidOperation("getFramebufferAttachmentParameter: "
@@ -890,7 +890,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                     return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
 
                 TexInternalFormat effectiveInternalFormat =
-                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).EffectiveInternalFormat();
+                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).Format();
                 TexType type = TypeFromInternalFormat(effectiveInternalFormat);
                 GLenum ret = LOCAL_GL_NONE;
                 switch (type.get()) {
