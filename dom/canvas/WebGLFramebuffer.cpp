@@ -39,26 +39,29 @@ WebGLFBAttachPoint::IsDeleteRequested() const
 bool
 WebGLFBAttachPoint::IsDefined() const
 {
-    return Renderbuffer() ||
-           (Texture() && Texture()->HasImageInfoAt(ImageTarget(), 0));
+    return (Renderbuffer() && Renderbuffer()->IsDefined()) ||
+           (Texture() && Texture()->ImageInfoAt(mTexImageTarget,
+                                                mTexImageLevel).IsDefined());
+}
+
+TexInternalFormat
+WebGLFBAttachPoint::EffectiveInternalFormat() const
+{
+    MOZ_ASSERT(IsDefined());
+
+    if (Texture())
+        return tex->ImageInfoAt(mTexImageTarget, mTexImageLevel).mFormat;
+
+    if (Renderbuffer())
+        return Renderbuffer()->InternalFormat();
+
+    return LOCAL_GL_NONE;
 }
 
 bool
 WebGLFBAttachPoint::HasAlpha() const
 {
-    MOZ_ASSERT(HasImage());
-
-    if (Texture() &&
-        Texture()->HasImageInfoAt(mTexImageTarget, mTexImageLevel))
-    {
-        return FormatHasAlpha(Texture()->ImageInfoAt(mTexImageTarget,
-                                                     mTexImageLevel).EffectiveInternalFormat());
-    }
-
-    if (Renderbuffer())
-        return FormatHasAlpha(Renderbuffer()->InternalFormat());
-
-    return false;
+    return FormatHasAlpha(EffectiveInternalFormat());
 }
 
 GLenum
@@ -67,35 +70,7 @@ WebGLFramebuffer::GetFormatForAttachment(const WebGLFBAttachPoint& attachment) c
     MOZ_ASSERT(attachment.IsDefined());
     MOZ_ASSERT(attachment.Texture() || attachment.Renderbuffer());
 
-    if (attachment.Texture()) {
-        const WebGLTexture& tex = *attachment.Texture();
-        MOZ_ASSERT(tex.HasImageInfoAt(attachment.ImageTarget(), 0));
-
-        const WebGLTexture::ImageInfo& imgInfo = tex.ImageInfoAt(attachment.ImageTarget(),
-                                                                 0);
-        return imgInfo.EffectiveInternalFormat().get();
-    }
-
-    if (attachment.Renderbuffer())
-        return attachment.Renderbuffer()->InternalFormat();
-
-    return LOCAL_GL_NONE;
-}
-
-TexInternalFormat
-WebGLFBAttachPoint::EffectiveInternalFormat() const
-{
-    const WebGLTexture* tex = Texture();
-    if (tex && tex->HasImageInfoAt(mTexImageTarget, mTexImageLevel)) {
-        return tex->ImageInfoAt(mTexImageTarget,
-                                mTexImageLevel).EffectiveInternalFormat();
-    }
-
-    const WebGLRenderbuffer* rb = Renderbuffer();
-    if (rb)
-        return rb->InternalFormat();
-
-    return LOCAL_GL_NONE;
+    return attachment.EffectiveInternalFormat().get();
 }
 
 bool
@@ -103,6 +78,7 @@ WebGLFBAttachPoint::IsReadableFloat() const
 {
     TexInternalFormat internalformat = EffectiveInternalFormat();
     MOZ_ASSERT(internalformat != LOCAL_GL_NONE);
+
     TexType type = TypeFromInternalFormat(internalformat);
     return type == LOCAL_GL_FLOAT ||
            type == LOCAL_GL_HALF_FLOAT_OES ||

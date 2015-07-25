@@ -15,9 +15,11 @@
 
 namespace mozilla {
 
-bool IsGLDepthFormat(TexInternalFormat webGLFormat);
-bool IsGLDepthStencilFormat(TexInternalFormat webGLFormat);
-bool FormatHasAlpha(TexInternalFormat webGLFormat);
+bool IsGLDepthFormat(TexInternalFormat format);
+bool IsGLDepthStencilFormat(TexInternalFormat format);
+bool FormatHasAlpha(TexInternalFormat format);
+bool FormatHasColor(TexInternalFormat format);
+bool FormatHasDepth(TexInternalFormat format);
 
 void
 DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,

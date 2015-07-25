@@ -206,10 +206,10 @@ WebGLContext::BindTexture(GLenum rawTarget, WebGLTexture* newTex)
 
     MakeContextCurrent();
 
-    if (newTex && !newTex->BindTexture(texTarget))
-        return;
-
-    if (!newTex) {
+    if (newTex) {
+        if (!newTex->BindTexture(texTarget))
+            return;
+    } else {
         gl->fBindTexture(texTarget.get(), 0);
     }
 
