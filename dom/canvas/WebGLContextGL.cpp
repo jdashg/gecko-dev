@@ -432,7 +432,7 @@ WebGLContext::DeleteTexture(WebGLTexture* tex)
             (mBound3DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_3D))
         {
             ActiveTexture(LOCAL_GL_TEXTURE0 + i);
-            BindTexture(tex->Target(), nullptr);
+            BindTexture(tex->Target().get(), nullptr);
         }
     }
     ActiveTexture(LOCAL_GL_TEXTURE0 + activeTexture);
@@ -837,7 +837,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
              case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
                     const TexInternalFormat effectiveInternalFormat =
-                        fba.Texture()->BaseImageInfo().Format();
+                        fba.Texture()->BaseImageInfo().mFormat;
 
                     if (effectiveInternalFormat == LOCAL_GL_NONE) {
                         ErrorInvalidOperation("getFramebufferAttachmentParameter: "
@@ -890,7 +890,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                     return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
 
                 TexInternalFormat effectiveInternalFormat =
-                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).Format();
+                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).mFormat;
                 TexType type = TypeFromInternalFormat(effectiveInternalFormat);
                 GLenum ret = LOCAL_GL_NONE;
                 switch (type.get()) {
