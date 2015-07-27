@@ -29,15 +29,11 @@ class ArrayBufferViewOrSharedArrayBufferView;
 } // namespace dom
 
 // Zero is not an integer power of two.
-inline bool
-IsPOTAssumingNonnegative(GLsizei x)
-{
-    MOZ_ASSERT(x >= 0);
-    return x && (x & (x-1)) == 0;
-}
+/*
+*/
 
 inline bool
-IsPowerOfTwo(size_t x)
+IsPowerOfTwo(uint32_t x)
 {
     return x && (x & (x-1)) == 0;
 }
@@ -81,9 +77,6 @@ protected:
     TexMagFilter mMagFilter;
     TexWrap mWrapS, mWrapT;
 
-    size_t mFacesCount, mMaxLevelWithCustomImages;
-    nsTArray<ImageInfo> mImageInfos;
-
     bool mImmutable; // Set by texStorage*
     size_t mImmutableLevelCount;
 
@@ -91,6 +84,8 @@ protected:
     size_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
 
     WebGLTextureFakeBlackStatus mFakeBlackStatus;
+
+    GLenum mTexCompareMode;
 
     ////////////////////////////////////
 public:
@@ -258,6 +253,7 @@ protected:
 
     void ClampLevelBaseAndMax();
 
+    void PopulateMipChain(size_t baseLevel, size_t maxLevel);
 
     ////////////////////////////////////
 
@@ -274,9 +270,9 @@ public:
         // 126 and below.
         const TexInternalFormat mFormat;
 
-        const size_t mWidth;
-        const size_t mHeight;
-        const size_t mDepth;
+        const uint32_t mWidth;
+        const uint32_t mHeight;
+        const uint32_t mDepth;
 
         bool mHasUninitData;
 
@@ -288,8 +284,8 @@ public:
             , mHasUninitData(true)
         { }
 
-        ImageInfo(TexInternalFormat format, size_t width, size_t height, size_t depth,
-                  bool hasUninitData)
+        ImageInfo(TexInternalFormat format, uint32_t width, uint32_t height,
+                  uint32_t depth, bool hasUninitData)
             : mFormat(format)
             , mWidth(width)
             , mHeight(height)
@@ -319,7 +315,7 @@ public:
     public:
         size_t MaxMipmapLevels() const {
             // GLES 3.0.4, 3.8 - Mipmapping: `floor(log2(largest_of_dims)) + 1`
-            size_t largest = std::max(std::max(mWidth, mHeight), mDepth);
+            uint32_t largest = std::max(std::max(mWidth, mHeight), mDepth);
             return FloorLog2Size(largest) + 1;
         }
 
@@ -431,7 +427,7 @@ public:
         return SetImageInfoAtFace(face, level, val);
     }
 
-    const ImageInfo& BaseImageInfo() {
+    const ImageInfo& BaseImageInfo() const {
         return ImageInfoAtFace(0, mBaseMipmapLevel);
     }
 /*
@@ -460,6 +456,11 @@ public:
 
 protected:
     bool EnsureInitializedImageData(uint8_t face, size_t level);
+
+    bool EnsureInitializedImageData(TexImageTarget texImageTarget, size_t level) {
+        const uint8_t face = FaceForTarget(texImageTarget);
+        return EnsureInitializedImageData(face, level);
+    }
 /*
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t maxLevelWithCustomImages) {
         mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages,
@@ -504,15 +505,18 @@ public:
 
     bool IsCubeComplete() const;
 
-    bool IsComplete() const;
+    bool IsComplete(const char** const out_reason) const;
 
     bool IsMipmapCubeComplete() const;
 
     void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
 
-    // Returns the current fake-black-status, except if it was Unknown,
-    // in which case this function resolves it first, so it never returns Unknown.
-    WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
+    bool IsCubeMap() const { return (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP); }
+
+protected:
+    bool ResolveFakeBlackStatus();
+public:
+    bool ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out);
 };
 
 inline TexImageTarget

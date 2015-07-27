@@ -126,26 +126,26 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
 
     if (fb->ColorAttachment(0).IsDefined()) {
         const auto& attachement = fb->ColorAttachment(0);
-        *out_colorFormat = attachement.EffectiveInternalFormat().get();
+        *out_colorFormat = attachement.Format().get();
     } else {
         *out_colorFormat = 0;
     }
 
     if (fb->DepthStencilAttachment().IsDefined()) {
         const auto& attachement = fb->DepthStencilAttachment();
-        *out_depthFormat = attachement.EffectiveInternalFormat().get();
+        *out_depthFormat = attachement.Format().get();
         *out_stencilFormat = *out_depthFormat;
     } else {
         if (fb->DepthAttachment().IsDefined()) {
             const auto& attachement = fb->DepthAttachment();
-            *out_depthFormat = attachement.EffectiveInternalFormat().get();
+            *out_depthFormat = attachement.Format().get();
         } else {
             *out_depthFormat = 0;
         }
 
         if (fb->StencilAttachment().IsDefined()) {
             const auto& attachement = fb->StencilAttachment();
-            *out_stencilFormat = attachement.EffectiveInternalFormat().get();
+            *out_stencilFormat = attachement.Format().get();
         } else {
             *out_stencilFormat = 0;
         }

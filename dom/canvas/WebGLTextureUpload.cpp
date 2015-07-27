@@ -66,25 +66,11 @@ WebGLTexture::SpecifyTexStorage(GLsizei levels, TexInternalFormat internalFormat
     //    initial state."
     mImageInfoMap.clear();
 
-    ImageInfo imageInfo(width, height, depth, internalFormat,
-                        WebGLImageDataStatus::UninitializedImageData);
+    const bool hasUninitData = true;
+    const ImageInfo baseImageInfo(internalFormat, width, height, depth, hasUninitData);
 
-    for (size_t level = 0; level < mImmutableLevelCount; level++) {
-        SetImageInfosAtLevel(level, imageInfo);
-
-        // Higher levels are unaffected.
-        if (imageInfo.mWidth == 1 &&
-            imageInfo.mHeight == 1 &&
-            imageInfo.mDepth == 1)
-        {
-            MOZ_ASSERT(level + 1 == mImmutableLevelCount);
-            break;
-        }
-
-        imageInfo.mWidth  = std::max(1, imageInfo.mWidth  / 2);
-        imageInfo.mHeight = std::max(1, imageInfo.mHeight / 2);
-        imageInfo.mDepth  = std::max(1, imageInfo.mDepth  / 2);
-    }
+    SetImageInfoAtFace(0, 0, baseImageInfo);
+    PopulateMipChain(0, mImmutableLevelCount);
 }
 
 void
@@ -161,9 +147,9 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
         return;
     }
 
-    const ImageInfo& levelInfo = ImageInfoAt(texImageTarget, level);
+    ImageInfo& levelInfo = ImageInfoAt(texImageTarget, level);
 
-    if (internalFormat != levelInfo.Format()) {
+    if (internalFormat != levelInfo.mFormat) {
         return mContext->ErrorInvalidOperation("compressedTexImage2D: internalFormat does not match the existing image");
     }
 
@@ -178,19 +164,19 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
     if (!mContext->ValidateCompTexImageSize(level, internalFormat,
                                   xOffset, yOffset,
                                   width, height,
-                                  levelInfo.Width(), levelInfo.Height(),
+                                  levelInfo.mWidth, levelInfo.mHeight,
                                   func, dims))
     {
         return;
     }
 
-    if (levelInfo.HasUninitializedImageData()) {
+    if (levelInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
-                                width == levelInfo.Width() &&
-                                height == levelInfo.Height();
+                                width == levelInfo.mWidth &&
+                                height == levelInfo.mHeight;
         if (coversWholeImage) {
-            SetImageDataAt(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
+            levelInfo.mHasUninitData = false;
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -248,8 +234,11 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
 
     TexType framebuffertype = LOCAL_GL_NONE;
     if (mContext->mBoundReadFramebuffer) {
-        TexInternalFormat framebuffereffectiveformat = mContext->mBoundReadFramebuffer->ColorAttachment(0).Format();
-        framebuffertype = TypeFromInternalFormat(framebuffereffectiveformat);
+        TexInternalFormat format;
+        if (!mContext->mBoundReadFramebuffer->ValidateForRead(info, &format))
+            return;
+
+        framebuffertype = TypeFromInternalFormat(format);
     } else {
         // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
         // that might not always be true, say if we had a 16bpp default framebuffer.
@@ -275,11 +264,13 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
 
     // check if the memory size of this texture may change with this call
     bool sizeMayChange = !sub;
-    if (!sub && HasImageInfoAt(texImageTarget, level)) {
-        const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-        sizeMayChange = width != imageInfo.Width() ||
-                        height != imageInfo.Height() ||
-                        effectiveInternalFormat != imageInfo.Format();
+    const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    if (!sub && imageInfo.IsDefined()) {
+        const uint32_t depth = 1;
+        sizeMayChange = width != imageInfo.mWidth ||
+                        height != imageInfo.mHeight ||
+                        depth != imageInfo.mDepth ||
+                        effectiveInternalFormat != imageInfo.mFormat;
     }
 
     if (sizeMayChange)
@@ -296,9 +287,12 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
 
         // first, we initialize the texture as black
         if (!sub) {
-            SetImageInfo(texImageTarget, level, width, height, 1,
-                      effectiveInternalFormat,
-                      WebGLImageDataStatus::UninitializedImageData);
+            const uint32_t depth = 1;
+            const bool hasUninitData = true;
+            const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+                                      hasUninitData);
+            SetImageInfoAt(texImageTarget, level, imageInfo);
+
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
         }
@@ -335,9 +329,11 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     }
 
     if (!sub) {
-        SetImageInfo(texImageTarget, level, width, height, 1,
-                          effectiveInternalFormat,
-                          WebGLImageDataStatus::InitializedImageData);
+        const uint32_t depth = 1;
+        const bool hasUninitData = false;
+        const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+                                  hasUninitData);
+        SetImageInfoAt(texImageTarget, level, imageInfo);
     }
 }
 
@@ -413,12 +409,12 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     if (xOffset < 0 || yOffset < 0)
         return mContext->ErrorInvalidValue("copyTexSubImage2D: xOffset and yOffset may not be negative");
 
-    if (!HasImageInfoAt(texImageTarget, level))
+    WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    if (!imageInfo.IsDefined())
         return mContext->ErrorInvalidOperation("copyTexSubImage2D: no texture image previously defined for this level and face");
 
-    const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-    GLsizei texWidth = imageInfo.Width();
-    GLsizei texHeight = imageInfo.Height();
+    GLsizei texWidth = imageInfo.mWidth;
+    GLsizei texHeight = imageInfo.mHeight;
 
     if (xOffset + width > texWidth || xOffset + width < 0)
       return mContext->ErrorInvalidValue("copyTexSubImage2D: xOffset+width is too large");
@@ -429,13 +425,13 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     if (!mContext->mBoundReadFramebuffer)
         mContext->ClearBackbufferIfNeeded();
 
-    if (imageInfo.HasUninitializedImageData()) {
+    if (imageInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 width == texWidth &&
                                 height == texHeight;
         if (coversWholeImage) {
-            SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
+            imageInfo.mHasUninitData = false;
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -444,7 +440,7 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
 
     TexInternalFormat internalFormat;
     TexType type;
-    UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(imageInfo.Format(),
+    UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(imageInfo.mFormat,
                                              &internalFormat, &type);
     return CopyTexSubImage2D_base(texImageTarget, level, internalFormat, xOffset, yOffset, x, y, width, height, true);
 }
@@ -465,11 +461,11 @@ WebGLTexture::CheckedTexImage2D(TexImageTarget texImageTarget,
         EffectiveInternalFormatFromInternalFormatAndType(internalFormat, unpackType);
     bool sizeMayChange = true;
 
-    if (HasImageInfoAt(texImageTarget, level)) {
-        const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-        sizeMayChange = width != imageInfo.Width() ||
-                        height != imageInfo.Height() ||
-                        effectiveInternalFormat != imageInfo.Format();
+    const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    if (imageInfo.IsDefined()) {
+        sizeMayChange = width != imageInfo.mWidth ||
+                        height != imageInfo.mHeight ||
+                        effectiveInternalFormat != imageInfo.mFormat;
     }
 
     gl::GLContext* gl = mContext->gl;
@@ -766,11 +762,11 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!DoesTargetMatchDimensions(mContext, texImageTarget, 2, funcName))
         return;
 
-    if (!HasImageInfoAt(texImageTarget, level))
+    WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    if (!imageInfo.IsDefined())
         return mContext->ErrorInvalidOperation("texSubImage2D: no previously defined texture image");
 
-    const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-    const TexInternalFormat existingEffectiveInternalFormat = imageInfo.Format();
+    const TexInternalFormat existingEffectiveInternalFormat = imageInfo.mFormat;
 
     if (!mContext->ValidateTexImage(texImageTarget, level,
                           existingEffectiveInternalFormat.get(),
@@ -816,13 +812,13 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (byteLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, byteLength);
 
-    if (imageInfo.HasUninitializedImageData()) {
+    if (imageInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
-                                width == imageInfo.Width() &&
-                                height == imageInfo.Height();
+                                width == imageInfo.mWidth &&
+                                height == imageInfo.mHeight;
         if (coversWholeImage) {
-            SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
+            imageInfo.mHasUninitData = false;
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -989,9 +985,11 @@ WebGLTexture::TexImageFromVideoElement(TexImageTarget texImageTarget,
     gl::GLContext* gl = mContext->gl;
     gl->MakeCurrent();
 
+    MOZ_ASSERT(level == 0);
     const WebGLTexture::ImageInfo& info = ImageInfoAt(texImageTarget, 0);
-    bool dimensionsMatch = info.Width() == srcImage->GetSize().width &&
-                           info.Height() == srcImage->GetSize().height;
+    bool dimensionsMatch = (info.mWidth == srcImage->GetSize().width &&
+                            info.mHeight == srcImage->GetSize().height &&
+                            info.mDepth == 1);
     if (!dimensionsMatch) {
         // we need to allocation
         gl->fTexImage2D(texImageTarget.get(), level, internalFormat,
@@ -1040,7 +1038,7 @@ WebGLTexture::TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xO
     }
 
     const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-    const TexInternalFormat internalFormat = imageInfo.Format();
+    const TexInternalFormat internalFormat = imageInfo.mFormat;
 
     // Trying to handle the video by GPU directly first
     if (TexImageFromVideoElement(texImageTarget, level, internalFormat.get(), unpackFormat, unpackType, elem))
@@ -1158,7 +1156,7 @@ WebGLTexture::ValidateTexStorage(TexTarget texTarget, GLsizei levels,
     }
 
     // INVALID_ENUM is generated if internalformat is not a valid sized internal unpackFormat.
-    if (!ValidateSizedInternalFormat(internalformat, info))
+    if (!ValidateSizedInternalFormat(internalFormat, funcName))
         return false;
 
     // INVALID_VALUE is generated if width, height or levels are less than 1.
@@ -1173,7 +1171,7 @@ WebGLTexture::ValidateTexStorage(TexTarget texTarget, GLsizei levels,
     GLsizei maxLevels = FloorLog2(largest) + 1;
     if (levels > maxLevels) {
         mContext->ErrorInvalidOperation("%s: Too many levels for given texture dimensions.",
-                              funcName);
+                                        funcName);
         return false;
     }
 
@@ -1203,7 +1201,7 @@ WebGLTexture::TexStorage2D(TexTarget texTarget, GLsizei levels, GLenum rawIntern
     gl->MakeCurrent();
 
     mContext->GetAndFlushUnderlyingGLErrors();
-    gl->fTexStorage2D(texTarget.get(), levels, internalFormat, width, height);
+    gl->fTexStorage2D(texTarget.get(), levels, internalFormat.get(), width, height);
     GLenum error = mContext->GetAndFlushUnderlyingGLErrors();
     if (error) {
         mContext->GenerateWarning("texStorage2D generated error %s",
@@ -1221,7 +1219,7 @@ WebGLTexture::TexStorage3D(TexTarget texTarget, GLsizei levels, GLenum rawIntern
     if (texTarget != LOCAL_GL_TEXTURE_3D)
         return mContext->ErrorInvalidEnum("texStorage3D: target must be TEXTURE_3D.");
 
-    if (!ValidateTexStorage(target, levels, rawInternalFormat, width, height, depth,
+    if (!ValidateTexStorage(texTarget, levels, rawInternalFormat, width, height, depth,
                             "texStorage3D"))
     {
         return;
@@ -1310,7 +1308,7 @@ WebGLTexture::TexImage3D(TexImageTarget texImageTarget, GLint level, GLenum inte
         return mContext->ErrorInvalidOperation("texImage3D: not enough data for operation (need %d, have %d)",
                                  bytesNeeded, dataLength);
 
-    if (IsImmutable()) {
+    if (mImmutable) {
         return mContext->ErrorInvalidOperation(
             "texImage3D: disallowed because the texture "
             "bound to this target has already been made immutable by texStorage3D");
@@ -1370,12 +1368,12 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
     const WebGLTexImageFunc func = WebGLTexImageFunc::TexSubImage;
     const WebGLTexDimensions dims = WebGLTexDimensions::Tex3D;
 
-    if (!HasImageInfoAt(texImageTarget, level)) {
+    WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
+    if (!imageInfo.IsDefined()) {
         return mContext->ErrorInvalidOperation("texSubImage3D: no previously defined texture image");
     }
 
-    const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
-    const TexInternalFormat existingEffectiveInternalFormat = imageInfo.Format();
+    const TexInternalFormat existingEffectiveInternalFormat = imageInfo.mFormat;
     TexInternalFormat existingUnsizedInternalFormat = LOCAL_GL_NONE;
     TexType existingType = LOCAL_GL_NONE;
     UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(existingEffectiveInternalFormat,
@@ -1415,15 +1413,15 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
     if (dataLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, dataLength);
 
-    if (imageInfo.HasUninitializedImageData()) {
+    if (imageInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 zOffset == 0 &&
-                                width == imageInfo.Width() &&
-                                height == imageInfo.Height() &&
-                                depth == imageInfo.Depth();
+                                width == imageInfo.mWidth &&
+                                height == imageInfo.mHeight &&
+                                depth == imageInfo.mDepth;
         if (coversWholeImage) {
-            SetImageDataStatus(texImageTarget, level, WebGLImageDataStatus::InitializedImageData);
+            imageInfo.mHasUninitData = false;
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -1444,7 +1442,6 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
                        xOffset, yOffset, zOffset,
                        width, height, depth,
                        driverUnpackFormat, driverUnpackType, data);
-
 }
 
 

@@ -1118,7 +1118,7 @@ public:
     }
 
 
-    bool IsFormatValidForFB(GLenum sizedFormat) const;
+    bool IsFormatValidForFB(TexInternalFormat format) const;
 
 protected:
     // Represents current status of the context with respect to context loss.
@@ -1155,9 +1155,11 @@ protected:
     WebGLExtensionBase* EnableSupportedExtension(JSContext* js,
                                                  WebGLExtensionID ext);
 
+public:
     // returns true if the extension has been enabled by calling getExtension.
     bool IsExtensionEnabled(WebGLExtensionID ext) const;
 
+protected:
     // returns true if the extension is supported for this JSContext (this decides what getSupportedExtensions exposes)
     bool IsExtensionSupported(JSContext* cx, WebGLExtensionID ext) const;
     bool IsExtensionSupported(WebGLExtensionID ext) const;

@@ -49,7 +49,7 @@ public:
     bool IsDefined() const;
     bool IsDeleteRequested() const;
 
-    TexInternalFormat EffectiveInternalFormat() const;
+    TexInternalFormat Format() const;
 
     bool HasAlpha() const;
     bool IsReadableFloat() const;
@@ -88,7 +88,8 @@ public:
     bool HasUninitializedImageData() const;
     void SetImageDataStatus(WebGLImageDataStatus x);
 
-    const WebGLRectangleObject& RectangleObject() const;
+    void Size(uint32_t* const out_width, uint32_t* const out_height) const;
+    //const WebGLRectangleObject& RectangleObject() const;
 
     bool HasImage() const;
     bool IsComplete() const;

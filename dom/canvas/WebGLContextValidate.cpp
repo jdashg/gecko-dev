@@ -683,6 +683,13 @@ WebGLContext::ValidateTexImageType(GLenum type, WebGLTexImageFunc func,
     return false;
 }
 
+static inline bool
+IsPOTAssumingNonnegative(GLsizei x)
+{
+    MOZ_ASSERT(x >= 0);
+    return x && (x & (x-1)) == 0;
+}
+
 /**
  * Validate texture image sizing extra constraints for
  * CompressedTex(Sub)?Image.
@@ -1393,8 +1400,8 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         }
 
         if (!ValidateTexSubImageSize(xoffset, yoffset, zoffset, width, height,
-                                     depth, imageInfo.Width(),
-                                     imageInfo.Height(), 0, func, dims))
+                                     depth, imageInfo.mWidth,
+                                     imageInfo.mHeight, 0, func, dims))
         {
             return false;
         }
