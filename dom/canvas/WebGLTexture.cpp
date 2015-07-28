@@ -18,6 +18,8 @@
 
 namespace mozilla {
 
+/*static*/ WebGLTexture::ImageInfo WebGLTexture::sUndefinedImageInfo;
+
 JSObject*
 WebGLTexture::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) {
     return dom::WebGLTextureBinding::Wrap(cx, this, givenProto);
@@ -583,13 +585,6 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, size_t level)
     return true;
 }
 
-void
-WebGLTexture::SetFakeBlackStatus(WebGLTextureFakeBlackStatus x)
-{
-    mFakeBlackStatus = x;
-    mContext->SetFakeBlackStatus(WebGLContextFakeBlackStatus::Unknown);
-}
-
 template<typename T>
 static T
 Clamp(T val, T min, T max) {
@@ -813,7 +808,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
             break;
         }
 
-        SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+        InvalidateFakeBlackCache();
 
         if (pname == LOCAL_GL_TEXTURE_BASE_LEVEL)
             mBaseMipmapLevel = intParam;
@@ -828,6 +823,8 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         if (!mContext->IsWebGL2())
             return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
 
+        InvalidateFakeBlackCache();
+
         paramBadValue = (intParam != LOCAL_GL_NONE &&
                          intParam != LOCAL_GL_COMPARE_REF_TO_TEXTURE);
         break;
@@ -835,6 +832,8 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
     case LOCAL_GL_TEXTURE_COMPARE_FUNC:
         if (!mContext->IsWebGL2())
             return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
+
+        InvalidateFakeBlackCache();
 
         switch (intParam) {
         case LOCAL_GL_LEQUAL:
@@ -860,7 +859,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         case LOCAL_GL_LINEAR_MIPMAP_NEAREST:
         case LOCAL_GL_NEAREST_MIPMAP_LINEAR:
         case LOCAL_GL_LINEAR_MIPMAP_LINEAR:
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+            InvalidateFakeBlackCache();
             mMinFilter = intParam;
             break;
 
@@ -873,7 +872,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         switch (intParam) {
         case LOCAL_GL_NEAREST:
         case LOCAL_GL_LINEAR:
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+            InvalidateFakeBlackCache();
             mMagFilter = intParam;
             break;
 
@@ -887,7 +886,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         case LOCAL_GL_CLAMP_TO_EDGE:
         case LOCAL_GL_MIRRORED_REPEAT:
         case LOCAL_GL_REPEAT:
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+            InvalidateFakeBlackCache();
             mWrapS = intParam;
             break;
 
@@ -901,7 +900,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         case LOCAL_GL_CLAMP_TO_EDGE:
         case LOCAL_GL_MIRRORED_REPEAT:
         case LOCAL_GL_REPEAT:
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
+            InvalidateFakeBlackCache();
             mWrapT = intParam;
             break;
 

@@ -1003,16 +1003,6 @@ private:
 // -----------------------------------------------------------------------------
 // PROTECTED
 protected:
-    void SetFakeBlackStatus(WebGLContextFakeBlackStatus x) {
-        mFakeBlackStatus = x;
-    }
-    // Returns the current fake-black-status, except if it was Unknown,
-    // in which case this function resolves it first, so it never returns Unknown.
-    WebGLContextFakeBlackStatus ResolvedFakeBlackStatus();
-
-    void BindFakeBlackTextures();
-    void UnbindFakeBlackTextures();
-
     WebGLVertexAttrib0Status WhatDoesVertexAttrib0Need();
     bool DoFakeVertexAttrib0(GLuint vertexCount);
     void UndoFakeVertexAttrib0();
@@ -1365,8 +1355,8 @@ protected:
     bool mPixelStoreFlipY;
     bool mPixelStorePremultiplyAlpha;
 
-    WebGLContextFakeBlackStatus mFakeBlackStatus;
-
+    // Fake-black
+public:
     class FakeBlackTexture {
         gl::GLContext* const mGL;
         GLuint mGLName;
@@ -1377,16 +1367,18 @@ protected:
         GLuint GLName() const { return mGLName; }
     };
 
-    UniquePtr<FakeBlackTexture> mBlackOpaqueTexture2D;
-    UniquePtr<FakeBlackTexture> mBlackOpaqueTextureCubeMap;
-    UniquePtr<FakeBlackTexture> mBlackTransparentTexture2D;
-    UniquePtr<FakeBlackTexture> mBlackTransparentTextureCubeMap;
+    void InvalidateFakeBlackCache() { mCanSkipFakeBlack = false; }
 
-    void
-    BindFakeBlackTexturesHelper(GLenum target,
-                                const nsTArray<WebGLRefPtr<WebGLTexture> >& boundTexturesArray,
-                                UniquePtr<FakeBlackTexture>& opaqueTextureScopedPtr,
-                                UniquePtr<FakeBlackTexture>& transparentTextureScopedPtr);
+protected:
+    bool mCanSkipFakeBlack;
+
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Opaque;
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Alpha;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Opaque;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Alpha;
+
+    void BindFakeBlackTextures();
+    void UnbindFakeBlackTextures();
 
     // Generic Vertex Attributes
     UniquePtr<GLenum[]> mVertexAttribType;
