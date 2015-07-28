@@ -1826,6 +1826,24 @@ RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
     return ((x + y - 1) / y) * y;
 }
 
+bool
+WebGLContext::ValidateCurFBForRead(const char* funcName,
+                                   TexInternalFormat* const out_format,
+                                   uint32_t* const out_width, uint32_t* const out_height)
+{
+    if (!mBoundReadFramebuffer) {
+        // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
+        // that might not always be true, say if we had a 16bpp default framebuffer.
+        *out_format = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
+        *out_width = mWidth;
+        *out_height = mHeight;
+        return true;
+    }
+
+    return mBoundReadFramebuffer->ValidateForRead(funcName, out_format, out_width,
+                                                  out_height);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)

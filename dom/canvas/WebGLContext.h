@@ -340,10 +340,6 @@ public:
     // all context resources to be lost.
     uint32_t Generation() { return mGeneration.value(); }
 
-    // Returns null if the current bound FB is not likely complete.
-    const WebGLRectangleObject* CurValidDrawFBRectObject() const;
-    const WebGLRectangleObject* CurValidReadFBRectObject() const;
-
     static const size_t kMaxColorAttachments = 16;
 
     // This is similar to GLContext::ClearSafely, but tries to minimize the
@@ -1199,8 +1195,8 @@ protected:
                                WebGLintptr byteOffset, const char* info);
     bool ValidateStencilParamsForDrawCall();
 
-    bool ValidateCopyTexImage(GLenum internalFormat, WebGLTexImageFunc func,
-                              WebGLTexDimensions dims);
+    bool ValidateCopyTexImage(TexInternalFormat srcFormat, TexInternalFormat dstformat,
+                              WebGLTexImageFunc func, WebGLTexDimensions dims);
 
     bool ValidateSamplerParameterName(GLenum pname, const char* info);
     bool ValidateSamplerParameterParams(GLenum pname, const WebGLIntOrFloat& param, const char* info);
@@ -1246,6 +1242,9 @@ protected:
     bool ValidateUniformLocationForProgram(WebGLUniformLocation* location,
                                            WebGLProgram* program,
                                            const char* funcName);
+
+    bool ValidateCurFBForRead(const char* funcName, TexInternalFormat* const out_format,
+                              uint32_t* const out_width, uint32_t* const out_height);
 
     void Invalidate();
     void DestroyResourcesAndContext();

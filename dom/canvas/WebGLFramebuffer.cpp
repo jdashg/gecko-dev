@@ -972,7 +972,8 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format)
+WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format,
+                                  uint32_t* const out_width, uint32_t* const out_height)
 {
     if (mReadBufferMode == LOCAL_GL_NONE) {
         mContext->ErrorInvalidOperation("%s: Read buffer mode must not be"
@@ -1000,6 +1001,7 @@ WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out
     }
 
     *out_format = attachPoint.Format();
+    attachPoint.Size(out_width, out_height);
     return true;
 }
 

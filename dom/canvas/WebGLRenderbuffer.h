@@ -43,7 +43,6 @@ public:
           MOZ_ASSERT(!mWidth && !mHeight);
           return false;
       }
-      MOZ_ASSERT(mWidth && mHeight);
       return true;
     }
 

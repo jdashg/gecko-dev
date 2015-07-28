@@ -200,8 +200,6 @@ public:
 
     void DetachRenderbuffer(const WebGLRenderbuffer* rb);
 
-    const WebGLRectangleObject& RectangleObject() const;
-
     WebGLContext* GetParentObject() const {
         return Context();
     }
@@ -227,7 +225,8 @@ public:
         mStatus = 0;
     }
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format);
+    bool ValidateForRead(const char* info, TexInternalFormat* const out_format,
+                         uint32_t* const out_width, uint32_t* const out_height);
 
     JS::Value GetAttachmentParameter(JSContext* cx, GLenum attachment, GLenum pname,
                                      ErrorResult& rv);

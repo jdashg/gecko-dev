@@ -1252,11 +1252,12 @@ WebGLContext::ValidateTexInputData(GLenum type, js::Scalar::Type jsArrayType,
  *   are available)
  */
 bool
-WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
+WebGLContext::ValidateCopyTexImage(TexInternalFormat srcFormat,
+                                   TexInternalFormat dstformat, WebGLTexImageFunc func,
                                    WebGLTexDimensions dims)
 {
     MOZ_ASSERT(IsCopyFunc(func));
-
+/*
     // Default framebuffer format
     GLenum fboFormat = mOptions.alpha ? LOCAL_GL_RGBA : LOCAL_GL_RGB;
 
@@ -1267,16 +1268,16 @@ WebGLContext::ValidateCopyTexImage(GLenum format, WebGLTexImageFunc func,
 
         fboFormat = srcFormat.get();
     }
-
-    // Make sure the format of the framebuffer is a superset of the format
-    // requested by the CopyTex[Sub]Image2D functions.
-    const GLComponents formatComps = GLComponents(format);
-    const GLComponents fboComps = GLComponents(fboFormat);
-    if (!formatComps.IsSubsetOf(fboComps)) {
+*/
+    // Make sure the format of the framebuffer (srcFormat) is a superset of the format
+    // requested by the CopyTex[Sub]Image2D functions (dstFormat).
+    const GLComponents srcComps = GLComponents(srcFormat);
+    const GLComponents dstComps = GLComponents(dstformat);
+    if (!dstComps.IsSubsetOf(srcComps)) {
         ErrorInvalidOperation("%s: Format %s is not a subset of the current"
                               " framebuffer format, which is %s.",
-                              InfoFrom(func, dims), EnumName(format),
-                              EnumName(fboFormat));
+                              InfoFrom(func, dims), EnumName(dstformat.get()),
+                              EnumName(srcFormat.get()));
         return false;
     }
 

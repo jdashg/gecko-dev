@@ -385,17 +385,28 @@ void WebGLContext::Draw_cleanup()
         }
     }
 
-    // Let's check the viewport
-    const WebGLRectangleObject* rect = CurValidDrawFBRectObject();
-    if (rect) {
-        if (mViewportWidth > rect->Width() ||
-            mViewportHeight > rect->Height())
-        {
-            if (!mAlreadyWarnedAboutViewportLargerThanDest) {
-                GenerateWarning("Drawing to a destination rect smaller than the viewport rect. "
-                                "(This warning will only be given once)");
-                mAlreadyWarnedAboutViewportLargerThanDest = true;
-            }
+    // Let's check for a really common error: Viewport is larger than the actual
+    // destination framebuffer.
+    uint32_t destWidth = mViewportWidth;
+    uint32_t destHeight = mViewportHeight;
+
+    if (mBoundDrawFramebuffer) {
+        const auto& fba = mBoundDrawFramebuffer->ColorAttachment(0);
+        if (fba.IsDefined()) {
+            fba.Size(&destWidth, &destHeight);
+        }
+    } else {
+        destWidth = mWidth;
+        destHeight = mHeight;
+    }
+
+    if (mViewportWidth > int32_t(destWidth) ||
+        mViewportHeight > int32_t(destHeight))
+    {
+        if (!mAlreadyWarnedAboutViewportLargerThanDest) {
+            GenerateWarning("Drawing to a destination rect smaller than the viewport rect. "
+                            "(This warning will only be given once)");
+            mAlreadyWarnedAboutViewportLargerThanDest = true;
         }
     }
 }
