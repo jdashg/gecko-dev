@@ -19,6 +19,7 @@
 namespace mozilla {
 
 /*static*/ WebGLTexture::ImageInfo WebGLTexture::sUndefinedImageInfo;
+/*static*/ const WebGLTexture::Face WebGLTexture::kNewLevelFace;
 
 JSObject*
 WebGLTexture::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) {
@@ -178,30 +179,6 @@ WebGLTexture::IsCubeComplete() const
 
     return true;
 }
-/*
-void
-WebGLTexture::SetImageInfo(TexImageTarget texImageTarget, GLint level,
-                           GLsizei width, GLsizei height, GLsizei depth,
-                           TexInternalFormat effectiveInternalFormat,
-                           WebGLImageDataStatus status)
-{
-    MOZ_ASSERT(depth == 1 || texImageTarget == LOCAL_GL_TEXTURE_3D);
-    MOZ_ASSERT(TexImageTargetToTexTarget(texImageTarget) == mTarget);
-
-    InvalidateStatusOfAttachedFBs();
-
-    EnsureMaxLevelWithCustomImagesAtLeast(level);
-
-    ImageInfoAt(texImageTarget, level) = ImageInfo(width, height, depth,
-                                                   effectiveInternalFormat,
-                                                   status);
-
-    if (level > 0)
-        SetCustomMipmap();
-
-    SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-}
-*/
 
 static bool
 FormatSupportsFiltering(WebGLContext* webgl, TexInternalFormat format)
@@ -607,6 +584,37 @@ WebGLTexture::ClampLevelBaseAndMax()
                             mImmutableLevelCount - 1);
 }
 
+void
+WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
+{
+    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, baseLevel);
+    MOZ_ASSERT(baseImageInfo.IsDefined());
+
+    uint32_t refWidth = baseImageInfo.mWidth;
+    uint32_t refHeight = baseImageInfo.mHeight;
+    uint32_t refDepth = baseImageInfo.mDepth;
+
+    for (size_t level = baseLevel; level <= maxLevel; level++) {
+        const bool hasUninitData = false;
+        const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
+                            baseImageInfo.mHasUninitData);
+
+        SetImageInfosAtLevel(level, cur);
+
+        // Higher levels are unaffected.
+        if (refWidth == 1 &&
+            refHeight == 1 &&
+            refDepth == 1)
+        {
+            break;
+        }
+
+        refWidth  = std::max(uint32_t(1), refWidth  / 2);
+        refHeight = std::max(uint32_t(1), refHeight / 2);
+        refDepth  = std::max(uint32_t(1), refDepth  / 2);
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // GL calls
 
@@ -705,37 +713,6 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
 
     // Record the results.
     PopulateMipChain(mBaseMipmapLevel, mMaxMipmapLevel);
-}
-
-void
-WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
-{
-    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, baseLevel);
-    MOZ_ASSERT(baseImageInfo.IsDefined());
-
-    uint32_t refWidth = baseImageInfo.mWidth;
-    uint32_t refHeight = baseImageInfo.mHeight;
-    uint32_t refDepth = baseImageInfo.mDepth;
-
-    for (size_t level = baseLevel; level <= maxLevel; level++) {
-        const bool hasUninitData = false;
-        const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
-                            baseImageInfo.mHasUninitData);
-
-        SetImageInfosAtLevel(level, cur);
-
-        // Higher levels are unaffected.
-        if (refWidth == 1 &&
-            refHeight == 1 &&
-            refDepth == 1)
-        {
-            break;
-        }
-
-        refWidth  = std::max(uint32_t(1), refWidth  / 2);
-        refHeight = std::max(uint32_t(1), refHeight / 2);
-        refDepth  = std::max(uint32_t(1), refDepth  / 2);
-    }
 }
 
 JS::Value

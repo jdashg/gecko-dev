@@ -216,7 +216,7 @@ protected:
                            GLsizei width, GLsizei height, GLsizei depth);
 
     void CopyTexSubImage2D_base(TexImageTarget texImageTarget,
-                                GLint level, TexInternalFormat internalFormat,
+                                GLint level, GLenum rawInternalFormat,
                                 GLint xoffset, GLint yoffset, GLint x, GLint y,
                                 GLsizei width, GLsizei height, bool isSub);
 
@@ -289,20 +289,10 @@ public:
         }
 
     protected:
-        ImageInfo& operator =(const ImageInfo& a);
-
-        /*
-        bool operator==(const ImageInfo& a) const {
-            return mStatus == a.mStatus &&
-                   mWidth == a.mWidth &&
-                   mHeight == a.mHeight &&
-                   mDepth == a.mDepth &&
-                   mFormat == a.mFormat;
+        ImageInfo& operator =(const ImageInfo& a) {
+            memcpy(this, &a, sizeof(*this));
+            return *this;
         }
-        bool operator!=(const ImageInfo& a) const {
-            return !(*this == a);
-        }
-        */
 
     public:
         size_t MaxMipmapLevels() const {
@@ -355,17 +345,6 @@ protected:
     }
 
     static const Face kNewLevelFace;
-    /*
-    // Every time we query one, create it if it doesn't already exist.
-    ImageInfo& ImageInfoAtFace(uint8_t face, size_t level) {
-        MOZ_ASSERT(face < mFaceCount);
-
-        auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
-        auto& itr = res.first;
-
-        return itr->second.faces[face];
-    }
-    */
 
     // This is always undefined. It's not const, since modifying mHasUninitData doesn't
     // matter for IsDefined().
@@ -422,29 +401,8 @@ public:
     const ImageInfo& BaseImageInfo() const {
         return ImageInfoAtFace(0, mBaseMipmapLevel);
     }
-/*
-    void SetImageDataStatus(TexImageTarget texImageTarget, size_t level,
-                            WebGLImageDataStatus status)
-    {
-    }
-*/
+
     size_t MemoryUsage() const;
-/*
-    void SetImageDataStatus(TexImageTarget imageTarget, GLint level,
-                            WebGLImageDataStatus newStatus)
-    {
-        MOZ_ASSERT(HasImageInfoAt(imageTarget, level));
-        ImageInfo& imageInfo = ImageInfoAt(imageTarget, level);
-        // There is no way to go from having image data to not having any.
-        MOZ_ASSERT(newStatus != WebGLImageDataStatus::NoImageData ||
-                   imageInfo.mImageDataStatus == WebGLImageDataStatus::NoImageData);
-
-        if (imageInfo.mImageDataStatus != newStatus)
-            SetFakeBlackStatus(WebGLTextureFakeBlackStatus::Unknown);
-
-        imageInfo.mImageDataStatus = newStatus;
-    }
-*/
 
 protected:
     bool EnsureInitializedImageData(uint8_t face, size_t level);
@@ -453,13 +411,7 @@ protected:
         const uint8_t face = FaceForTarget(texImageTarget);
         return EnsureInitializedImageData(face, level);
     }
-/*
-    void EnsureMaxLevelWithCustomImagesAtLeast(size_t maxLevelWithCustomImages) {
-        mMaxLevelWithCustomImages = std::max(mMaxLevelWithCustomImages,
-                                             maxLevelWithCustomImages);
-        mImageInfos.EnsureLengthAtLeast((mMaxLevelWithCustomImages + 1) * mFacesCount);
-    }
-*/
+
     bool CheckFloatTextureFilterParams() const {
         // Without OES_texture_float_linear, only NEAREST and
         // NEAREST_MIMPAMP_NEAREST are supported.
@@ -472,16 +424,8 @@ protected:
         return mWrapS == LOCAL_GL_CLAMP_TO_EDGE &&
                mWrapT == LOCAL_GL_CLAMP_TO_EDGE;
     }
-/*
-    bool DoesMipmapHaveAllLevelsConsistentlyDefined(TexImageTarget texImageTarget) const;
-*/
+
 public:
-    void Bind(TexTarget texTarget);
-
-    void SetImageInfo(TexImageTarget target, GLint level, GLsizei width,
-                      GLsizei height, GLsizei depth, TexInternalFormat format,
-                      WebGLImageDataStatus status);
-
     bool DoesMinFilterRequireMipmap() const {
         return !(mMinFilter == LOCAL_GL_NEAREST ||
                  mMinFilter == LOCAL_GL_LINEAR);
