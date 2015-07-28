@@ -14,6 +14,7 @@
 #include "mozilla/LinkedList.h"
 #include "nsWrapperCache.h"
 
+#include "WebGLContextUtils.h"
 #include "WebGLFramebufferAttachable.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
@@ -284,8 +285,8 @@ public:
             , mDepth(depth)
             , mHasUninitData(hasUninitData)
         {
-            MOZ_ASSERT(mWidth && mHeight && mDepth);
             MOZ_ASSERT(mFormat != LOCAL_GL_NONE);
+            MOZ_ASSERT(mFormat != UnsizedInternalFormatFromInternalFormat(mFormat));
         }
 
     protected:
@@ -315,7 +316,6 @@ public:
                 return false;
             }
 
-            MOZ_ASSERT(mWidth && mHeight && mDepth);
             return true;
         }
     };

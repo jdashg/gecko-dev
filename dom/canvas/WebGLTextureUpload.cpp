@@ -239,6 +239,13 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     TexInternalFormat effectiveInternalFormat =
         EffectiveInternalFormatFromUnsizedInternalFormatAndType(internalFormat, srcType);
 
+#error We're getting RGBA4 here, since we're reading from an RGBA4 RB.
+#error The spec doesn't say to only use UNSIGNED_BYTE, except in that that's what ReadPixels does.
+#error Is that enough?
+#error Likely, ensure (in ANGLE?) that CopyTexImage from RGBA16F is supposed to be 16F.
+#error I suspect that we should derive the effective internal format resulting from CopyTexImage
+#error from the default packFormat/packType for ReadPixels for the given FB effIntFormat.
+
     // this should never fail, validation happened earlier.
     MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
 
@@ -261,7 +268,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
         sizeMayChange = width != imageInfo.mWidth ||
                         height != imageInfo.mHeight ||
                         depth != imageInfo.mDepth ||
-                        effectiveInternalFormat != imageInfo.mFormat;
+						internalFormat != imageInfo.mFormat;
     }
 
     if (sizeMayChange)
@@ -273,11 +280,19 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
         else
             gl->fCopyTexImage2D(texImageTarget.get(), level, internalFormat.get(), x, y, width, height, 0);
     } else {
-
         // the rect doesn't fit in the framebuffer
 
         // first, we initialize the texture as black
         if (!sub) {
+            mContext->GenerateWarning("%s: Source rect reaches outside the bounds of the"
+                                      " source framebuffer. WebGL requires clearing this"
+                                      " out-of-bounds data to zeros, which is slow.",
+                                      info);
+
+            gl->fCopyTexImage2D(texImageTarget.get(), level, internalFormat.get(), x, y, width, height, 0);
+
+            // In GLES, read pixels outside the FB bounds are undefined, so we'll need to
+            // clear them outselves.
             const uint32_t depth = 1;
             const bool hasUninitData = true;
             const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,

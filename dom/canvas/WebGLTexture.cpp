@@ -101,9 +101,10 @@ WebGLTexture::IsMipmapComplete() const
     const ImageInfo& baseImageInfo = ImageInfoAtFace(0, mBaseMipmapLevel);
 
     // Reference dimensions based on the current level.
-    size_t refWidth = baseImageInfo.mWidth;
-    size_t refHeight = baseImageInfo.mHeight;
-    size_t refDepth = baseImageInfo.mDepth;
+    uint32_t refWidth = baseImageInfo.mWidth;
+    uint32_t refHeight = baseImageInfo.mHeight;
+    uint32_t refDepth = baseImageInfo.mDepth;
+    MOZ_ASSERT(refWidth && refHeight && refDepth);
 
     for (size_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
         // "A cube map texture is mipmap complete if each of the six texture images,
@@ -137,9 +138,9 @@ WebGLTexture::IsMipmapComplete() const
             break;
         }
 
-        refWidth  = std::max(size_t(1), refWidth  / 2);
-        refHeight = std::max(size_t(1), refHeight / 2);
-        refDepth  = std::max(size_t(1), refDepth  / 2);
+        refWidth  = std::max(uint32_t(1), refWidth  / 2);
+        refHeight = std::max(uint32_t(1), refHeight / 2);
+        refDepth  = std::max(uint32_t(1), refDepth  / 2);
     }
 
     return true;
@@ -538,9 +539,9 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, size_t level)
     if (error) {
         // Should only be OUT_OF_MEMORY. Anyway, there's no good way to recover
         // from this here.
-        gfxCriticalError() << "GL context GetAndFlushUnderlyingGLErrors " << gfx::hexa(error);
-        printf_stderr("Error: 0x%4x\n", error);
         if (error != LOCAL_GL_OUT_OF_MEMORY) {
+            printf_stderr("Error: 0x%4x\n", error);
+            gfxCriticalError() << "GL context GetAndFlushUnderlyingGLErrors " << gfx::hexa(error);
             // Errors on texture upload have been related to video
             // memory exposure in the past, which is a security issue.
             // Force loss of context.
@@ -593,6 +594,7 @@ WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
     uint32_t refWidth = baseImageInfo.mWidth;
     uint32_t refHeight = baseImageInfo.mHeight;
     uint32_t refDepth = baseImageInfo.mDepth;
+    MOZ_ASSERT(refWidth && refHeight && refDepth);
 
     for (size_t level = baseLevel; level <= maxLevel; level++) {
         const bool hasUninitData = false;
