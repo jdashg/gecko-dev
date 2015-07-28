@@ -509,14 +509,20 @@ public:
 
     bool IsMipmapCubeComplete() const;
 
-    void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
-
     bool IsCubeMap() const { return (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP); }
 
+    // Fake black status
 protected:
     bool ResolveFakeBlackStatus();
 public:
     bool ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out);
+
+    WebGLTextureFakeBlackStatus FakeBlackStatus() const { return mFakeBlackStatus; }
+
+    void InvalidateFakeBlackCache() {
+        mContext->InvalidateFakeBlackCache();
+        mFakeBlackStatus = WebGLTextureFakeBlackStatus::Unknown;
+    }
 };
 
 inline TexImageTarget

@@ -18,12 +18,10 @@ typedef bool WebGLboolean;
 namespace mozilla {
 
 /*
- * WebGLContextFakeBlackStatus and WebGLTextureFakeBlackStatus are enums to
- * track what needs to use a dummy 1x1 black texture, which we refer to as a
- * 'fake black' texture.
+ * WebGLTextureFakeBlackStatus is an enum to track what needs to use a dummy 1x1 black
+ * texture, which we refer to as a 'fake black' texture.
  *
- * There are generally two things that can cause us to use such 'fake black'
- * textures:
+ * There are two things that can cause us to use such 'fake black' textures:
  *
  *   (1) OpenGL ES rules on sampling incomplete textures specify that they
  *       must be sampled as RGBA(0, 0, 0, 1) (opaque black). We have to implement these rules
@@ -38,17 +36,7 @@ namespace mozilla {
  *       uninitialized image data must be exposed to WebGL as if it were filled
  *       with zero bytes, which means it's either opaque or transparent black
  *       depending on whether the image format has alpha.
- *
- * Why are there _two_ separate enums there, WebGLContextFakeBlackStatus
- * and WebGLTextureFakeBlackStatus? That's because each texture must know the precise
- * reason why it needs to be faked (incomplete texture vs. uninitialized image data),
- * whereas the WebGL context can only know whether _any_ faking is currently needed at all.
  */
-enum class WebGLContextFakeBlackStatus : uint8_t {
-  Unknown,
-  NotNeeded,
-  Needed
-};
 
 enum class WebGLTextureFakeBlackStatus : uint8_t {
   Unknown,
