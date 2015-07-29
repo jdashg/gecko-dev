@@ -144,6 +144,117 @@ GLComponents::IsSubsetOf(const GLComponents& other) const
     return (mComponents | other.mComponents) == other.mComponents;
 }
 
+void
+CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
+                                      TexFormat* const out_format,
+                                      TexType* const out_type)
+{
+    // GLES 3.0.4, p140, table 3.15 "ReadPixels `format` and `type` used during CopyTex*."
+    switch (effectiveFormat.get()) {
+    // Normalized fixed-point
+    case LOCAL_GL_R8:
+    case LOCAL_GL_RG8:
+    case LOCAL_GL_RGB8:
+    case LOCAL_GL_RGBA8:
+    case LOCAL_GL_ALPHA8:
+    case LOCAL_GL_LUMINANCE8:
+    case LOCAL_GL_LUMINANCE8_ALPHA8:
+
+    case LOCAL_GL_RGB565:
+    case LOCAL_GL_RGBA4:
+    case LOCAL_GL_RGB5_A1:
+
+    case LOCAL_GL_SRGB8:
+    case LOCAL_GL_SRGB8_ALPHA8:
+        *out_format = LOCAL_GL_RGBA;
+        *out_type   = LOCAL_GL_UNSIGNED_BYTE;
+        return;
+
+    // 10-bit normalized fixed-point
+    case LOCAL_GL_RGB10_A2:
+        *out_format = LOCAL_GL_RGBA;
+        *out_type   = LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV;
+        return;
+
+    // Signed integer.
+    case LOCAL_GL_R8I:
+    case LOCAL_GL_RG8I:
+    case LOCAL_GL_RGB8I:
+    case LOCAL_GL_RGBA8I:
+
+    case LOCAL_GL_R16I:
+    case LOCAL_GL_RG16I:
+    case LOCAL_GL_RGB16I:
+    case LOCAL_GL_RGBA16I:
+
+    case LOCAL_GL_R32I:
+    case LOCAL_GL_RG32I:
+    case LOCAL_GL_RGB32I:
+    case LOCAL_GL_RGBA32I:
+        *out_format = LOCAL_GL_RGBA;
+        *out_type   = LOCAL_GL_INT;
+        return;
+
+    // Unsigned integer.
+    case LOCAL_GL_R8UI:
+    case LOCAL_GL_RG8UI:
+    case LOCAL_GL_RGB8UI:
+    case LOCAL_GL_RGBA8UI:
+
+    case LOCAL_GL_R16UI:
+    case LOCAL_GL_RG16UI:
+    case LOCAL_GL_RGB16UI:
+    case LOCAL_GL_RGBA16UI:
+
+    case LOCAL_GL_R32UI:
+    case LOCAL_GL_RG32UI:
+    case LOCAL_GL_RGB32UI:
+    case LOCAL_GL_RGBA32UI:
+
+    case LOCAL_GL_RGB10_A2UI:
+        *out_format = LOCAL_GL_RGBA;
+        *out_type   = LOCAL_GL_UNSIGNED_INT;
+        return;
+
+    // Float and half-float are added by EXT_color_buffer_float.
+    case LOCAL_GL_R16F:
+    case LOCAL_GL_RG16F:
+    case LOCAL_GL_RGB16F:
+    case LOCAL_GL_RGBA16F:
+    case LOCAL_GL_ALPHA16F_EXT:
+    case LOCAL_GL_LUMINANCE16F_EXT:
+    case LOCAL_GL_LUMINANCE_ALPHA16F_EXT:
+
+    case LOCAL_GL_R32F:
+    case LOCAL_GL_RG32F:
+    case LOCAL_GL_RGB32F:
+    case LOCAL_GL_RGBA32F:
+    case LOCAL_GL_ALPHA32F_EXT:
+    case LOCAL_GL_LUMINANCE32F_EXT:
+    case LOCAL_GL_LUMINANCE_ALPHA32F_EXT:
+        *out_format = LOCAL_GL_RGBA;
+        *out_type   = LOCAL_GL_FLOAT;
+        return;
+
+    // Non-color-renderable
+    case LOCAL_GL_R8_SNORM:
+    case LOCAL_GL_RG8_SNORM:
+    case LOCAL_GL_RGB8_SNORM:
+    case LOCAL_GL_RGBA8_SNORM:
+    case LOCAL_GL_R11F_G11F_B10F:
+    case LOCAL_GL_RGB9_E5:
+
+    // Unsupported
+    case LOCAL_GL_DEPTH_COMPONENT16:
+    case LOCAL_GL_DEPTH_COMPONENT24:
+    case LOCAL_GL_DEPTH24_STENCIL8:
+    case LOCAL_GL_DEPTH_COMPONENT32F:
+    case LOCAL_GL_DEPTH32F_STENCIL8:
+    default:
+        MOZ_CRASH("Bad `effectiveFormat`.");
+    }
+}
+
 TexType
 TypeFromInternalFormat(TexInternalFormat internalformat)
 {

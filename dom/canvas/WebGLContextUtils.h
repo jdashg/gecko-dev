@@ -42,6 +42,10 @@ TexType TypeFromInternalFormat(TexInternalFormat internalformat);
 TexInternalFormat
 UnsizedInternalFormatFromInternalFormat(TexInternalFormat internalformat);
 
+void CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
+                                           TexFormat* const out_format,
+                                           TexType* const out_type);
+
 void SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat);
 
 size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);

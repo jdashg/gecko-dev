@@ -236,18 +236,16 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
 
     const TexType srcType = TypeFromInternalFormat(srcFormat);
 
-    TexInternalFormat effectiveInternalFormat =
-        EffectiveInternalFormatFromUnsizedInternalFormatAndType(internalFormat, srcType);
+    TexFormat intermediateFormat;
+    TexType intermediateType;
+    CopyTexImageIntermediateFormatAndType(srcFormat, &intermediateFormat,
+                                          &intermediateType);
 
-#error We're getting RGBA4 here, since we're reading from an RGBA4 RB.
-#error The spec doesn't say to only use UNSIGNED_BYTE, except in that that's what ReadPixels does.
-#error Is that enough?
-#error Likely, ensure (in ANGLE?) that CopyTexImage from RGBA16F is supposed to be 16F.
-#error I suspect that we should derive the effective internal format resulting from CopyTexImage
-#error from the default packFormat/packType for ReadPixels for the given FB effIntFormat.
+    TexInternalFormat destEffectiveFormat =
+        EffectiveInternalFormatFromUnsizedInternalFormatAndType(internalFormat, intermediateType);
 
     // this should never fail, validation happened earlier.
-    MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
+    MOZ_ASSERT(destEffectiveFormat != LOCAL_GL_NONE);
 
     const bool widthOrHeightIsZero = (width == 0 || height == 0);
     if (gl->WorkAroundDriverBugs() &&
@@ -268,7 +266,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
         sizeMayChange = width != imageInfo.mWidth ||
                         height != imageInfo.mHeight ||
                         depth != imageInfo.mDepth ||
-						internalFormat != imageInfo.mFormat;
+                        destEffectiveFormat != imageInfo.mFormat;
     }
 
     if (sizeMayChange)
@@ -295,7 +293,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
             // clear them outselves.
             const uint32_t depth = 1;
             const bool hasUninitData = true;
-            const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+            const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
                                       hasUninitData);
             SetImageInfoAt(texImageTarget, level, imageInfo);
 
@@ -337,7 +335,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!sub) {
         const uint32_t depth = 1;
         const bool hasUninitData = false;
-        const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+        const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
                                   hasUninitData);
         SetImageInfoAt(texImageTarget, level, imageInfo);
     }
