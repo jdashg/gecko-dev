@@ -21,6 +21,47 @@
 
 namespace mozilla {
 
+// Map R to A
+static const GLenum kLegacyAlphaSwizzle[4] = {
+    LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_RED
+};
+// Map R to RGB
+static const GLenum kLegacyLuminanceSwizzle[4] = {
+    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_ONE
+};
+// Map R to RGB, G to A
+static const GLenum kLegacyLuminanceAlphaSwizzle[4] = {
+    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_GREEN
+};
+
+static void
+SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat)
+{
+    if (!gl->IsCoreProfile())
+        return;
+
+    /* Only support swizzling on core profiles. */
+    // Bug 1159117: Fix this.
+    // MOZ_RELEASE_ASSERT(gl->IsSupported(gl::GLFeature::texture_swizzle));
+
+    switch (internalformat) {
+    case LOCAL_GL_ALPHA:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyAlphaSwizzle);
+        break;
+
+    case LOCAL_GL_LUMINANCE:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyLuminanceSwizzle);
+        break;
+
+    case LOCAL_GL_LUMINANCE_ALPHA:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyLuminanceAlphaSwizzle);
+        break;
+    }
+}
+
 bool
 DoesTargetMatchDimensions(WebGLContext* webgl, TexImageTarget target, uint8_t funcDims,
                           const char* funcName)
@@ -175,10 +216,11 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
     if (levelInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
-                                width == levelInfo.mWidth &&
-                                height == levelInfo.mHeight;
+                                uint32_t(width) == levelInfo.mWidth &&
+                                uint32_t(height) == levelInfo.mHeight;
         if (coversWholeImage) {
             levelInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -194,7 +236,7 @@ void
 WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
                                      GLenum rawInternalFormat,
                                      GLint xOffset, GLint yOffset, GLint x,
-                                     GLint y, GLsizei width, GLsizei height,
+                                     GLint y, GLsizei width, GLsizei height, GLint border,
                                      bool sub)
 {
     WebGLTexImageFunc func = sub
@@ -208,7 +250,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!mContext->ValidateTexImage(texImageTarget, level, rawInternalFormat,
                           xOffset, yOffset, 0,
                           width, height, 0,
-                          0,
+                          border,
                           LOCAL_GL_NONE, LOCAL_GL_NONE,
                           func, dims))
     {
@@ -238,20 +280,16 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!mContext->ValidateCopyTexImage(srcFormat, internalFormat, func, dims))
         return;
 
-    const TexType srcType = TypeFromInternalFormat(srcFormat);
+    TexFormat intermediateFormat;
+    TexType intermediateType;
+    CopyTexImageIntermediateFormatAndType(srcFormat, &intermediateFormat,
+                                          &intermediateType);
 
-    TexInternalFormat effectiveInternalFormat =
-        EffectiveInternalFormatFromUnsizedInternalFormatAndType(internalFormat, srcType);
-
-#error We're getting RGBA4 here, since we're reading from an RGBA4 RB.
-#error The spec doesn't say to only use UNSIGNED_BYTE, except in that that's what ReadPixels does.
-#error Is that enough?
-#error Likely, ensure (in ANGLE?) that CopyTexImage from RGBA16F is supposed to be 16F.
-#error I suspect that we should derive the effective internal format resulting from CopyTexImage
-#error from the default packFormat/packType for ReadPixels for the given FB effIntFormat.
+    TexInternalFormat destEffectiveFormat =
+        EffectiveInternalFormatFromUnsizedInternalFormatAndType(internalFormat, intermediateType);
 
     // this should never fail, validation happened earlier.
-    MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
+    MOZ_ASSERT(destEffectiveFormat != LOCAL_GL_NONE);
 
     const bool widthOrHeightIsZero = (width == 0 || height == 0);
     if (gl->WorkAroundDriverBugs() &&
@@ -269,10 +307,10 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
     if (!sub && imageInfo.IsDefined()) {
         const uint32_t depth = 1;
-        sizeMayChange = width != imageInfo.mWidth ||
-                        height != imageInfo.mHeight ||
+        sizeMayChange = uint32_t(width) != imageInfo.mWidth ||
+                        uint32_t(height) != imageInfo.mHeight ||
                         depth != imageInfo.mDepth ||
-						internalFormat != imageInfo.mFormat;
+                        destEffectiveFormat != imageInfo.mFormat;
     }
 
     if (sizeMayChange)
@@ -299,7 +337,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
             // clear them outselves.
             const uint32_t depth = 1;
             const bool hasUninitData = true;
-            const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+            const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
                                       hasUninitData);
             SetImageInfoAt(texImageTarget, level, imageInfo);
 
@@ -341,7 +379,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!sub) {
         const uint32_t depth = 1;
         const bool hasUninitData = false;
-        const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+        const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
                                   hasUninitData);
         SetImageInfoAt(texImageTarget, level, imageInfo);
     }
@@ -357,15 +395,12 @@ WebGLTexture::CopyTexImage2D(TexImageTarget texImageTarget,
                              GLsizei height,
                              GLint border)
 {
-    // copyTexImage2D only generates textures with type = UNSIGNED_BYTE
-    const WebGLTexImageFunc func = WebGLTexImageFunc::CopyTexImage;
-    const WebGLTexDimensions dims = WebGLTexDimensions::Tex2D;
-
     const char funcName[] = "copyTexImage2D";
     if (!DoesTargetMatchDimensions(mContext, texImageTarget, 2, funcName))
         return;
 
-    CopyTexSubImage2D_base(texImageTarget, level, internalFormat, 0, 0, x, y, width, height, false);
+    CopyTexSubImage2D_base(texImageTarget, level, internalFormat, 0, 0, x, y, width,
+                           height, border, false);
 }
 
 void
@@ -427,6 +462,7 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
                                 height == texHeight;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -438,8 +474,9 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(imageInfo.mFormat,
                                                             &unsizedInternalFormat,
                                                             &type);
+    const GLint border = 0;
     CopyTexSubImage2D_base(texImageTarget, level, unsizedInternalFormat.get(), xOffset,
-                           yOffset, x, y, width, height, true);
+                           yOffset, x, y, width, height, border, true);
 }
 
 
@@ -460,8 +497,8 @@ WebGLTexture::CheckedTexImage2D(TexImageTarget texImageTarget,
 
     const WebGLTexture::ImageInfo& imageInfo = ImageInfoAt(texImageTarget, level);
     if (imageInfo.IsDefined()) {
-        sizeMayChange = width != imageInfo.mWidth ||
-                        height != imageInfo.mHeight ||
+        sizeMayChange = uint32_t(width) != imageInfo.mWidth ||
+                        uint32_t(height) != imageInfo.mHeight ||
                         effectiveInternalFormat != imageInfo.mFormat;
     }
 
@@ -481,10 +518,13 @@ WebGLTexture::CheckedTexImage2D(TexImageTarget texImageTarget,
         mContext->GetAndFlushUnderlyingGLErrors();
     }
 
+    if (driverFormat == LOCAL_GL_ALPHA) {
+        MOZ_ASSERT(true);
+    }
+
     gl->fTexImage2D(texImageTarget.get(), level, driverInternalFormat, width, height, border, driverFormat, driverType, data);
 
-    if (effectiveInternalFormat != driverInternalFormat)
-        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalFormat.get());
+    SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalFormat.get());
 
     GLenum error = LOCAL_GL_NO_ERROR;
     if (sizeMayChange) {
@@ -808,10 +848,11 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (imageInfo.mHasUninitData) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
-                                width == imageInfo.mWidth &&
-                                height == imageInfo.mHeight;
+                                uint32_t(width) == imageInfo.mWidth &&
+                                uint32_t(height) == imageInfo.mHeight;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -1414,11 +1455,12 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 zOffset == 0 &&
-                                width == imageInfo.mWidth &&
-                                height == imageInfo.mHeight &&
-                                depth == imageInfo.mDepth;
+                                uint32_t(width) == imageInfo.mWidth &&
+                                uint32_t(height) == imageInfo.mHeight &&
+                                uint32_t(depth) == imageInfo.mDepth;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;

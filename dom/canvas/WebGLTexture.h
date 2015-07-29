@@ -43,6 +43,7 @@ bool
 DoesTargetMatchDimensions(WebGLContext* webgl, TexImageTarget target, uint8_t dims,
                           const char* funcName);
 
+
 // NOTE: When this class is switched to new DOM bindings, update the (then-slow)
 // WrapObject calls in GetParameter and GetFramebufferAttachmentParameter.
 class WebGLTexture final
@@ -50,7 +51,6 @@ class WebGLTexture final
     , public WebGLRefCountedObject<WebGLTexture>
     , public LinkedListElement<WebGLTexture>
     , public WebGLContextBoundObject
-    , public WebGLFramebufferAttachable
 {
     // Friends
     friend class WebGLContext;
@@ -69,14 +69,15 @@ public:
 
 protected:
     TexTarget mTarget;
-    uint8_t mFaceCount; // 6 for cube maps, 1 otherwise.
-    static const uint8_t kMaxFaceCount = 6;
-
-    std::map<size_t, Face> mImageInfoMap;
 
     TexMinFilter mMinFilter;
     TexMagFilter mMagFilter;
     TexWrap mWrapS, mWrapT;
+
+    uint8_t mFaceCount; // 6 for cube maps, 1 otherwise.
+    static const uint8_t kMaxFaceCount = 6;
+
+    std::map<size_t, Face> mImageInfoMap;
 
     bool mImmutable; // Set by texStorage*
     size_t mImmutableLevelCount;
@@ -227,7 +228,7 @@ protected:
     void CopyTexSubImage2D_base(TexImageTarget texImageTarget,
                                 GLint level, GLenum rawInternalFormat,
                                 GLint xoffset, GLint yoffset, GLint x, GLint y,
-                                GLsizei width, GLsizei height, bool isSub);
+                                GLsizei width, GLsizei height, GLint border, bool isSub);
 
     bool TexImageFromVideoElement(TexImageTarget texImageTarget, GLint level,
                                   GLenum internalFormat, GLenum unpackFormat,
@@ -258,12 +259,20 @@ protected:
 
     ////////////////////////////////////
 
+protected:
+    // We need to forward these.
+    void SetImageInfoAtFace(uint8_t face, size_t level, const ImageInfo& val);
+    void SetImageInfosAtLevel(size_t level, const ImageInfo& val);
+
 public:
     // We store information about the various images that are part of this
     // texture. (cubemap faces, mipmap levels)
     class ImageInfo
     {
-        friend class WebGLTexture;
+        friend void WebGLTexture::SetImageInfoAtFace(uint8_t face, size_t level,
+                                                     const ImageInfo& val);
+        friend void WebGLTexture::SetImageInfosAtLevel(size_t level,
+                                                       const ImageInfo& val);
 
     public:
         // This is the "effective internal format" of the texture, an official
@@ -276,6 +285,8 @@ public:
         const uint32_t mDepth;
 
         bool mHasUninitData;
+
+        std::set<WebGLFBAttachPoint*> mAttachPoints;
 
         ImageInfo()
             : mFormat(LOCAL_GL_NONE)
@@ -294,14 +305,16 @@ public:
             , mHasUninitData(hasUninitData)
         {
             MOZ_ASSERT(mFormat != LOCAL_GL_NONE);
-            MOZ_ASSERT(mFormat != UnsizedInternalFormatFromInternalFormat(mFormat));
+            MOZ_ASSERT_IF(!IsCompressedTextureFormat(mFormat.get()),
+                          mFormat != UnsizedInternalFormatFromInternalFormat(mFormat));
+        }
+
+        ~ImageInfo() {
+            OnRespecify();
         }
 
     protected:
-        ImageInfo& operator =(const ImageInfo& a) {
-            memcpy(this, &a, sizeof(*this));
-            return *this;
-        }
+        ImageInfo& operator =(const ImageInfo& a);
 
     public:
         size_t MaxMipmapLevels() const {
@@ -315,6 +328,10 @@ public:
                    mozilla::IsPowerOfTwo(mHeight) &&
                    mozilla::IsPowerOfTwo(mDepth);
         }
+
+        void AddAttachPoint(WebGLFBAttachPoint* attachPoint);
+        void RemoveAttachPoint(WebGLFBAttachPoint* attachPoint);
+        void OnRespecify() const;
 
         size_t MemoryUsage() const;
 
@@ -353,40 +370,27 @@ protected:
     }
 
     static const Face kNewLevelFace;
+    static const ImageInfo kUndefinedImageInfo;
 
-    // This is always undefined. It's not const, since modifying mHasUninitData doesn't
-    // matter for IsDefined().
-    static ImageInfo sUndefinedImageInfo;
-
+    // Non-const, so we need to give back the (lazily-created) image info.
     ImageInfo& ImageInfoAtFace(uint8_t face, size_t level) {
+        MOZ_ASSERT(face < mFaceCount);
+
+        auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
+        const auto& itr = res.first;
+        return itr->second.faces[face];
+    }
+
+    // Since it's const, if we don't find it, we don't need to create it. Just return give
+    // back kUndefinedImageInfo.
+    const ImageInfo& ImageInfoAtFace(uint8_t face, size_t level) const {
         MOZ_ASSERT(face < mFaceCount);
 
         auto itr = mImageInfoMap.find(level);
         if (itr == mImageInfoMap.end())
-            return sUndefinedImageInfo;
+            return kUndefinedImageInfo;
 
         return itr->second.faces[face];
-    }
-
-    const ImageInfo& ImageInfoAtFace(uint8_t face, size_t level) const {
-        return const_cast<WebGLTexture*>(this)->ImageInfoAtFace(face, level);
-    }
-
-    void SetImageInfoAtFace(uint8_t face, size_t level, const ImageInfo& val) {
-        MOZ_ASSERT(face < mFaceCount);
-
-        auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
-        auto& itr = res.first;
-        itr->second.faces[face] = val;
-    }
-
-    void SetImageInfosAtLevel(size_t level, const ImageInfo& val) {
-        auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
-        auto& itr = res.first;
-
-        for (size_t i = 0; i < mFaceCount; i++) {
-            itr->second.faces[i] = val;
-        }
     }
 
 public:
