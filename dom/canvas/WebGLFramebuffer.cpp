@@ -28,6 +28,12 @@ WebGLFBAttachPoint::~WebGLFBAttachPoint()
     MOZ_ASSERT(!mTexturePtr);
 }
 
+void
+WebGLFBAttachPoint::Unlink()
+{
+    Clear();
+}
+
 bool
 WebGLFBAttachPoint::IsDeleteRequested() const
 {
@@ -85,15 +91,20 @@ WebGLFBAttachPoint::IsReadableFloat() const
            type == LOCAL_GL_HALF_FLOAT;
 }
 
-static void
-UnmarkAttachment(WebGLFBAttachPoint& attachment)
+void
+WebGLFBAttachPoint::Clear()
 {
-    WebGLFramebufferAttachable* maybe = attachment.Texture();
-    if (!maybe)
-        maybe = attachment.Renderbuffer();
+    if (mRenderbufferPtr) {
+        MOZ_ASSERT(!mTexturePtr);
+        mRenderbufferPtr->UnmarkAttachment(*this);
+    } else if (mTexturePtr) {
+        mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).RemoveAttachPoint(this);
+    }
 
-    if (maybe)
-        maybe->UnmarkAttachment(attachment);
+    mTexturePtr = nullptr;
+    mRenderbufferPtr = nullptr;
+
+    OnBackingStoreRespecified();
 }
 
 void
@@ -106,32 +117,28 @@ void
 WebGLFBAttachPoint::SetTexImageLayer(WebGLTexture* tex, TexImageTarget target,
                                      GLint level, GLint layer)
 {
-    mFB->InvalidateFramebufferStatus();
-
-    UnmarkAttachment(*this);
+    Clear();
 
     mTexturePtr = tex;
-    mRenderbufferPtr = nullptr;
     mTexImageTarget = target;
     mTexImageLevel = level;
     mTexImageLayer = layer;
 
-    if (tex)
-        tex->MarkAttachment(*this);
+    if (mTexturePtr) {
+        mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel).AddAttachPoint(this);
+    }
 }
 
 void
 WebGLFBAttachPoint::SetRenderbuffer(WebGLRenderbuffer* rb)
 {
-    mFB->InvalidateFramebufferStatus();
+    Clear();
 
-    UnmarkAttachment(*this);
-
-    mTexturePtr = nullptr;
     mRenderbufferPtr = rb;
 
-    if (rb)
-        rb->MarkAttachment(*this);
+    if (mRenderbufferPtr) {
+        mRenderbufferPtr->MarkAttachment(*this);
+    }
 }
 
 bool
@@ -196,6 +203,12 @@ WebGLFBAttachPoint::Size(uint32_t* const out_width, uint32_t* const out_height) 
 
     *out_width = imageInfo.mWidth;
     *out_height = imageInfo.mHeight;
+}
+
+void
+WebGLFBAttachPoint::OnBackingStoreRespecified() const
+{
+    mFB->InvalidateFramebufferStatus();
 }
 
 /*

@@ -11,15 +11,82 @@
 #include "mozilla/gfx/Logging.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Scoped.h"
+#include "mozilla/unused.h"
 #include "ScopedGLHelpers.h"
 #include "WebGLContext.h"
 #include "WebGLContextUtils.h"
+#include "WebGLFramebuffer.h"
 #include "WebGLTexelConversions.h"
 
 namespace mozilla {
 
-/*static*/ WebGLTexture::ImageInfo WebGLTexture::sUndefinedImageInfo;
+/*static*/ const WebGLTexture::ImageInfo WebGLTexture::kUndefinedImageInfo;
 /*static*/ const WebGLTexture::Face WebGLTexture::kNewLevelFace;
+
+////////////////////////////////////////
+
+template <typename T>
+static inline T&
+Mutable(const T& x)
+{
+    return const_cast<T&>(x);
+}
+
+WebGLTexture::ImageInfo&
+WebGLTexture::ImageInfo::operator =(const ImageInfo& a)
+{
+    Mutable(mFormat) = a.mFormat;
+    Mutable(mWidth) = a.mWidth;
+    Mutable(mHeight) = a.mHeight;
+    Mutable(mDepth) = a.mDepth;
+
+    mHasUninitData = a.mHasUninitData;
+
+    // But *don't* transfer mAttachPoints!
+    MOZ_ASSERT(a.mAttachPoints.empty());
+    OnRespecify();
+
+    return *this;
+}
+
+void
+WebGLTexture::ImageInfo::AddAttachPoint(WebGLFBAttachPoint* attachPoint)
+{
+    const auto pair = mAttachPoints.insert(attachPoint);
+    const bool& didInsert = pair.second;
+
+    MOZ_ASSERT(didInsert);
+    mozilla::unused << didInsert;
+}
+
+void
+WebGLTexture::ImageInfo::RemoveAttachPoint(WebGLFBAttachPoint* attachPoint)
+{
+    const size_t numElemsErased = mAttachPoints.erase(attachPoint);
+
+    MOZ_ASSERT_IF(IsDefined(), numElemsErased == 1);
+    mozilla::unused << numElemsErased;
+}
+
+void
+WebGLTexture::ImageInfo::OnRespecify() const
+{
+    for (auto cur : mAttachPoints) {
+        cur->OnBackingStoreRespecified();
+    }
+}
+
+size_t
+WebGLTexture::ImageInfo::MemoryUsage() const
+{
+    if (!IsDefined())
+        return 0;
+
+    size_t bitsPerTexel = GetBitsPerTexel(mFormat);
+    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bitsPerTexel / 8;
+}
+
+////////////////////////////////////////
 
 JSObject*
 WebGLTexture::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) {
@@ -48,23 +115,12 @@ WebGLTexture::WebGLTexture(WebGLContext* webgl, GLuint tex)
 void
 WebGLTexture::Delete()
 {
-    mImageInfoMap.clear();
+    mImageInfoMap.clear(); // Invalidate all ImageInfos.
 
     mContext->MakeContextCurrent();
     mContext->gl->fDeleteTextures(1, &mGLName);
 
     LinkedListElement<WebGLTexture>::removeFrom(mContext->mTextures);
-}
-
-// TODO: De-interleave WebGLTexture and WebGLTexture::ImageInfo func definitions.
-size_t
-WebGLTexture::ImageInfo::MemoryUsage() const
-{
-    if (!IsDefined())
-        return 0;
-
-    size_t bitsPerTexel = GetBitsPerTexel(mFormat);
-    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bitsPerTexel / 8;
 }
 
 size_t
@@ -76,6 +132,27 @@ WebGLTexture::MemoryUsage() const
     size_t result = 0;
     MOZ_CRASH("todo");
     return result;
+}
+
+void
+WebGLTexture::SetImageInfoAtFace(uint8_t face, size_t level, const ImageInfo& val)
+{
+    ImageInfoAtFace(face, level) = val;
+
+    InvalidateFakeBlackCache();
+}
+
+void
+WebGLTexture::SetImageInfosAtLevel(size_t level, const ImageInfo& val)
+{
+    auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
+    const auto& itr = res.first;
+
+    for (size_t i = 0; i < mFaceCount; i++) {
+        itr->second.faces[i] = val;
+    }
+
+    InvalidateFakeBlackCache();
 }
 
 static inline size_t
@@ -168,6 +245,8 @@ WebGLTexture::IsCubeComplete() const
 
     for (size_t face = 0; face < mFaceCount; face++) {
         const ImageInfo& cur = ImageInfoAtFace(face, mBaseMipmapLevel);
+        if (!cur.IsDefined())
+            return false;
 
         MOZ_ASSERT(cur.mDepth == 1);
         if (cur.mFormat != refFormat || // Check effective formats.
@@ -179,6 +258,17 @@ WebGLTexture::IsCubeComplete() const
     }
 
     return true;
+}
+
+static bool
+IsColorFormat(TexInternalFormat format)
+{
+    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
+
+    // ALPHA *is* a "color format"!
+    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
+           unsizedformat != LOCAL_GL_DEPTH_STENCIL;
+           unsizedformat != LOCAL_GL_STENCIL_INDEX;
 }
 
 static bool
@@ -211,6 +301,11 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         return false;
     }
 
+    if (!baseImageInfo.mWidth || !baseImageInfo.mHeight || !baseImageInfo.mDepth) {
+        *out_reason = "The dimensions of `level_base` are not all positive.";
+        return false;
+    }
+
     // "* The texture is a cube map texture, and is not cube complete."
     if (IsCubeMap() && !IsCubeComplete()) {
         *out_reason = "Cubemaps must be \"cube complete\".";
@@ -240,7 +335,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         //    NEAREST nor NEAREST_MIPMAP_NEAREST."
         // Since all (GLES3) unsized color formats are filterable just like their sized
         // equivalents, we don't have to care whether its sized or not.
-        if (FormatHasColor(format) && !FormatSupportsFiltering(mContext, format)) {
+        if (IsColorFormat(format) && !FormatSupportsFiltering(mContext, format)) {
             *out_reason = "Because minification or magnification filtering is not NEAREST"
                           " or NEAREST_MIPMAP_NEAREST, and the texture's format is a"
                           " color format, its format must be \"texture-filterable\".";
@@ -252,15 +347,69 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         //    TEXTURE_COMPARE_MODE is NONE[1], and either the magnification filter is not
         //    NEAREST, or the minification filter is neither NEAREST nor
         //    NEAREST_MIPMAP_NEAREST."
-        // [1]: This sounds suspect to [jgilbert]. It seems like this should instead be
-        //      "is not NONE".
-        if (FormatHasDepth(format) && mTexCompareMode == LOCAL_GL_NONE) {
-            *out_reason = "Because minification or magnification filtering is not NEAREST"
-                          " or NEAREST_MIPMAP_NEAREST, and the texture's format is a"
-                          " sized depth or depth-stencil format, its TEXTURE_COMPARE_MODE"
-                          " must be NONE.";
-            return false;
+        // [1]: This sounds suspect, but is explicitly noted in the change log for GLES
+        //      3.0.1:
+        //      "* Clarify that a texture is incomplete if it has a depth component, no
+        //         shadow comparison, and linear filtering (also Bug 9481)."
+        // As of OES_packed_depth_stencil rev #3, the sample code explicitly samples from
+        // a DEPTH_STENCIL_OES texture with a min-filter of LINEAR. Therefore we relax
+        // this restriction if WEBGL_depth_texture is enabled.
+        if (!mContext->IsExtensionEnabled(WebGLExtensionID::WEBGL_depth_texture)) {
+            if (FormatHasDepth(format) && mTexCompareMode != LOCAL_GL_NONE) {
+                *out_reason = "A depth or depth-stencil format with TEXTURE_COMPARE_MODE"
+                              " of NONE must have minification or magnification filtering"
+                              " of NEAREST or NEAREST_MIPMAP_NEAREST.";
+                return false;
+            }
         }
+    }
+
+    // Texture completeness is effectively (though not explicitly) amended for GLES2 by
+    // the "Texture Access" section under $3.8 "Fragment Shaders". This also applies to
+    // vertex shaders, as noted on GLES 2.0.25, p41.
+    if (!mContext->IsWebGL2()) {
+        // GLES 2.0.25, p87-88:
+        // "Calling a sampler from a fragment shader will return (R,G,B,A)=(0,0,0,1) if
+        //  any of the following conditions are true:"
+
+        // "* A two-dimensional sampler is called, the minification filter is one that
+        //    requires a mipmap[...], and the sampler's associated texture object is not
+        //    complete[.]"
+        // (already covered)
+
+        // "* A two-dimensional sampler is called, the minification filter is not one that
+        //    requires a mipmap (either NEAREST nor[sic] LINEAR), and either dimension of
+        //    the level zero array of the associated texture object is not positive."
+        // (already covered)
+
+        // "* A two-dimensional sampler is called, the corresponding texture image is a
+        //    non-power-of-two image[...], and either the texture wrap mode is not
+        //    CLAMP_TO_EDGE, or the minification filter is neither NEAREST nor LINEAR."
+
+        // "* A cube map sampler is called, any of the corresponding texture images are
+        //    non-power-of-two images, and either the texture wrap mode is not
+        //    CLAMP_TO_EDGE, or the minification filter is neither NEAREST nor LINEAR."
+        if (!baseImageInfo.IsPowerOfTwo()) {
+            // "either the texture wrap mode is not CLAMP_TO_EDGE"
+            if (mWrapS != LOCAL_GL_CLAMP_TO_EDGE ||
+                mWrapS != LOCAL_GL_CLAMP_TO_EDGE)
+            {
+                *out_reason = "Non-power-of-two textures must have a wrap mode of"
+                              " CLAMP_TO_EDGE.";
+                return false;
+            }
+
+            // "or the minification filter is neither NEAREST nor LINEAR"
+            if (requiresMipmap) {
+                *out_reason = "Mipmapping requires power-of-two textures.";
+                return false;
+            }
+        }
+
+        // "* A cube map sampler is called, and either the corresponding cube map texture
+        //    image is not cube complete, or TEXTURE_MIN_FILTER is one that requires a
+        //    mipmap and the texture is not mipmap cube complete."
+        // (already covered)
     }
 
     return true;
@@ -482,6 +631,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, size_t level)
                                        imageInfo.mWidth);
         if (cleared) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
             return true;
         }
     }
@@ -560,6 +710,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, size_t level)
     }
 
     imageInfo.mHasUninitData = false;
+    InvalidateFakeBlackCache();
     return true;
 }
 
@@ -597,7 +748,6 @@ WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
     for (size_t level = baseLevel; level <= maxLevel; level++) {
-        const bool hasUninitData = false;
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
                             baseImageInfo.mHasUninitData);
 
@@ -650,6 +800,10 @@ WebGLTexture::BindTexture(TexTarget texTarget)
                                          LOCAL_GL_TEXTURE_WRAP_R,
                                          LOCAL_GL_CLAMP_TO_EDGE);
         }
+    }
+
+    if (mFakeBlackStatus != WebGLTextureFakeBlackStatus::NotNeeded) {
+        mContext->InvalidateFakeBlackCache();
     }
 
     return true;

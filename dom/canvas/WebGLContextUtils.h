@@ -18,7 +18,6 @@ namespace mozilla {
 bool IsGLDepthFormat(TexInternalFormat format);
 bool IsGLDepthStencilFormat(TexInternalFormat format);
 bool FormatHasAlpha(TexInternalFormat format);
-bool FormatHasColor(TexInternalFormat format);
 bool FormatHasDepth(TexInternalFormat format);
 
 void
@@ -42,7 +41,9 @@ TexType TypeFromInternalFormat(TexInternalFormat internalformat);
 TexInternalFormat
 UnsizedInternalFormatFromInternalFormat(TexInternalFormat internalformat);
 
-void SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat);
+void CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
+                                           TexFormat* const out_format,
+                                           TexType* const out_type);
 
 size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
 

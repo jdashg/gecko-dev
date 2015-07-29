@@ -392,8 +392,6 @@ WebGLContext::DeleteTexture(WebGLTexture* tex)
     if (mBoundReadFramebuffer)
         mBoundReadFramebuffer->DetachTexture(tex);
 
-    tex->InvalidateStatusOfAttachedFBs();
-
     GLuint activeTexture = mActiveTexture;
     for (int32_t i = 0; i < mGLMaxTextureUnits; i++) {
         if ((mBound2DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_2D) ||
