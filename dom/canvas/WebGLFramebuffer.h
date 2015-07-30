@@ -40,10 +40,7 @@ public:
     WebGLFBAttachPoint(WebGLFramebuffer* fb, FBAttachment attachmentPoint);
     ~WebGLFBAttachPoint();
 
-    void Unlink() {
-        mRenderbufferPtr = nullptr;
-        mTexturePtr = nullptr;
-    }
+    void Unlink();
 
     bool IsDefined() const;
     bool IsDeleteRequested() const;
@@ -53,9 +50,7 @@ public:
     bool HasAlpha() const;
     bool IsReadableFloat() const;
 
-    void Clear() {
-        SetRenderbuffer(nullptr);
-    }
+    void Clear();
 
     void SetTexImage(WebGLTexture* tex, TexImageTarget target, GLint level);
     void SetRenderbuffer(WebGLRenderbuffer* rb);
@@ -90,6 +85,8 @@ public:
 
     void FinalizeAttachment(gl::GLContext* gl,
                             FBAttachment attachmentLoc) const;
+
+    void OnBackingStoreRespecified() const;
 };
 
 class WebGLFramebuffer final

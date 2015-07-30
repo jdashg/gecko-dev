@@ -175,6 +175,7 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
                                 height == levelInfo.mHeight;
         if (coversWholeImage) {
             levelInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -190,7 +191,7 @@ void
 WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
                                      GLenum rawInternalFormat,
                                      GLint xOffset, GLint yOffset, GLint x,
-                                     GLint y, GLsizei width, GLsizei height,
+                                     GLint y, GLsizei width, GLsizei height, GLint border,
                                      bool sub)
 {
     WebGLTexImageFunc func = sub
@@ -204,7 +205,7 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (!mContext->ValidateTexImage(texImageTarget, level, rawInternalFormat,
                           xOffset, yOffset, 0,
                           width, height, 0,
-                          0,
+                          border,
                           LOCAL_GL_NONE, LOCAL_GL_NONE,
                           func, dims))
     {
@@ -359,7 +360,8 @@ WebGLTexture::CopyTexImage2D(TexImageTarget texImageTarget,
     if (!DoesTargetMatchDimensions(mContext, texImageTarget, 2, funcName))
         return;
 
-    CopyTexSubImage2D_base(texImageTarget, level, internalFormat, 0, 0, x, y, width, height, false);
+    CopyTexSubImage2D_base(texImageTarget, level, internalFormat, 0, 0, x, y, width,
+                           height, border, false);
 }
 
 void
@@ -421,6 +423,7 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
                                 height == texHeight;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -432,8 +435,9 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(imageInfo.mFormat,
                                                             &unsizedInternalFormat,
                                                             &type);
+    const GLint border = 0;
     CopyTexSubImage2D_base(texImageTarget, level, unsizedInternalFormat.get(), xOffset,
-                           yOffset, x, y, width, height, true);
+                           yOffset, x, y, width, height, border, true);
 }
 
 
@@ -811,6 +815,7 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
                                 height == imageInfo.mHeight;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -1414,6 +1419,7 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
                                 depth == imageInfo.mDepth;
         if (coversWholeImage) {
             imageInfo.mHasUninitData = false;
+            InvalidateFakeBlackCache();
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
