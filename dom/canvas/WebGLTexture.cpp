@@ -8,13 +8,13 @@
 #include <algorithm>
 #include "GLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "mozilla/gfx/Logging.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Scoped.h"
 #include "ScopedGLHelpers.h"
 #include "WebGLContext.h"
 #include "WebGLContextUtils.h"
 #include "WebGLTexelConversions.h"
-#include "mozilla/gfx/Logging.h"
 
 namespace mozilla {
 

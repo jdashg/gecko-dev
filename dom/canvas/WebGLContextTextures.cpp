@@ -298,7 +298,7 @@ void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                          GLenum unpackType,
-                         const dom::Nullable<ArrayBufferView>& maybeView,
+                         const dom::Nullable<dom::ArrayBufferView>& maybeView,
                          ErrorResult& out_rv)
 {
     TexImageTarget texImageTarget;
@@ -356,7 +356,7 @@ void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLsizei width, GLsizei height,
                             GLenum unpackFormat, GLenum unpackType,
-                            const dom::Nullable<ArrayBufferView>& maybeView,
+                            const dom::Nullable<dom::ArrayBufferView>& maybeView,
                             ErrorResult& out_rv)
 {
     TexImageTarget texImageTarget;
@@ -373,7 +373,7 @@ WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset
 
 void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                            GLenum unpackFormat, GLenum unpackType, ImageData* imageData,
+                            GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
                             ErrorResult& out_rv)
 {
     TexImageTarget texImageTarget;
@@ -434,7 +434,7 @@ WebGLContext::CopyTexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOf
 void
 WebGLContext::CompressedTexImage2D(GLenum rawTexImageTarget, GLint level,
                                    GLenum internalFormat, GLsizei width, GLsizei height,
-                                   GLint border, const ArrayBufferView& view)
+                                   GLint border, const dom::ArrayBufferView& view)
 {
     TexImageTarget texImageTarget;
     WebGLTexture* tex;
@@ -452,7 +452,7 @@ void
 WebGLContext::CompressedTexSubImage2D(GLenum rawTexImageTarget, GLint level,
                                       GLint xOffset, GLint yOffset, GLsizei width,
                                       GLsizei height, GLenum unpackFormat,
-                                      const ArrayBufferView& view)
+                                      const dom::ArrayBufferView& view)
 {
     TexImageTarget texImageTarget;
     WebGLTexture* tex;

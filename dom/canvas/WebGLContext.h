@@ -1621,9 +1621,7 @@ ValidateTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
                        WebGLTexture** const out_tex);
 
 // Returns x rounded to the next highest multiple of y.
-static CheckedUint32 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y) {
-    return ((x + y - 1) / y) * y;
-}
+CheckedUint32 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y);
 
 } // namespace mozilla
 

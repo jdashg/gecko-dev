@@ -1827,6 +1827,12 @@ RoundUpToMultipleOf(size_t value, size_t multiple)
     return overshoot - (overshoot % multiple);
 }
 
+CheckedUint32
+RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
+{
+    return ((x + y - 1) / y) * y;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)

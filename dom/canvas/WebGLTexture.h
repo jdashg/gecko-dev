@@ -10,6 +10,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/CheckedInt.h"
+#include "mozilla/dom/TypedArray.h"
 #include "mozilla/LinkedList.h"
 #include "nsWrapperCache.h"
 
@@ -18,6 +19,12 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
+class ErrorResult;
+
+namespace dom {
+class Element;
+class ImageData;
+} // namespace dom
 
 // Zero is not an integer power of two.
 inline bool

@@ -1384,7 +1384,7 @@ IsFormatAndTypeUnpackable(GLenum format, GLenum type)
 void
 WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                          GLsizei height, GLenum format,
-                         GLenum type, const dom::Nullable<ArrayBufferView>& pixels,
+                         GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
                          ErrorResult& rv)
 {
     if (IsContextLost())
@@ -1457,7 +1457,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         MOZ_CRASH("bad `type`");
     }
 
-    const ArrayBufferView& pixbuf = pixels.Value();
+    const dom::ArrayBufferView& pixbuf = pixels.Value();
     int dataType = pixbuf.Type();
 
     // Check the pixels param type
