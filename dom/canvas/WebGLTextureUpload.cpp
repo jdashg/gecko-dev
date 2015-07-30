@@ -547,7 +547,6 @@ WebGLTexture::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
             "bound to this target has already been made immutable by texStorage2D");
     }
     mContext->MakeContextCurrent();
-    gl::GLContext* gl = mContext->gl;
 
     nsAutoArrayPtr<uint8_t> convertedData;
     void* pixels = nullptr;
@@ -900,10 +899,10 @@ WebGLTexture::TexImageFromVideoElement(TexImageTarget texImageTarget,
                                        GLenum unpackFormat, GLenum unpackType,
                                        mozilla::dom::Element* elem)
 {
-    if (type == LOCAL_GL_HALF_FLOAT_OES &&
-        !gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float))
+    if (unpackType == LOCAL_GL_HALF_FLOAT_OES &&
+        !mContext->gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float))
     {
-        type = LOCAL_GL_HALF_FLOAT;
+        unpackType = LOCAL_GL_HALF_FLOAT;
     }
 
     if (!mContext->ValidateTexImageFormatAndType(unpackFormat, unpackType,
