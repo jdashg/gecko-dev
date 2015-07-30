@@ -60,15 +60,6 @@ FormatHasDepth(TexInternalFormat format)
            unsizedformat == LOCAL_GL_DEPTH_STENCIL;
 }
 
-bool
-FormatHasColor(TexInternalFormat format)
-{
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
-    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
-           unsizedformat != LOCAL_GL_DEPTH_STENCIL &&
-           unsizedformat != LOCAL_GL_ALPHA;
-}
-
 TexTarget
 TexImageTargetToTexTarget(TexImageTarget texImageTarget)
 {
@@ -439,47 +430,6 @@ DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,
     *out_driverInternalFormat = driverInternalFormat;
     *out_driverFormat = driverFormat;
     *out_driverType = driverType;
-}
-
-// Map R to A
-static const GLenum kLegacyAlphaSwizzle[4] = {
-    LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_RED
-};
-// Map R to RGB
-static const GLenum kLegacyLuminanceSwizzle[4] = {
-    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_ONE
-};
-// Map R to RGB, G to A
-static const GLenum kLegacyLuminanceAlphaSwizzle[4] = {
-    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_GREEN
-};
-
-void
-SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat)
-{
-    if (!gl->IsCoreProfile())
-        return;
-
-    /* Only support swizzling on core profiles. */
-    // Bug 1159117: Fix this.
-    // MOZ_RELEASE_ASSERT(gl->IsSupported(gl::GLFeature::texture_swizzle));
-
-    switch (internalformat) {
-    case LOCAL_GL_ALPHA:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyAlphaSwizzle);
-        break;
-
-    case LOCAL_GL_LUMINANCE:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyLuminanceSwizzle);
-        break;
-
-    case LOCAL_GL_LUMINANCE_ALPHA:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyLuminanceAlphaSwizzle);
-        break;
-    }
 }
 
 /**

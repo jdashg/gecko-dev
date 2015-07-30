@@ -261,6 +261,17 @@ WebGLTexture::IsCubeComplete() const
 }
 
 static bool
+IsColorFormat(TexInternalFormat format)
+{
+    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
+
+    // ALPHA *is* a "color format"!
+    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
+           unsizedformat != LOCAL_GL_DEPTH_STENCIL;
+           unsizedformat != LOCAL_GL_STENCIL_INDEX;
+}
+
+static bool
 FormatSupportsFiltering(WebGLContext* webgl, TexInternalFormat format)
 {
     TexType type = TypeFromInternalFormat(format);
@@ -324,7 +335,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         //    NEAREST nor NEAREST_MIPMAP_NEAREST."
         // Since all (GLES3) unsized color formats are filterable just like their sized
         // equivalents, we don't have to care whether its sized or not.
-        if (FormatHasColor(format) && !FormatSupportsFiltering(mContext, format)) {
+        if (IsColorFormat(format) && !FormatSupportsFiltering(mContext, format)) {
             *out_reason = "Because minification or magnification filtering is not NEAREST"
                           " or NEAREST_MIPMAP_NEAREST, and the texture's format is a"
                           " color format, its format must be \"texture-filterable\".";
@@ -790,6 +801,10 @@ WebGLTexture::BindTexture(TexTarget texTarget)
                                          LOCAL_GL_TEXTURE_WRAP_R,
                                          LOCAL_GL_CLAMP_TO_EDGE);
         }
+    }
+
+    if (mFakeBlackStatus != WebGLTextureFakeBlackStatus::NotNeeded) {
+        mContext->InvalidateFakeBlackCache();
     }
 
     return true;

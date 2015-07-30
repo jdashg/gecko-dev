@@ -21,6 +21,47 @@
 
 namespace mozilla {
 
+// Map R to A
+static const GLenum kLegacyAlphaSwizzle[4] = {
+    LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_RED
+};
+// Map R to RGB
+static const GLenum kLegacyLuminanceSwizzle[4] = {
+    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_ONE
+};
+// Map R to RGB, G to A
+static const GLenum kLegacyLuminanceAlphaSwizzle[4] = {
+    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_GREEN
+};
+
+static void
+SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat)
+{
+    if (!gl->IsCoreProfile())
+        return;
+
+    /* Only support swizzling on core profiles. */
+    // Bug 1159117: Fix this.
+    // MOZ_RELEASE_ASSERT(gl->IsSupported(gl::GLFeature::texture_swizzle));
+
+    switch (internalformat) {
+    case LOCAL_GL_ALPHA:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyAlphaSwizzle);
+        break;
+
+    case LOCAL_GL_LUMINANCE:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyLuminanceSwizzle);
+        break;
+
+    case LOCAL_GL_LUMINANCE_ALPHA:
+        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
+                            (GLint*) kLegacyLuminanceAlphaSwizzle);
+        break;
+    }
+}
+
 bool
 DoesTargetMatchDimensions(WebGLContext* webgl, TexImageTarget target, uint8_t funcDims,
                           const char* funcName)
@@ -479,10 +520,13 @@ WebGLTexture::CheckedTexImage2D(TexImageTarget texImageTarget,
         mContext->GetAndFlushUnderlyingGLErrors();
     }
 
+    if (driverFormat == LOCAL_GL_ALPHA) {
+        MOZ_ASSERT(true);
+    }
+
     gl->fTexImage2D(texImageTarget.get(), level, driverInternalFormat, width, height, border, driverFormat, driverType, data);
 
-    if (effectiveInternalFormat != driverInternalFormat)
-        SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalFormat.get());
+    SetLegacyTextureSwizzle(gl, texImageTarget.get(), internalFormat.get());
 
     GLenum error = LOCAL_GL_NO_ERROR;
     if (sizeMayChange) {
