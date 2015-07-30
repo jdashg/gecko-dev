@@ -1051,7 +1051,8 @@ WebGLTexture::TexImageFromVideoElement(TexImageTarget texImageTarget,
 
     const uint32_t depth = 1;
     const bool hasUninitData = false;
-    const ImageInfo imageInfo(internalFormat, width, height, depth, hasUninitData);
+    const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+                              hasUninitData);
     SetImageInfoAt(texImageTarget, level, imageInfo);
 
     return true;
