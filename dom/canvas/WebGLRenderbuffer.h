@@ -29,8 +29,10 @@ public:
     void Delete();
 
     bool HasUninitializedImageData() const {
+        MOZ_ASSERT(mImageDataStatus != WebGLImageDataStatus::NoImageData);
         return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
     }
+
     void SetImageDataStatus(WebGLImageDataStatus x) {
         // there is no way to go from having image data to not having any
         MOZ_ASSERT(x != WebGLImageDataStatus::NoImageData ||
@@ -39,11 +41,11 @@ public:
     }
 
     bool IsDefined() const {
-      if (mInternalFormat == LOCAL_GL_NONE) {
-          MOZ_ASSERT(!mWidth && !mHeight);
-          return false;
-      }
-      return true;
+        if (mInternalFormat == LOCAL_GL_NONE) {
+            MOZ_ASSERT(!mWidth && !mHeight);
+            return false;
+        }
+        return true;
     }
 
     GLsizei Samples() const { return mSamples; }
