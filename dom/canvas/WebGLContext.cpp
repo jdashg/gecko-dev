@@ -1832,6 +1832,7 @@ WebGLContext::ValidateCurFBForRead(const char* funcName,
                                    uint32_t* const out_width, uint32_t* const out_height)
 {
     if (!mBoundReadFramebuffer) {
+        ClearBackbufferIfNeeded();
         // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
         // that might not always be true, say if we had a 16bpp default framebuffer.
         *out_format = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
