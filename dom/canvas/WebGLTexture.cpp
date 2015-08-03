@@ -103,8 +103,8 @@ WebGLTexture::ImageInfo::MemoryUsage() const
     if (!IsDefined())
         return 0;
 
-    size_t bitsPerTexel = GetBitsPerTexel(mFormat);
-    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bitsPerTexel / 8;
+    const auto bytesPerTexel = mFormat->formatInfo->bytesPerPixel;
+    return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bytesPerTexel;
 }
 
 void
@@ -360,7 +360,8 @@ WebGLTexture::IsComplete(const char** const out_reason) const
     const bool isMagFilteringNearest = (mMagFilter == LOCAL_GL_NEAREST);
     const bool isFilteringNearestOnly = (isMinFilteringNearest && isMagFilteringNearest);
     if (!isFilteringNearestOnly) {
-        auto format = baseImageInfo.mFormat;
+        auto formatUsage = baseImageInfo.mFormat;
+        auto format = formatUsage->formatInfo;
 
         // "* The effective internal format specified for the texture arrays is a sized
         //    internal color format that is not texture-filterable, and either the
@@ -368,7 +369,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         //    NEAREST nor NEAREST_MIPMAP_NEAREST."
         // Since all (GLES3) unsized color formats are filterable just like their sized
         // equivalents, we don't have to care whether its sized or not.
-        if (IsColorFormat(format) && !FormatSupportsFiltering(mContext, format)) {
+        if (format->isColorFormat && !formatUsage->isFilterable) {
             *out_reason = "Because minification or magnification filtering is not NEAREST"
                           " or NEAREST_MIPMAP_NEAREST, and the texture's format is a"
                           " color format, its format must be \"texture-filterable\".";
@@ -388,7 +389,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         // a DEPTH_STENCIL_OES texture with a min-filter of LINEAR. Therefore we relax
         // this restriction if WEBGL_depth_texture is enabled.
         if (!mContext->IsExtensionEnabled(WebGLExtensionID::WEBGL_depth_texture)) {
-            if (FormatHasDepth(format) && mTexCompareMode != LOCAL_GL_NONE) {
+            if (format->hasDepth && mTexCompareMode != LOCAL_GL_NONE) {
                 *out_reason = "A depth or depth-stencil format with TEXTURE_COMPARE_MODE"
                               " of NONE must have minification or magnification filtering"
                               " of NEAREST or NEAREST_MIPMAP_NEAREST.";
@@ -668,18 +669,15 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
         }
     }
 
-    auto imageFormat = imageInfo.mFormat;
-
     // That didn't work. Try uploading zeros then.
-    size_t bitsPerTexel = GetBitsPerTexel(imageFormat);
-    MOZ_ASSERT((bitsPerTexel % 8) == 0, "No compressed formats allowed. (yet)");
-    size_t bytesPerTexel = bitsPerTexel / 8;
+    auto formatUsage = imageInfo.mFormat;
+    auto format = formatUsage->formatInfo;
 
     const auto unpackAlignment = mContext->mPixelStoreUnpackAlignment;
     CheckedUint32 checked_byteLength = WebGLContext::GetImageSize(imageInfo.mHeight,
                                                                   imageInfo.mWidth,
                                                                   imageInfo.mDepth,
-                                                                  bytesPerTexel,
+                                                                  format->bytesPerTexel,
                                                                   unpackAlignment);
     MOZ_ASSERT(checked_byteLength.isValid()); // Should have been checked earlier.
 
