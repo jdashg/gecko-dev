@@ -331,7 +331,13 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
                                       " out-of-bounds data to zeros, which is slow.",
                                       info);
 
-            gl->fCopyTexImage2D(texImageTarget.get(), level, internalFormat.get(), x, y, width, height, 0);
+            // We use CopyTexImage to initialize to ensure we get the right internal
+            // format in the driver.
+            // We don't need to pass x and y, since we only need to width and height to be
+            // right for the TexImage. In cases where x or y is 'tricky' (INT32_MIN), the
+            // driver may have issues. (Seen on Win32 Try runs)
+            gl->fCopyTexImage2D(texImageTarget.get(), level, internalFormat.get(), 0, 0,
+                                width, height, 0);
 
             // In GLES, read pixels outside the FB bounds are undefined, so we'll need to
             // clear them outselves.
