@@ -348,6 +348,10 @@ public:
 protected:
     struct Face {
         ImageInfo faces[kMaxFaceCount];
+
+        // "WebGLTexture.cpp:24:51: error: default initialization of an object of const
+        //  type 'const WebGLTexture::Face' requires a user-provided default constructor"
+        Face() { }
     };
 
     size_t MaxEffectiveMipmapLevel() const;

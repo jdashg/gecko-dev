@@ -361,17 +361,49 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
             return mContext->DummyFramebufferOperation(info);
         }
 
-        GLint   actual_x             = clamped(x, 0, int32_t(srcWidth));
-        GLint   actual_x_plus_width  = clamped(x + width, 0, int32_t(srcWidth));
-        GLsizei actual_width   = actual_x_plus_width  - actual_x;
-        GLint   actual_xOffset = xOffset + actual_x - x;
+        GLint trimmedXOffset = xOffset;
+        GLint trimmedYOffset = yOffset;
+        GLint trimmedX = x;
+        GLint trimmedY = y;
+        GLsizei trimmedWidth = width;
+        GLsizei trimmedHeight = height;
 
-        GLint   actual_y             = clamped(y, 0, int32_t(srcHeight));
-        GLint   actual_y_plus_height = clamped(y + height, 0, int32_t(srcHeight));
-        GLsizei actual_height  = actual_y_plus_height - actual_y;
-        GLint   actual_yOffset = yOffset + actual_y - y;
+        if (x < 0) {
+            GLint diff = 0 - x;
+            MOZ_ASSERT(diff > 0);
+            trimmedX += diff;
+            trimmedXOffset += diff;
+            trimmedWidth -= diff;
+        }
 
-        gl->fCopyTexSubImage2D(texImageTarget.get(), level, actual_xOffset, actual_yOffset, actual_x, actual_y, actual_width, actual_height);
+        if (y < 0) {
+            GLint diff = 0 - y;
+            MOZ_ASSERT(diff > 0);
+            trimmedY += diff;
+            trimmedYOffset += diff;
+            trimmedHeight -= diff;
+        }
+
+        if (x + width > GLint(srcWidth)) {
+            GLint diff = x + width - GLint(srcWidth);
+            MOZ_ASSERT(diff > 0);
+            trimmedWidth -= diff;
+        }
+
+        if (y + height > GLint(srcHeight)) {
+            GLint diff = y + height - GLint(srcHeight);
+            MOZ_ASSERT(diff > 0);
+            trimmedHeight -= diff;
+        }
+
+        MOZ_ASSERT(trimmedX >= 0);
+        MOZ_ASSERT(trimmedY >= 0);
+        MOZ_ASSERT(trimmedWidth >= 0);
+        MOZ_ASSERT(trimmedHeight >= 0);
+
+        gl->fCopyTexSubImage2D(texImageTarget.get(), level, trimmedXOffset,
+                               trimmedYOffset, trimmedX, trimmedY, trimmedWidth,
+                               trimmedHeight);
     }
 
     if (sizeMayChange) {

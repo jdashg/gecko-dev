@@ -267,7 +267,7 @@ IsColorFormat(TexInternalFormat format)
 
     // ALPHA *is* a "color format"!
     return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
-           unsizedformat != LOCAL_GL_DEPTH_STENCIL;
+           unsizedformat != LOCAL_GL_DEPTH_STENCIL &&
            unsizedformat != LOCAL_GL_STENCIL_INDEX;
 }
 
