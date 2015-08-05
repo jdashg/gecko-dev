@@ -34,7 +34,7 @@ public:
     }
 
     bool IsDefined() const {
-        if (mInternalFormat == LOCAL_GL_NONE) {
+        if (!mFormat) {
             MOZ_ASSERT(!mWidth && !mHeight);
             return false;
         }
@@ -45,7 +45,7 @@ public:
 
     GLuint PrimaryGLName() const { return mPrimaryRB; }
 
-    GLenum Format() const { return mFormat; }
+    const webgl::FormatUsageInfo* Format() const { return mFormat; }
 
     int64_t MemoryUsage() const;
 

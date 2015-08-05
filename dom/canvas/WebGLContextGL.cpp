@@ -740,12 +740,11 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
         switch (pname) {
             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
                 if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
-                    const GLenum internalFormat = fba.Renderbuffer()->InternalFormat();
-                    return (internalFormat == LOCAL_GL_SRGB_EXT ||
-                            internalFormat == LOCAL_GL_SRGB_ALPHA_EXT ||
-                            internalFormat == LOCAL_GL_SRGB8_ALPHA8_EXT) ?
-                        JS::NumberValue(uint32_t(LOCAL_GL_SRGB_EXT)) :
-                        JS::NumberValue(uint32_t(LOCAL_GL_LINEAR));
+                    auto format = fba.Renderbuffer()->Format();
+                    if (format->formatInfo->colorComponentType == NormUIntSRGB)
+                        return JS::NumberValue(uint32_t(LOCAL_GL_SRGB_EXT));
+
+                    return JS::NumberValue(uint32_t(LOCAL_GL_LINEAR));
                 }
                 break;
 

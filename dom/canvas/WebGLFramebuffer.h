@@ -46,7 +46,7 @@ public:
     bool IsDefined() const;
     bool IsDeleteRequested() const;
 
-    TexInternalFormat Format() const;
+    const webgl::FormatUsageInfo* Format() const;
 
     bool HasAlpha() const;
     bool IsReadableFloat() const;
@@ -161,7 +161,7 @@ public:
     FBStatus PrecheckFramebufferStatus() const;
     FBStatus CheckFramebufferStatus() const;
 
-    GLenum
+    const webgl::FormatUsageInfo*
     GetFormatForAttachment(const WebGLFBAttachPoint& attachment) const;
 
     bool HasDepthStencilConflict() const {
