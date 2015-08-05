@@ -53,8 +53,8 @@ UNIFIED_SOURCES += [
 
 # WebGL Sources
 UNIFIED_SOURCES += [
-    'ElementTexSource.cpp',
     'MurmurHash3.cpp',
+    'TexUnpackBlob.cpp',
     'WebGL1Context.cpp',
     'WebGL1ContextBuffers.cpp',
     'WebGL1ContextUniforms.cpp',

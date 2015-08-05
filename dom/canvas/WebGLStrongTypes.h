@@ -147,6 +147,7 @@ public:
         return mValue;
     }
 
+
     bool operator==(const StrongGLenum& other) const {
         return get() == other.get();
     }

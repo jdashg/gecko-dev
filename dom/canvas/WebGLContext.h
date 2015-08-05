@@ -26,6 +26,8 @@
 #include "nsTArray.h"
 #include "nsWrapperCache.h"
 #include "SurfaceTypes.h"
+#include "ScopedGLHelpers.h"
+#include "TexUnpackBlob.h"
 
 #ifdef XP_MACOSX
 #include "ForceDiscreteGPUHelperCGL.h"
@@ -36,6 +38,7 @@
 #include "WebGLFormats.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
+#include "WebGLTexture.h"
 
 // Generated
 #include "nsIDOMEventListener.h"
@@ -68,6 +71,12 @@ class nsIDocShell;
 #define MINVALUE_GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS  8     // Page 164
 
 /*
+ * Minimum value constants define in 6.2 State Tables of OpenGL ES - 3.0.4
+ */
+#define MINVALUE_GL_MAX_3D_TEXTURE_SIZE             256
+#define MINVALUE_GL_MAX_ARRAY_TEXTURE_LAYERS        256
+
+/*
  * WebGL-only GLenums
  */
 #define LOCAL_GL_BROWSER_DEFAULT_WEBGL                       0x9244
@@ -79,6 +88,7 @@ class nsIDocShell;
 
 namespace mozilla {
 
+class ScopedUnpackReset;
 class WebGLActiveInfo;
 class WebGLContextLossHandler;
 class WebGLBuffer;
@@ -111,6 +121,9 @@ class SourceSurface;
 namespace webgl {
 struct LinkedProgramInfo;
 class ShaderValidator;
+class TexUnpackBuffer;
+class TexUnpackImage;
+class TexUnpackSrcSurface;
 } // namespace webgl
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
@@ -523,6 +536,11 @@ public:
     void LinkProgram(WebGLProgram* prog);
     void PixelStorei(GLenum pname, GLint param);
     void PolygonOffset(GLfloat factor, GLfloat units);
+protected:
+    bool DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
+                                GLenum destFormat, GLenum destType, void* destBytes,
+                                GLenum auxReadFormat, GLenum auxReadType);
+public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
@@ -885,45 +903,61 @@ public:
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType,
                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                    ErrorResult& out_rv);
+                    ErrorResult&);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                    ErrorResult& out_rv);
+                    ErrorResult&);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
-                    ErrorResult* const out_rv);
-
+                    ErrorResult* const out_error);
 
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLsizei width, GLsizei height, GLenum unpackFormat,
                        GLenum unpackType,
                        const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                       ErrorResult& out_rv);
+                       ErrorResult&);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                       ErrorResult& out_rv);
+                       ErrorResult&);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
-                       ErrorResult* const out_rv);
+                       ErrorResult* const out_error);
 
     // Allow whatever element unpackTypes the bindings are willing to pass
     // us in Tex(Sub)Image2D
-    template<typename ElementT>
-    void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                    ErrorResult& out_rv)
+    template<typename T>
+    inline void
+    TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+               GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_error)
     {
         TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, &elem,
-                   &out_rv);
+                   &out_error);
     }
-    template<typename ElementT>
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                       ErrorResult& out_rv)
+
+    template<typename T>
+    inline void
+    TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                  GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_error)
     {
         TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
-                      &elem, &out_rv);
+                      &elem, &out_error);
     }
+
+    // WebGLTextureUpload.cpp
+    bool ValidateTexImageSpecification(const char* funcName, uint8_t funcDims,
+                                       GLenum texImageTarget, GLint level,
+                                       GLsizei width, GLsizei height, GLsizei depth,
+                                       GLint border,
+                                       TexImageTarget* const out_target,
+                                       WebGLTexture** const out_texture,
+                                       WebGLTexture::ImageInfo** const out_imageInfo);
+    bool ValidateTexImageSelection(const char* funcName, uint8_t funcDims,
+                                   GLenum texImageTarget, GLint level, GLint xOffset,
+                                   GLint yOffset, GLint zOffset, GLsizei width,
+                                   GLsizei height, GLsizei depth,
+                                   TexImageTarget* const out_target,
+                                   WebGLTexture** const out_texture,
+                                   WebGLTexture::ImageInfo** const out_imageInfo);
 
 // -----------------------------------------------------------------------------
 // Vertices Feature (WebGLContextVertices.cpp)
@@ -1028,10 +1062,6 @@ protected:
     bool DoFakeVertexAttrib0(GLuint vertexCount);
     void UndoFakeVertexAttrib0();
 
-    static CheckedUint32 GetImageSize(GLsizei height, GLsizei width,
-                                      GLsizei depth, uint32_t pixelSize,
-                                      uint32_t alignment);
-
     inline void InvalidateBufferFetching()
     {
         mBufferFetchingIsVerified = false;
@@ -1076,11 +1106,6 @@ protected:
     // some GL constants
     int32_t mGLMaxVertexAttribs;
     int32_t mGLMaxTextureUnits;
-    int32_t mGLMaxTextureSize;
-    int32_t mGLMaxTextureSizeLog2;
-    int32_t mGLMaxCubeMapTextureSize;
-    int32_t mGLMaxCubeMapTextureSizeLog2;
-    int32_t mGLMaxRenderbufferSize;
     int32_t mGLMaxTextureImageUnits;
     int32_t mGLMaxVertexTextureImageUnits;
     int32_t mGLMaxVaryingVectors;
@@ -1091,8 +1116,14 @@ protected:
     uint32_t  mGLMaxTransformFeedbackSeparateAttribs;
     GLuint  mGLMaxUniformBufferBindings;
     GLsizei mGLMaxSamples;
-    GLuint  mGLMax3DTextureSize;
-    GLuint  mGLMaxArrayTextureLayers;
+
+    // Texture sizes are often not actually the GL values. Let's be explicit that these
+    // are implementation limits.
+    uint32_t mImplMaxTextureSize;
+    uint32_t mImplMaxCubeMapTextureSize;
+    uint32_t mImplMax3DTextureSize;
+    uint32_t mImplMaxArrayTextureLayers;
+    uint32_t mImplMaxRenderbufferSize;
 
 public:
     GLuint MaxVertexAttribs() const {
@@ -1102,7 +1133,6 @@ public:
     GLuint GLMaxTextureUnits() const {
         return mGLMaxTextureUnits;
     }
-
 
     bool IsFormatValidForFB(TexInternalFormat format) const;
 
@@ -1243,7 +1273,8 @@ protected:
                                            WebGLProgram* program,
                                            const char* funcName);
 
-    bool ValidateCurFBForRead(const char* funcName, TexInternalFormat* const out_format,
+    bool ValidateCurFBForRead(const char* funcName,
+                              const webgl::FormatUsageInfo** const out_format,
                               uint32_t* const out_width, uint32_t* const out_height);
 
     void Invalidate();
@@ -1259,31 +1290,28 @@ protected:
                       WebGLTexelFormat dstFormat, bool dstPremultiplied,
                       size_t dstTexelSize);
 
-    template<class ElementType>
+public:
     nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType* element) {
-        MOZ_ASSERT(element);
-
+    SurfaceFromElement(dom::Element* elem)
+    {
         uint32_t flags = nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
-        if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)
+
+        if (mPixelStore_ColorspaceConversion == LOCAL_GL_NONE)
             flags |= nsLayoutUtils::SFE_NO_COLORSPACE_CONVERSION;
-        if (!mPixelStorePremultiplyAlpha)
+
+        if (!mPixelStore_PremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_PREFER_NO_PREMULTIPLY_ALPHA;
 
-        return nsLayoutUtils::SurfaceFromElement(element, flags);
-    }
-
-    template<class ElementType>
-    nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType& element) {
-       return SurfaceFromElement(&element);
+        gfx::DrawTarget* idealDrawTarget = nullptr; // Don't care for now.
+        return nsLayoutUtils::SurfaceFromElement(elem, flags, idealDrawTarget);
     }
 
     nsresult
-    SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,
-                                           RefPtr<gfx::DataSourceSurface>& imageOut,
-                                           WebGLTexelFormat* format);
+    SurfaceFromElementResultToImageSurface(const nsLayoutUtils::SurfaceFromElementResult& res,
+                                           RefPtr<gfx::DataSourceSurface>* const out_image,
+                                           WebGLTexelFormat* const out_format);
 
+protected:
     // Returns false if `object` is null or not valid.
     template<class ObjectType>
     bool ValidateObject(const char* info, ObjectType* object);
@@ -1322,25 +1350,16 @@ private:
     virtual bool ValidateUniformMatrixTranspose(bool transpose, const char* info) = 0;
 
 protected:
-    int32_t MaxTextureSizeForTarget(TexTarget target) const {
-        return (target == LOCAL_GL_TEXTURE_2D) ? mGLMaxTextureSize
-                                               : mGLMaxCubeMapTextureSize;
-    }
-
-    int32_t
-    MaxTextureLevelForTexImageTarget(TexImageTarget texImageTarget) const {
-        const TexTarget target = TexImageTargetToTexTarget(texImageTarget);
-        return (target == LOCAL_GL_TEXTURE_2D) ? mGLMaxTextureSizeLog2
-                                               : mGLMaxCubeMapTextureSizeLog2;
-    }
-
     /** Like glBufferData, but if the call may change the buffer size, checks
      *  any GL error generated by this glBufferData call and returns it.
      */
     GLenum CheckedBufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
                              GLenum usage);
 
+public:
     void ForceLoseContext(bool simulateLoss = false);
+
+protected:
     void ForceRestoreContext();
 
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DTextures;
@@ -1382,14 +1401,27 @@ protected:
     WebGLRefPtr<WebGLVertexArray> mDefaultVertexArray;
 
     // PixelStore parameters
-    uint32_t mPixelStorePackAlignment;
-    uint32_t mPixelStoreUnpackAlignment;
-    uint32_t mPixelStoreColorspaceConversion;
-    bool mPixelStoreFlipY;
-    bool mPixelStorePremultiplyAlpha;
+    uint32_t mPixelStore_UnpackImageHeight;
+    uint32_t mPixelStore_UnpackSkipImages;
+    uint32_t mPixelStore_UnpackRowLength;
+    uint32_t mPixelStore_UnpackSkipRows;
+    uint32_t mPixelStore_UnpackSkipPixels;
+    uint32_t mPixelStore_UnpackAlignment;
+    uint32_t mPixelStore_PackRowLength;
+    uint32_t mPixelStore_PackSkipRows;
+    uint32_t mPixelStore_PackSkipPixels;
+    uint32_t mPixelStore_PackAlignment;
 
-    // Fake-black
+    CheckedUint32 GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel,
+                              CheckedUint32* const out_startOffset,
+                              CheckedUint32* const out_rowStride);
+
+    GLenum mPixelStore_ColorspaceConversion;
+    bool mPixelStore_FlipY;
+    bool mPixelStore_PremultiplyAlpha;
+
 public:
+    // Fake-black
     class FakeBlackTexture {
         gl::GLContext* const mGL;
         GLuint mGLName;
@@ -1410,7 +1442,7 @@ protected:
     UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Opaque;
     UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Alpha;
 
-    void BindFakeBlackTextures();
+    bool BindFakeBlackTextures(const char* funcName);
     void UnbindFakeBlackTextures();
 
     // Generic Vertex Attributes
@@ -1527,9 +1559,14 @@ public:
 
 public:
     UniquePtr<webgl::FormatUsageAuthority> mFormatUsage;
-    virtual UniquePtr<webgl::FormatUsageAuthority> CreateFormatUsage() const = 0;
+
+    virtual UniquePtr<webgl::FormatUsageAuthority>
+    CreateFormatUsage(gl::GLContext* gl) const = 0;
 
     // Friend list
+    friend class ScopedUnpackReset;
+    friend class webgl::TexUnpackBytes;
+    friend class webgl::TexUnpackSurface;
     friend class WebGLTexture;
     friend class WebGLFramebuffer;
     friend class WebGLRenderbuffer;
@@ -1624,23 +1661,97 @@ WebGLContext::ValidateObject(const char* info, ObjectType* object)
     return ValidateObjectAssumeNonNull(info, object);
 }
 
-size_t RoundUpToMultipleOf(size_t value, size_t multiple);
+// Returns `value` rounded to the next highest multiple of `multiple`.
+// AKA PadToAlignment, StrideForAlignment.
+template<typename V, typename M>
+V
+RoundUpToMultipleOf(const V& value, const M& multiple)
+{
+    return ((value + multiple - 1) / multiple) * multiple;
+}
 
 bool
-ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName,
+ValidateTexTarget(WebGLContext* webgl, const char* funcName, GLenum rawTexTarget,
                   TexTarget* const out_texTarget, WebGLTexture** const out_tex);
 bool
-ValidateTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
-                       const char* funcName, TexImageTarget* const out_texImageTarget,
+ValidateTexImageTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
+                       GLenum rawTexImageTarget, TexImageTarget* const out_texImageTarget,
                        WebGLTexture** const out_tex);
 
-// Returns x rounded to the next highest multiple of y.
-CheckedUint32 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y);
+
+bool
+GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
+                         size_t* const out_alignment);
+
+class UniqueBuffer
+{
+    void* mBuffer;
+
+public:
+    UniqueBuffer()
+        : mBuffer(nullptr)
+    { }
+
+    explicit UniqueBuffer(void* buffer)
+        : mBuffer(buffer)
+    { }
+
+    explicit UniqueBuffer(UniqueBuffer&& other) {
+        this->mBuffer = other.mBuffer;
+        other.mBuffer = nullptr;
+    }
+
+    UniqueBuffer& operator =(UniqueBuffer&& other) {
+        free(this->mBuffer);
+        this->mBuffer = other.mBuffer;
+        other.mBuffer = nullptr;
+        return *this;
+    }
+
+    UniqueBuffer& operator =(void* newBuffer) {
+        free(this->mBuffer);
+        this->mBuffer = newBuffer;
+        return *this;
+    }
+
+    explicit operator bool() const { return bool(mBuffer); }
+
+    void* get() const { return mBuffer; }
+
+    UniqueBuffer(const UniqueBuffer& other) = delete; // construct using Move()!
+    void operator =(const UniqueBuffer& other) = delete; // assign using Move()!
+};
+
+class ScopedUnpackReset
+    : public gl::ScopedGLWrapper<ScopedUnpackReset>
+{
+    friend struct gl::ScopedGLWrapper<ScopedUnpackReset>;
+
+protected:
+    WebGLContext* const mWebGL;
+
+public:
+    explicit ScopedUnpackReset(WebGLContext* webgl);
+
+protected:
+    void UnwrapImpl();
+};
 
 void
 ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
                      void** const out_data, size_t* const out_length,
                      js::Scalar::Type* const out_type);
+
+void
+Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
+          uint32_t* const out_intStartInSrc, uint32_t* const out_intStartInDst,
+          uint32_t* const out_intSize);
+
+bool
+ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture,
+                TexImageTarget target, uint32_t level,
+                const webgl::FormatUsageInfo* usage, uint32_t xOffset, uint32_t yOffset,
+                uint32_t zOffset, uint32_t width, uint32_t height, uint32_t depth);
 
 } // namespace mozilla
 

@@ -103,7 +103,7 @@ WebGLTexture::ImageInfo::MemoryUsage() const
     if (!IsDefined())
         return 0;
 
-    const auto bytesPerTexel = mFormat->formatInfo->bytesPerPixel;
+    const auto bytesPerTexel = mFormat->format->estimatedBytesPerPixel;
     return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bytesPerTexel;
 }
 
@@ -169,18 +169,18 @@ WebGLTexture::MemoryUsage() const
 }
 
 void
-WebGLTexture::SetImageInfoAtFace(uint8_t face, uint32_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfo(ImageInfo* target, const ImageInfo& newInfo)
 {
-    ImageInfoAtFace(face, level) = val;
+    *target = newInfo;
 
     InvalidateFakeBlackCache();
 }
 
 void
-WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& newInfo)
 {
     for (uint8_t i = 0; i < mFaceCount; i++) {
-        ImageInfoAtFace(i, level) = val;
+        ImageInfoAtFace(i, level) = newInfo;
     }
 
     InvalidateFakeBlackCache();
@@ -293,32 +293,6 @@ WebGLTexture::IsCubeComplete() const
     return true;
 }
 
-static bool
-IsColorFormat(TexInternalFormat format)
-{
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
-
-    // ALPHA *is* a "color format"!
-    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
-           unsizedformat != LOCAL_GL_DEPTH_STENCIL &&
-           unsizedformat != LOCAL_GL_STENCIL_INDEX;
-}
-
-static bool
-FormatSupportsFiltering(WebGLContext* webgl, TexInternalFormat format)
-{
-    TexType type = TypeFromInternalFormat(format);
-
-    if (type == LOCAL_GL_FLOAT)
-        return webgl->IsExtensionEnabled(WebGLExtensionID::OES_texture_float_linear);
-
-    MOZ_ASSERT(type != LOCAL_GL_HALF_FLOAT_OES);
-    if (type == LOCAL_GL_HALF_FLOAT)
-        return webgl->IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float_linear);
-
-    return true;
-}
-
 bool
 WebGLTexture::IsComplete(const char** const out_reason) const
 {
@@ -361,7 +335,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
     const bool isFilteringNearestOnly = (isMinFilteringNearest && isMagFilteringNearest);
     if (!isFilteringNearestOnly) {
         auto formatUsage = baseImageInfo.mFormat;
-        auto format = formatUsage->formatInfo;
+        auto format = formatUsage->format;
 
         // "* The effective internal format specified for the texture arrays is a sized
         //    internal color format that is not texture-filterable, and either the
@@ -466,9 +440,10 @@ WebGLTexture::MaxEffectiveMipmapLevel() const
 }
 
 bool
-WebGLTexture::ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out)
+WebGLTexture::ResolveFakeBlackStatus(const char* funcName,
+                                     WebGLTextureFakeBlackStatus* const out)
 {
-    if (!ResolveFakeBlackStatus())
+    if (!ResolveFakeBlackStatus(funcName))
         return false;
 
     *out = mFakeBlackStatus;
@@ -476,7 +451,7 @@ WebGLTexture::ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out)
 }
 
 bool
-WebGLTexture::ResolveFakeBlackStatus()
+WebGLTexture::ResolveFakeBlackStatus(const char* funcName)
 {
     if (MOZ_LIKELY(mFakeBlackStatus != WebGLTextureFakeBlackStatus::Unknown))
         return true;
@@ -527,9 +502,14 @@ WebGLTexture::ResolveFakeBlackStatus()
                               " the implementation to (slowly) initialize the"
                               " uninitialized TexImages.");
 
+    GLenum baseTexImageTarget = mTarget.get();
+    if (baseTexImageTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
+        baseTexImageTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
-            if (!EnsureInitializedImageData(face, level))
+            TexImageTarget target = baseTexImageTarget + face;
+            if (!EnsureImageDataInitialized(funcName, target, level))
                 return false; // The world just exploded.
         }
     }
@@ -538,204 +518,34 @@ WebGLTexture::ResolveFakeBlackStatus()
     return true;
 }
 
-static bool
-ClearByMask(WebGLContext* webgl, GLbitfield mask)
-{
-    gl::GLContext* gl = webgl->GL();
-    MOZ_ASSERT(gl->IsCurrent());
-
-    GLenum status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
-        return false;
-
-    bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = {false};
-    if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        colorAttachmentsMask[0] = true;
-    }
-
-    webgl->ForceClearFramebufferWithDefaultValues(false, mask, colorAttachmentsMask);
-    return true;
-}
-
-// `mask` from glClear.
-static bool
-ClearWithTempFB(WebGLContext* webgl, GLuint tex,
-                TexImageTarget texImageTarget, GLint level,
-                TexInternalFormat baseInternalFormat,
-                GLsizei width, GLsizei height)
-{
-    MOZ_ASSERT(texImageTarget == LOCAL_GL_TEXTURE_2D);
-
-    gl::GLContext* gl = webgl->GL();
-    MOZ_ASSERT(gl->IsCurrent());
-
-    gl::ScopedFramebuffer fb(gl);
-    gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
-    GLbitfield mask = 0;
-
-    switch (baseInternalFormat.get()) {
-    case LOCAL_GL_LUMINANCE:
-    case LOCAL_GL_LUMINANCE_ALPHA:
-    case LOCAL_GL_ALPHA:
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_BGR:
-    case LOCAL_GL_BGRA:
-        mask = LOCAL_GL_COLOR_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                  texImageTarget.get(), tex, level);
-        break;
-    case LOCAL_GL_DEPTH_COMPONENT32_OES:
-    case LOCAL_GL_DEPTH_COMPONENT24_OES:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_DEPTH_COMPONENT:
-        mask = LOCAL_GL_DEPTH_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        break;
-
-    case LOCAL_GL_DEPTH24_STENCIL8:
-    case LOCAL_GL_DEPTH_STENCIL:
-        mask = LOCAL_GL_DEPTH_BUFFER_BIT |
-               LOCAL_GL_STENCIL_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        break;
-
-    default:
-        return false;
-    }
-    MOZ_ASSERT(mask);
-
-    if (ClearByMask(webgl, mask))
-        return true;
-
-    // Failed to simply build an FB from the tex, but maybe it needs a
-    // color buffer to be complete.
-
-    if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        // Nope, it already had one.
-        return false;
-    }
-
-    gl::ScopedRenderbuffer rb(gl);
-    {
-        // Only GLES guarantees RGBA4.
-        GLenum format = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
-        gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
-        gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, format, width, height);
-    }
-
-    gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                 LOCAL_GL_RENDERBUFFER, rb.RB());
-    mask |= LOCAL_GL_COLOR_BUFFER_BIT;
-
-    // Last chance!
-    return ClearByMask(webgl, mask);
-}
-
-static TexImageTarget
-TexImageTargetFromFace(TexTarget target, uint8_t face)
-{
-    if (target != LOCAL_GL_TEXTURE_CUBE_MAP)
-        return target.get();
-
-    return LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
-}
-
 bool
-WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
+WebGLTexture::EnsureImageDataInitialized(const char* funcName, TexImageTarget target,
+                                         uint32_t level)
 {
-    ImageInfo& imageInfo = ImageInfoAtFace(face, level);
-    MOZ_ASSERT(imageInfo.IsDefined());
-
+    auto& imageInfo = ImageInfoAt(target, level);
     if (imageInfo.IsDataInitialized())
         return true;
 
-    mContext->MakeContextCurrent();
+    return InitializeImageData(funcName, target, level);
+}
 
-    const TexImageTarget texImageTarget = TexImageTargetFromFace(mTarget, face);
+bool
+WebGLTexture::InitializeImageData(const char* funcName, TexImageTarget target,
+                                  uint32_t level)
+{
+    auto& imageInfo = ImageInfoAt(target, level);
+    MOZ_ASSERT(imageInfo.IsDefined());
+    MOZ_ASSERT(!imageInfo.IsDataInitialized());
 
-    // Try to clear with glClear.
-    if (mTarget == LOCAL_GL_TEXTURE_2D) {
-        bool cleared = ClearWithTempFB(mContext, mGLName, texImageTarget, level,
-                                       imageInfo.mFormat, imageInfo.mHeight,
-                                       imageInfo.mWidth);
-        if (cleared) {
-            imageInfo.SetIsDataInitialized(true, this);
-            return true;
-        }
-    }
+    const bool respecifyTexture = false;
+    const auto& usage = imageInfo.mFormat;
+    const auto& width = imageInfo.mWidth;
+    const auto& height = imageInfo.mHeight;
+    const auto& depth = imageInfo.mDepth;
 
-    // That didn't work. Try uploading zeros then.
-    auto formatUsage = imageInfo.mFormat;
-    auto format = formatUsage->formatInfo;
-
-    const auto unpackAlignment = mContext->mPixelStoreUnpackAlignment;
-    CheckedUint32 checked_byteLength = WebGLContext::GetImageSize(imageInfo.mHeight,
-                                                                  imageInfo.mWidth,
-                                                                  imageInfo.mDepth,
-                                                                  format->bytesPerTexel,
-                                                                  unpackAlignment);
-    MOZ_ASSERT(checked_byteLength.isValid()); // Should have been checked earlier.
-
-    size_t byteCount = checked_byteLength.value();
-
-    UniquePtr<uint8_t> zeros((uint8_t*)calloc(1, byteCount));
-    if (zeros == nullptr) {
-        // Failed to allocate memory. Lose the context. Return OOM error.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureInitializedImageData: Failed to alloc %u "
-                                   "bytes to clear image target `%s` level `%d`.",
-                                   byteCount, mContext->EnumName(texImageTarget.get()),
-                                   level);
-         return false;
-    }
-
-    gl::GLContext* gl = mContext->gl;
-    gl::ScopedBindTexture autoBindTex(gl, mGLName, mTarget.get());
-
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverUnpackFormat = LOCAL_GL_NONE;
-    GLenum driverUnpackType = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl, imageFormat, &driverInternalFormat,
-                                             &driverUnpackFormat, &driverUnpackType);
-
-    mContext->GetAndFlushUnderlyingGLErrors();
-    if (texImageTarget == LOCAL_GL_TEXTURE_3D) {
-        gl->fTexSubImage3D(texImageTarget.get(), level, 0, 0, 0, imageInfo.mWidth,
-                           imageInfo.mHeight, imageInfo.mDepth, driverUnpackFormat,
-                           driverUnpackType, zeros.get());
-    } else {
-        MOZ_ASSERT(imageInfo.mDepth == 1);
-        gl->fTexSubImage2D(texImageTarget.get(), level, 0, 0, imageInfo.mWidth,
-                           imageInfo.mHeight, driverUnpackFormat, driverUnpackType,
-                           zeros.get());
-    }
-
-    GLenum error = mContext->GetAndFlushUnderlyingGLErrors();
-    if (error) {
-        // Should only be OUT_OF_MEMORY. Anyway, there's no good way to recover
-        // from this here.
-        if (error != LOCAL_GL_OUT_OF_MEMORY) {
-            printf_stderr("Error: 0x%4x\n", error);
-            gfxCriticalError() << "GL context GetAndFlushUnderlyingGLErrors " << gfx::hexa(error);
-            // Errors on texture upload have been related to video
-            // memory exposure in the past, which is a security issue.
-            // Force loss of context.
-            mContext->ForceLoseContext(true);
-            return false;
-        }
-
-        // Out-of-memory uploading pixels to GL. Lose context and report OOM.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureNoUninitializedImageData: Failed to "
-                                   "upload texture of width: %u, height: %u, "
-                                   "depth: %u to target %s level %d.",
-                                   imageInfo.mWidth, imageInfo.mHeight, imageInfo.mDepth,
-                                   mContext->EnumName(texImageTarget.get()), level);
+    if (!ZeroTextureData(mContext, funcName, respecifyTexture, target, level, usage, 0, 0,
+                         0, width, height, depth))
+    {
         return false;
     }
 
@@ -760,9 +570,9 @@ WebGLTexture::ClampLevelBaseAndMax()
 }
 
 void
-WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
+WebGLTexture::PopulateMipChain(uint32_t firstLevel, uint32_t lastLevel)
 {
-    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, baseLevel);
+    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, firstLevel);
     MOZ_ASSERT(baseImageInfo.IsDefined());
 
     uint32_t refWidth = baseImageInfo.mWidth;
@@ -770,24 +580,35 @@ WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
     uint32_t refDepth = baseImageInfo.mDepth;
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
-    for (uint32_t level = baseLevel; level <= maxLevel; level++) {
+    for (uint32_t level = firstLevel; level <= lastLevel; level++) {
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
                             baseImageInfo.IsDataInitialized());
 
         SetImageInfosAtLevel(level, cur);
 
-        // Higher levels are unaffected.
-        if (refWidth == 1 &&
-            refHeight == 1 &&
-            refDepth == 1)
-        {
-            break;
+        bool isMinimal = (refWidth == 1 &&
+                          refHeight == 1);
+        if (mTarget == LOCAL_GL_TEXTURE_3D) {
+            isMinimal &= (refDepth == 1);
         }
 
-        refWidth  = std::max(uint32_t(1), refWidth  / 2);
+        // Higher levels are unaffected.
+        if (isMinimal)
+            break;
+
+        refWidth = std::max(uint32_t(1), refWidth / 2);
         refHeight = std::max(uint32_t(1), refHeight / 2);
-        refDepth  = std::max(uint32_t(1), refDepth  / 2);
+        if (mTarget == LOCAL_GL_TEXTURE_3D) { // But not TEXTURE_2D_ARRAY!
+            refDepth = std::max(uint32_t(1), refDepth / 2);
+        }
     }
+}
+
+void
+WebGLTexture::InvalidateFakeBlackCache()
+{
+    mContext->InvalidateFakeBlackCache();
+    mFakeBlackStatus = WebGLTextureFakeBlackStatus::Unknown;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -860,14 +681,14 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
         return;
     }
 
-    auto format = baseImageInfo.mFormat;
-    if (IsTextureFormatCompressed(format)) {
+    auto format = baseImageInfo.mFormat->format;
+    if (format->compression) {
         mContext->ErrorInvalidOperation("generateMipmap: Texture data at base level is"
                               " compressed.");
         return;
     }
 
-    if ((IsGLDepthFormat(format) || IsGLDepthStencilFormat(format)))
+    if (format->hasDepth)
         return mContext->ErrorInvalidOperation("generateMipmap: Depth textures are not supported");
 
     // Done with validation. Do the operation.
@@ -1110,6 +931,8 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
     else
         mContext->gl->fTexParameterf(texTarget.get(), pname, floatParam);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLTexture)
 

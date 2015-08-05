@@ -524,5 +524,36 @@ ScopedPackAlignment::UnwrapImpl() {
     }
 }
 
+////////////////////////////////////////////////////////////////////////
+// ScopedUnpackAlignment
+
+ScopedUnpackAlignment::ScopedUnpackAlignment(GLContext* gl, GLint scopedVal)
+    : ScopedGLWrapper<ScopedUnpackAlignment>(gl)
+{
+    MOZ_ASSERT(scopedVal == 1 ||
+               scopedVal == 2 ||
+               scopedVal == 4 ||
+               scopedVal == 8);
+
+    gl->fGetIntegerv(LOCAL_GL_UNPACK_ALIGNMENT, &mOldVal);
+
+    if (scopedVal != mOldVal) {
+        gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, scopedVal);
+    } else {
+      // Don't try to re-set it during unwrap.
+        mOldVal = 0;
+    }
+}
+
+void
+ScopedUnpackAlignment::UnwrapImpl() {
+    // Check that we're not falling out of scope after the current context changed.
+    MOZ_ASSERT(mGL->IsCurrent());
+
+    if (mOldVal) {
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mOldVal);
+    }
+}
+
 } /* namespace gl */
 } /* namespace mozilla */

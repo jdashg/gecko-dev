@@ -115,7 +115,8 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    BindFakeBlackTextures();
+    if (!BindFakeBlackTextures(info))
+        return false;
 
     return true;
 }
@@ -296,7 +297,8 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    BindFakeBlackTextures();
+    if (!BindFakeBlackTextures(info))
+        return false;
 
     return true;
 }
@@ -658,14 +660,14 @@ WebGLContext::UndoFakeVertexAttrib0()
 }
 
 static bool
-BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
+BindFakeBlackHelper(const char* funcName, gl::GLContext* gl, TexTarget target,
                     const nsTArray<WebGLRefPtr<WebGLTexture>>& texArray,
                     WebGLContext::FakeBlackTexture* opaqueTex,
-                    WebGLContext::FakeBlackTexture* alphaTex)
+                    WebGLContext::FakeBlackTexture* alphaTex, bool* const out_wasNeeded)
 {
     MOZ_ASSERT(opaqueTex && alphaTex);
 
-    bool wasNeeded = false;
+    *out_wasNeeded = false;
 
     int32_t len = texArray.Length();
     for (int32_t i = 0; i < len; i++) {
@@ -674,16 +676,16 @@ BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
             continue;
 
         WebGLTextureFakeBlackStatus status;
-        if (!tex->ResolveFakeBlackStatus(&status))
-            return true; // Technically this should propagate up as a critical failure.
-                         // I believe this is currently harmless.
+        if (!tex->ResolveFakeBlackStatus(funcName, &status))
+            return false; // World is currently exploding...
+
         MOZ_ASSERT(status != WebGLTextureFakeBlackStatus::Unknown);
 
         if (MOZ_LIKELY(status == WebGLTextureFakeBlackStatus::NotNeeded))
             continue;
 
         // Ok, needs fake-black.
-        wasNeeded = true;
+        *out_wasNeeded = true;
 
         // Default to (0, 0, 0, 1) for incomplete textures, as well as uninit'd alpha-less
         // formats.
@@ -691,7 +693,7 @@ BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
 
         if (status == WebGLTextureFakeBlackStatus::UninitializedImageData) {
             const auto& imageInfo = tex->BaseImageInfo();
-            if (FormatHasAlpha(imageInfo.mFormat)) {
+            if (imageInfo.mFormat->format->hasAlpha) {
                 fakeTex = alphaTex;
             }
         }
@@ -700,7 +702,7 @@ BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
         gl->fBindTexture(target.get(), fakeTex->GLName());
     }
 
-    return wasNeeded;
+    return true;
 }
 
 static bool
@@ -729,11 +731,11 @@ UnbindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
     return changedActiveTex;
 }
 
-void
-WebGLContext::BindFakeBlackTextures()
+bool
+WebGLContext::BindFakeBlackTextures(const char* funcName)
 {
     if (mCanSkipFakeBlack)
-        return;
+        return true;
 
     if (!mFakeBlack_2D_Opaque) {
         typedef FakeBlackTexture T;
@@ -747,16 +749,31 @@ WebGLContext::BindFakeBlackTextures()
                                                  LOCAL_GL_RGBA);
     }
 
-    bool wasNeeded = false;
+    bool wasEverNeeded = false;
+    bool wasNeeded;
 
-    wasNeeded |= BindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_2D, mBound2DTextures,
-                                     mFakeBlack_2D_Opaque.get(),
-                                     mFakeBlack_2D_Alpha.get());
-    wasNeeded |= BindFakeBlackHelper(gl, LOCAL_GL_TEXTURE_CUBE_MAP, mBoundCubeMapTextures,
-                                     mFakeBlack_CubeMap_Opaque.get(),
-                                     mFakeBlack_CubeMap_Alpha.get());
+    if (!BindFakeBlackHelper(funcName, gl, LOCAL_GL_TEXTURE_2D, mBound2DTextures,
+                             mFakeBlack_2D_Opaque.get(), mFakeBlack_2D_Alpha.get(),
+                             &wasNeeded))
+    {
+        goto FAIL;
+    }
+    wasEverNeeded |= wasNeeded;
 
-    mCanSkipFakeBlack = !wasNeeded;
+    if (!BindFakeBlackHelper(funcName, gl, LOCAL_GL_TEXTURE_CUBE_MAP,
+                             mBoundCubeMapTextures, mFakeBlack_CubeMap_Opaque.get(),
+                             mFakeBlack_CubeMap_Alpha.get(), &wasNeeded))
+    {
+        goto FAIL;
+    }
+    wasEverNeeded |= wasNeeded;
+
+    mCanSkipFakeBlack = !wasEverNeeded;
+    return true;
+
+FAIL:
+    ErrorOutOfMemory("%s: Failed to bind fake-black textures.");
+    return false;
 }
 
 void

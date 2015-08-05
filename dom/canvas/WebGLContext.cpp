@@ -111,9 +111,6 @@ WebGLContext::WebGLContext()
     mOptionsFrozen = false;
 
     mActiveTexture = 0;
-    mPixelStoreFlipY = false;
-    mPixelStorePremultiplyAlpha = false;
-    mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
     mVertexAttrib0Vector[0] = 0;
     mVertexAttrib0Vector[1] = 0;
@@ -139,31 +136,6 @@ WebGLContext::WebGLContext()
     mScissorTestEnabled = 0;
     mDepthTestEnabled = 0;
     mStencilTestEnabled = 0;
-
-    // initialize some GL values: we're going to get them from the GL and use them as the sizes of arrays,
-    // so in case glGetIntegerv leaves them uninitialized because of a GL bug, we would have very weird crashes.
-    mGLMaxVertexAttribs = 0;
-    mGLMaxTextureUnits = 0;
-    mGLMaxTextureSize = 0;
-    mGLMaxTextureSizeLog2 = 0;
-    mGLMaxCubeMapTextureSize = 0;
-    mGLMaxCubeMapTextureSizeLog2 = 0;
-    mGLMaxRenderbufferSize = 0;
-    mGLMaxTextureImageUnits = 0;
-    mGLMaxVertexTextureImageUnits = 0;
-    mGLMaxVaryingVectors = 0;
-    mGLMaxFragmentUniformVectors = 0;
-    mGLMaxVertexUniformVectors = 0;
-    mGLMaxColorAttachments = 1;
-    mGLMaxDrawBuffers = 1;
-    mGLMaxTransformFeedbackSeparateAttribs = 0;
-    mGLMaxUniformBufferBindings = 0;
-    mGLMax3DTextureSize = 0;
-    mGLMaxArrayTextureLayers = 0;
-
-    // See OpenGL ES 2.0.25 spec, 6.2 State Tables, table 6.13
-    mPixelStorePackAlignment = 4;
-    mPixelStoreUnpackAlignment = 4;
 
     if (NS_IsMainThread()) {
         // XXX mtseng: bug 709490, not thread safe
@@ -1821,26 +1793,32 @@ WebGLContext::DidRefresh()
 size_t
 RoundUpToMultipleOf(size_t value, size_t multiple)
 {
-    size_t overshoot = value + multiple - 1;
-    return overshoot - (overshoot % multiple);
+    return ((value + multiple - 1) / multiple) * multiple;
 }
 
 CheckedUint32
-RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
+RoundedToNextMultipleOf(CheckedUint32 value, CheckedUint32 multiple)
 {
-    return ((x + y - 1) / y) * y;
+    return ((value + multiple - 1) / multiple) * multiple;
 }
 
 bool
 WebGLContext::ValidateCurFBForRead(const char* funcName,
-                                   TexInternalFormat* const out_format,
+                                   const webgl::FormatUsageInfo** const out_format,
                                    uint32_t* const out_width, uint32_t* const out_height)
 {
     if (!mBoundReadFramebuffer) {
         ClearBackbufferIfNeeded();
-        // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
-        // that might not always be true, say if we had a 16bpp default framebuffer.
-        *out_format = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
+
+        // FIXME - here we're assuming that the default framebuffer is backed by
+        // UNSIGNED_BYTE that might not always be true, say if we had a 16bpp default
+        // framebuffer.
+        auto effFormat = mOptions.alpha ? webgl::EffectiveFormat::RGBA8
+                                        : webgl::EffectiveFormat::RGB8;
+
+        *out_format = mFormatUsage->GetUsage(effFormat);
+        MOZ_ASSERT(*out_format);
+
         *out_width = mWidth;
         *out_height = mHeight;
         return true;
@@ -1886,6 +1864,193 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
     if (mFakeNoStencil) {
         mWebGL.gl->fEnable(LOCAL_GL_STENCIL_TEST);
     }
+}
+
+////////////////////
+
+ScopedUnpackReset::ScopedUnpackReset(WebGLContext* webgl)
+    : ScopedGLWrapper<ScopedUnpackReset>(webgl->gl)
+    , mWebGL(webgl)
+{
+    gl::GLContext* gl = mWebGL->gl;
+
+    if (mWebGL->mPixelStore_UnpackAlignment != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , 4);
+
+    if (mWebGL->IsWebGL2()) {
+        if (mWebGL->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
+        if (mWebGL->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
+        if (mWebGL->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
+        if (mWebGL->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
+        if (mWebGL->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
+
+        if (mWebGL->mBoundPixelUnpackBuffer) gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+    }
+}
+
+void
+ScopedUnpackReset::UnwrapImpl()
+{
+    // Check that we're not falling out of scope after the current context changed.
+    MOZ_ASSERT(mGL->IsCurrent());
+
+    mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mWebGL->mPixelStore_UnpackAlignment);
+
+    if (mWebGL->IsWebGL2()) {
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , mWebGL->mPixelStore_UnpackRowLength  );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, mWebGL->mPixelStore_UnpackImageHeight);
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , mWebGL->mPixelStore_UnpackSkipPixels );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , mWebGL->mPixelStore_UnpackSkipRows   );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , mWebGL->mPixelStore_UnpackSkipImages );
+
+        GLuint pbo = 0;
+        if (mWebGL->mBoundPixelUnpackBuffer) {
+            pbo = mWebGL->mBoundPixelUnpackBuffer->mGLName;
+        }
+
+        mGL->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, pbo);
+    }
+}
+
+////////////////////////////////////////
+
+bool
+GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
+                         size_t* const out_alignment)
+{
+    size_t alignmentGuess = maxAlignment;
+    while (alignmentGuess) {
+        size_t guessStride = RoundUpToMultipleOf(width, alignmentGuess);
+        if (guessStride == stride) {
+            *out_alignment = alignmentGuess;
+            return true;
+        }
+        alignmentGuess /= 2;
+    }
+    return false;
+}
+
+void
+Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
+          uint32_t* const out_intStartInSrc, uint32_t* const out_intStartInDst,
+          uint32_t* const out_intSize)
+{
+    // Only >0 if dstStartInSrc is >0:
+    // 0  3          // src coords
+    // |  [========] // dst box
+    // ^--^
+    *out_intStartInSrc = std::max<int32_t>(0, dstStartInSrc);
+
+    // Only >0 if dstStartInSrc is <0:
+    //-6     0       // src coords
+    // [=====|==]    // dst box
+    // ^-----^
+    *out_intStartInDst = std::max<int32_t>(0, 0 - dstStartInSrc);
+
+    int32_t intEndInSrc = std::min<int32_t>(srcSize, dstStartInSrc + dstSize);
+    *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
+}
+
+bool
+ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture,
+                TexImageTarget target, uint32_t level,
+                const webgl::FormatUsageInfo* usage, uint32_t xOffset, uint32_t yOffset,
+                uint32_t zOffset, uint32_t width, uint32_t height, uint32_t depth)
+{
+    // This has two usecases:
+    // 1. Lazy zeroing of uninitialized textures:
+    //    a. Before draw, when FakeBlack isn't viable. (TexStorage + Draw*)
+    //    b. Before partial upload. (TexStorage + TexSubImage)
+    // 2. Zero subrects from out-of-bounds blits. (CopyTex(Sub)Image)
+
+    // We have no sympathy for any of these cases.
+
+    // "Doctor, it hurts when I do this!" "Well don't do that!"
+    webgl->GenerateWarning("%s: This operation requires zeroing texture data. This is"
+                           " slow.",
+                           funcName);
+
+    gl::GLContext* gl = webgl->GL();
+    gl->MakeCurrent();
+
+    ScopedUnpackReset scopedReset(webgl);
+    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
+
+    auto compression = usage->format->compression;
+    if (compression) {
+        MOZ_RELEASE_ASSERT(!xOffset && !yOffset && !zOffset);
+        MOZ_RELEASE_ASSERT(!respecifyTexture);
+
+        auto sizedFormat = usage->format->sizedFormat;
+        MOZ_RELEASE_ASSERT(sizedFormat);
+
+        const auto fnSizeInBlocks = [](CheckedUint32 pixels, uint8_t pixelsPerBlock) {
+            return RoundUpToMultipleOf(pixels, pixelsPerBlock) / pixelsPerBlock;
+        };
+
+        const auto widthBlocks = fnSizeInBlocks(width, compression->blockWidth);
+        const auto heightBlocks = fnSizeInBlocks(height, compression->blockHeight);
+
+        CheckedUint32 checkedByteCount = compression->bytesPerBlock;
+        checkedByteCount *= widthBlocks;
+        checkedByteCount *= heightBlocks;
+        checkedByteCount *= depth;
+
+        if (!checkedByteCount.isValid())
+            return false;
+
+        const size_t byteCount = checkedByteCount.value();
+
+        UniqueBuffer zeros(calloc(1, byteCount));
+        if (!zeros)
+            return false;
+
+        GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
+                                               zOffset, width, height, depth, sizedFormat,
+                                               byteCount, zeros.get());
+        if (error)
+            return false;
+
+        return true;
+    }
+
+    const auto driverUnpackInfo = usage->idealUnpack;
+    MOZ_RELEASE_ASSERT(driverUnpackInfo);
+
+    const auto unpackFormat = driverUnpackInfo->unpackFormat;
+    const auto unpackType = driverUnpackInfo->unpackType;
+    const webgl::PackingInfo packing = { unpackFormat, unpackType };
+
+    const auto bytesPerPixel = webgl::BytesPerPixel(packing);
+
+    CheckedUint32 checkedByteCount = bytesPerPixel;
+    checkedByteCount *= width;
+    checkedByteCount *= height;
+    checkedByteCount *= depth;
+
+    if (!checkedByteCount.isValid())
+        return false;
+
+    const size_t byteCount = checkedByteCount.value();
+
+    UniqueBuffer zeros(calloc(1, byteCount));
+    if (!zeros)
+        return false;
+
+    GLenum error;
+    if (respecifyTexture) {
+        MOZ_RELEASE_ASSERT(!xOffset && !yOffset && !zOffset);
+
+        const auto internalFormat = driverUnpackInfo->internalFormat;
+        error = DoTexImage(gl, target, level, internalFormat, width, height, depth,
+                           unpackFormat, unpackType, zeros.get());
+    } else {
+        error = DoTexSubImage(gl, target, level, xOffset, yOffset, zOffset, width, height,
+                              depth, unpackFormat, unpackType, zeros.get());
+    }
+    if (error)
+        return false;
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
