@@ -50,7 +50,7 @@ WebGLFBAttachPoint::IsDefined() const
                                                 mTexImageLevel).IsDefined());
 }
 
-TexInternalFormat
+const webgl::FormatUsageInfo*
 WebGLFBAttachPoint::Format() const
 {
     MOZ_ASSERT(IsDefined());
@@ -59,24 +59,24 @@ WebGLFBAttachPoint::Format() const
         return Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).mFormat;
 
     if (Renderbuffer())
-        return Renderbuffer()->InternalFormat();
+        return Renderbuffer()->Format();
 
-    return LOCAL_GL_NONE;
+    return nullptr;
 }
 
 bool
 WebGLFBAttachPoint::HasAlpha() const
 {
-    return FormatHasAlpha(Format());
+    return Format()->formatInfo->hasAlpha;
 }
 
-GLenum
+const webgl::FormatUsageInfo*
 WebGLFramebuffer::GetFormatForAttachment(const WebGLFBAttachPoint& attachment) const
 {
     MOZ_ASSERT(attachment.IsDefined());
     MOZ_ASSERT(attachment.Texture() || attachment.Renderbuffer());
 
-    return attachment.Format().get();
+    return attachment.Format();
 }
 
 bool

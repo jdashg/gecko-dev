@@ -123,7 +123,7 @@ AddFormatInfo(EffectiveFormat format, const char* name, uint8_t bytesPerPixel,
         isColorFormat = true;
         break;
 
-    case UnsizedFormat::A: // 'Color format' in the spec just means color-attachable.
+    case UnsizedFormat::A: // Alpha is a 'color format' since it's 'color-attachable'.
     case UnsizedFormat::LA:
     case UnsizedFormat::RGBA:
         isColorFormat = true;
@@ -511,44 +511,32 @@ FormatUsageInfo::CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const
 // FormatUsageAuthority
 
 UniquePtr<FormatUsageAuthority>
-FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
+FormatUsageAuthority::CreateForWebGL1()
 {
     UniquePtr<FormatUsageAuthority> ret(new FormatUsageAuthority);
 
     ////////////////////////////////////////////////////////////////////////////
 
-#ifdef FOO
-#error FOO is already defined!
-#endif
-
-#define FOO(effFormat,rbFormat,isRenderable,texInternalFormat,texUnpackFormat,texUnpackType,isFilterable) \
-    ret->AddFormat(EffectiveFormat::effFormat, LOCAL_GL_ ## rbFormat, isRenderable,                       \
-                   LOCAL_GL_ ## texInternalFormat, LOCAL_GL_ ## texUnpackFormat,                          \
-                   LOCAL_GL_ ## texUnpackType, isFilterable)
-
     // GLES 2.0.25, p117, Table 4.5
     // RGBA8 is made renderable in WebGL 1.0, "Framebuffer Object Attachments"
 
-    //                   |                  |render|tex internal    |tex unpack      |                       |filter
-    //  effective format |RB format         |able  |format          |format          |tex unpack type        |able
+    //                                              render       filter
+    //                                        RB    able   Tex   able
+    ret->AddFormat(EffectiveFormat::RGBA8  , false, true , true, true);
+    ret->AddFormat(EffectiveFormat::RGBA4  , true , true , true, true);
+    ret->AddFormat(EffectiveFormat::RGB5_A1, true , true , true, true);
+    ret->AddFormat(EffectiveFormat::RGB8   , false, false, true, true);
+    ret->AddFormat(EffectiveFormat::RGB565 , true , true , true, true);
 
-    FOO(RGBA8            , NONE             , true , RGBA           , RGBA           , UNSIGNED_BYTE         , true );
-    FOO(RGBA4            , RGBA4            , true , RGBA           , RGBA           , UNSIGNED_SHORT_4_4_4_4, true );
-    FOO(RGB5_A1          , RGB5_A1          , true , RGBA           , RGBA           , UNSIGNED_SHORT_5_5_5_1, true );
-    FOO(RGB8             , NONE             , false, RGB            , RGB            , UNSIGNED_BYTE         , true );
-    FOO(RGB565           , RGB565           , true , RGB            , RGB            , UNSIGNED_SHORT_5_6_5  , true );
+    ret->AddFormat(EffectiveFormat::Luminance8Alpha8, false, false, true, true);
+    ret->AddFormat(EffectiveFormat::Luminance8      , false, false, true, true);
+    ret->AddFormat(EffectiveFormat::Alpha8          , false, false, true, true);
 
-    FOO(Luminance8Alpha8 , NONE             , false, LUMINANCE_ALPHA, LUMINANCE_ALPHA, UNSIGNED_BYTE         , true );
-    FOO(Luminance8       , NONE             , false, LUMINANCE      , LUMINANCE      , UNSIGNED_BYTE         , true );
-    FOO(Alpha8           , NONE             , false, ALPHA          , ALPHA          , UNSIGNED_BYTE         , true );
-
-    FOO(DEPTH_COMPONENT16, DEPTH_COMPONENT16, true , NONE           , NONE           , NONE                  , false);
-    FOO(STENCIL_INDEX8   , STENCIL_INDEX8   , true , NONE           , NONE           , NONE                  , false);
+    ret->AddFormat(EffectiveFormat::DEPTH_COMPONENT16, true, true, false, false);
+    ret->AddFormat(EffectiveFormat::STENCIL_INDEX8   , true, true, false, false);
 
     // Added in WebGL 1.0 spec:
-    FOO(DEPTH24_STENCIL8 , DEPTH24_STENCIL8 , true , NONE           , NONE           , NONE                  , false);
-
-#undef FOO
+    ret->AddFormat(EffectiveFormat::DEPTH24_STENCIL8, true, true, false, false);
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -569,14 +557,13 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 }
 
 static void
-AddES3TexFormat(FormatUsageAuthority* that, EffectiveFormat format, GLenum sizedFormat,
-                bool isRenderable, GLenum unpackFormat, GLenum unpackType,
+AddES3TexFormat(FormatUsageAuthority* that, EffectiveFormat format, bool isRenderable,
                 bool isFilterable)
 {
-    GLenum rbFormat = isRenderable ? sizedFormat : 0;
+    bool asRenderbuffer = isRenderable;
+    bool asTexture = true;
 
-    that->AddFormat(format, rbFormat, isRenderable, sizedFormat, unpackFormat, unpackType,
-                    isFilterable);
+    that->AddFormat(format, asRenderbuffer, isRenderable, asTexture, isFilterable);
 }
 
 UniquePtr<FormatUsageAuthority>
@@ -587,26 +574,11 @@ FormatUsageAuthority::CreateForWebGL2()
 
     ////////////////////////////////////////////////////////////////////////////
 
-#ifdef FOO
-#error FOO is already defined!
-#endif
-
-#define FOO(effFormat,sizedFormat,isRenderable,unpackFormat,unpackType,isFilterable) \
-    AddES3TexFormat(ptr, EffectiveFormat::effFormat, LOCAL_GL_ ## sizedFormat,       \
-                    isRenderable, LOCAL_GL_ ## unpackFormat, LOCAL_GL_ ## unpackType,\
-                    isFilterable)
-
     // For renderable, see GLES 3.0.4, p212 "Framebuffer Completeness"
     // For filterable, see GLES 3.0.4, p161 "...a texture is complete unless..."
 
     // GLES 3.0.4, p128-129 "Required Texture Formats"
     // GLES 3.0.4, p130-132, table 3.13
-
-    //                   |                  |render|tex internal    |tex unpack      |                       |filter
-    //  effective format |RB format         |able  |format          |format          |tex unpack type        |able
-
-    FOO(R8               , NONE             , true , RGBA           , RGBA           , UNSIGNED_BYTE         , true );
-
     //                                                render filter
     //                                                 able   able
     AddES3TexFormat(ptr, EffectiveFormat::R8         , true , true );
@@ -809,18 +781,17 @@ FormatUsageAuthority::GetUsage(EffectiveFormat format)
 }
 
 void
-FormatUsageAuthority::AddFormat(EffectiveFormat format, GLenum rbInternalFormat,
-                                bool isRenderable, GLenum texInternalFormat,
-                                bool isFilterable)
+FormatUsageAuthority::AddFormat(EffectiveFormat format, bool asRenderbuffer,
+                                bool isRenderable, bool asTexture, bool isFilterable)
 {
-    MOZ_ASSERT_IF(rbInternalFormat, isRenderable);
-    MOZ_ASSERT_IF(isFilterable, texInternalFormat);
+    MOZ_ASSERT_IF(asRenderbuffer, isRenderable);
+    MOZ_ASSERT_IF(isFilterable, asTexture);
 
     const FormatInfo* formatInfo = GetFormatInfo(format);
     MOZ_RELEASE_ASSERT(formatInfo);
 
-    FormatUsageInfo usage = { formatInfo, rbInternalFormat, isRenderable,
-                              texInternalFormat, isFilterable, std::set<UnpackTuple>() };
+    FormatUsageInfo usage = { formatInfo, asRenderbuffer, isRenderable, asTexture,
+                              isFilterable, std::set<UnpackTuple>() };
     AlwaysInsert(mInfoMap, format, usage);
 }
 

@@ -700,7 +700,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     GLenum driverInternalFormat = LOCAL_GL_NONE;
     GLenum driverUnpackFormat = LOCAL_GL_NONE;
     GLenum driverUnpackType = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl, imageFormat, &driverInternalFormat,
+    DriverFormatsFromEffectiveInternalFormat(gl, format, &driverInternalFormat,
                                              &driverUnpackFormat, &driverUnpackType);
 
     mContext->GetAndFlushUnderlyingGLErrors();
@@ -860,14 +860,14 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
         return;
     }
 
-    auto format = baseImageInfo.mFormat;
-    if (IsTextureFormatCompressed(format)) {
+    auto format = baseImageInfo.mFormat->formatInfo;
+    if (format->compression) {
         mContext->ErrorInvalidOperation("generateMipmap: Texture data at base level is"
                               " compressed.");
         return;
     }
 
-    if ((IsGLDepthFormat(format) || IsGLDepthStencilFormat(format)))
+    if (format->hasDepth)
         return mContext->ErrorInvalidOperation("generateMipmap: Depth textures are not supported");
 
     // Done with validation. Do the operation.

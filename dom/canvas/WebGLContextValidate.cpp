@@ -1285,12 +1285,9 @@ WebGLContext::ValidateCopyTexImage(TexInternalFormat srcFormat,
 // TODO: Texture dims is here for future expansion in WebGL 2.0
 bool
 WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
-                               GLenum internalFormat, GLint xoffset,
-                               GLint yoffset, GLint zoffset, GLint width,
+                               GLint xoffset, GLint yoffset, GLint zoffset, GLint width,
                                GLint height, GLint depth, GLint border,
-                               GLenum format, GLenum type,
-                               WebGLTexImageFunc func,
-                               WebGLTexDimensions dims)
+                               WebGLTexImageFunc func, WebGLTexDimensions dims)
 {
     const char* info = InfoFrom(func, dims);
 
@@ -1305,7 +1302,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         ErrorInvalidValue("%s: `border` must be 0.", info);
         return false;
     }
-
+    /*
     // Check incoming image format and type
     if (!ValidateTexImageFormatAndType(format, type, func, dims))
         return false;
@@ -1319,12 +1316,14 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         UnsizedInternalFormatFromInternalFormat(internalFormat);
 
     if (IsCompressedFunc(func)) {
-        if (!ValidateCompTexImageInternalFormat(internalFormat, func, dims))
+        if (!ValidateCompTexImageInternalFormat(internalFormat, func, dims,
+                                                out_formatUsage))
+        {
             return false;
-
+        }
     } else if (IsCopyFunc(func)) {
         if (!ValidateCopyTexImageInternalFormat(unsizedInternalFormat.get(),
-                                                func, dims))
+                                                func, dims, out_formatUsage))
         {
             return false;
         }
@@ -1363,6 +1362,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
             return false;
         }
     }
+    */
 
     // Check texture image size
     if (!ValidateTexImageSize(texImageTarget, level, width, height, 0, func,
@@ -1400,7 +1400,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
             return false;
         }
     }
-
+    /*
     // Additional checks for depth textures
     if (texImageTarget != LOCAL_GL_TEXTURE_2D &&
         (format == LOCAL_GL_DEPTH_COMPONENT ||
@@ -1418,6 +1418,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
                               info, WebGLContext::EnumName(format));
         return false;
     }
+    */
 
     // Parameters are OK
     return true;

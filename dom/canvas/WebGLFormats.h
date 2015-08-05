@@ -192,7 +192,7 @@ struct FormatInfo {
     const UnsizedFormat unsizedFormat;
     const ComponentType colorComponentType;
     const uint8_t bytesPerPixel; // 0 iff `!!compression`.
-    const bool isColorFormat; // This *does* include alpha-only formats.
+    const bool isColorFormat;
     const bool hasAlpha;
     const bool hasDepth;
     const bool hasStencil;
@@ -224,15 +224,10 @@ struct UnpackTuple {
 
 struct FormatUsageInfo {
     const FormatInfo* const formatInfo;
-
-    GLenum rbInternalFormat;
+    bool asRenderbuffer;
     bool isRenderable;
-
-    GLenum texInternalFormat;
-    GLenum nativeUnpackFormat;
-    GLenum nativeUnpackType;
+    bool asTexture;
     bool isFilterable;
-
     std::set<UnpackTuple> validUnpacks;
 
     bool CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const;
@@ -243,15 +238,15 @@ class FormatUsageAuthority
     std::map<EffectiveFormat, FormatUsageInfo> mInfoMap;
 
 public:
-    static UniquePtr<FormatUsageAuthority> CreateForWebGL1(gl::GLContext* gl);
-    static UniquePtr<FormatUsageAuthority> CreateForWebGL2(gl::GLContext* gl);
+    static UniquePtr<FormatUsageAuthority> CreateForWebGL1();
+    static UniquePtr<FormatUsageAuthority> CreateForWebGL2();
 
 private:
     FormatUsageAuthority() { }
 
 public:
-    void AddFormat(EffectiveFormat format, GLenum rbInternalFormat, bool isRenderable,
-                   GLenum texInternalFormat, bool isFilterable);
+    void AddFormat(EffectiveFormat format, bool asRenderbuffer, bool isRenderable,
+                   bool asTexture, bool isFilterable);
 
     void AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
                          EffectiveFormat effectiveFormat);
