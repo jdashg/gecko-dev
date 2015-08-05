@@ -45,7 +45,7 @@ public:
 
     GLuint PrimaryGLName() const { return mPrimaryRB; }
 
-    GLenum InternalFormat() const { return mInternalFormat; }
+    GLenum Format() const { return mFormat; }
 
     int64_t MemoryUsage() const;
 
@@ -54,8 +54,8 @@ public:
     }
 
     void BindRenderbuffer() const;
-    void RenderbufferStorage(const GLsizei samples, const GLenum internalFormat,
-                             const GLsizei width, const GLsizei height) const;
+    void RenderbufferStorage(GLsizei samples, const webgl::FormatUsageInfo* format,
+                             GLsizei width, GLsizei height) const;
     void FramebufferRenderbuffer(FBAttachment attachment) const;
     // Only handles a subset of `pname`s.
     GLint GetRenderbufferParameter(RBTarget target, RBParam pname) const;
@@ -72,7 +72,7 @@ protected:
 
     GLuint mPrimaryRB;
     GLuint mSecondaryRB;
-    GLenum mInternalFormat;
+    const webgl::FormatUsageInfo* mFormat;
     WebGLImageDataStatus mImageDataStatus;
     GLsizei mSamples;
     bool mIsUsingSecondary;

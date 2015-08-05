@@ -51,7 +51,7 @@ WebGLRenderbuffer::WebGLRenderbuffer(WebGLContext* webgl)
     : WebGLContextBoundObject(webgl)
     , mPrimaryRB(0)
     , mSecondaryRB(0)
-    , mInternalFormat(0)
+    , mFormat(nullptr)
     , mImageDataStatus(WebGLImageDataStatus::NoImageData)
     , mSamples(1)
     , mIsUsingSecondary(false)
@@ -214,9 +214,81 @@ RenderbufferStorageMaybeMultisample(gl::GLContext* gl, GLsizei samples,
     }
 }
 
+static GLenum
+GetRBSizedFormat(webgl::EffectiveFormat effFormat)
+{
+    switch (effFormat) {
+        // Every format that can be FormatUsageInfo::asRenderbuffer:
+
+#ifdef FOO
+#error FOO already defined.
+#endif
+
+#define FOO(X)  case EffectiveFormat::X: return LOCAL_GL_ ## X;
+
+        FOO(R8)
+        FOO(RG8)
+        FOO(RGB8)
+        FOO(RGBA8)
+
+        FOO(RGB565)
+        FOO(RGBA4)
+        FOO(RGB5_A1)
+        FOO(RGB10_A2)
+        FOO(RGB10_A2UI)
+
+        FOO(SRGB8_ALPHA8)
+
+        FOO(R16F)
+        FOO(RG16F)
+        FOO(RGB16F)
+        FOO(RGBA16F)
+
+        FOO(R32F)
+        FOO(RG32F)
+        FOO(RGB32F)
+        FOO(RGBA32F)
+
+        FOO(R8I)
+        FOO(R8UI)
+        FOO(R16I)
+        FOO(R16UI)
+        FOO(R32I)
+        FOO(R32UI)
+
+        FOO(RG8I)
+        FOO(RG8UI)
+        FOO(RG16I)
+        FOO(RG16UI)
+        FOO(RG32I)
+        FOO(RG32UI)
+
+        FOO(RGBA8I)
+        FOO(RGBA8UI)
+        FOO(RGBA16I)
+        FOO(RGBA16UI)
+        FOO(RGBA32I)
+        FOO(RGBA32UI)
+
+        FOO(DEPTH_COMPONENT16)
+        FOO(DEPTH_COMPONENT24)
+        FOO(DEPTH_COMPONENT32F)
+        FOO(DEPTH24_STENCIL8)
+        FOO(DEPTH32F_STENCIL8)
+
+        FOO(STENCIL_INDEX8)
+
+#undef FOO
+
+    default:
+        MOZ_CRASH("Bad effective format for renderbuffer.");
+    }
+}
+
 void
-WebGLRenderbuffer::RenderbufferStorage(const GLsizei samples, const GLenum internalFormat,
-                                       const GLsizei width, const GLsizei height) const
+WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
+                                       const webgl::FormatUsageInfo* format,
+                                       GLsizei width, GLsizei height) const
 {
     MOZ_ASSERT(mContext->mBoundRenderbuffer == this);
 
@@ -224,7 +296,7 @@ WebGLRenderbuffer::RenderbufferStorage(const GLsizei samples, const GLenum inter
     gl::GLContext* gl = mContext->gl;
     MOZ_ASSERT(samples >= 0 && samples <= 256); // Sanity check.
 
-    GLenum primaryFormat = internalFormat;
+    GLenum primaryFormat = GetRBSizedFormat(format->formatInfo->effectiveFormat);
     GLenum secondaryFormat = 0;
 
     if (NeedsDepthStencilEmu(mContext->gl, primaryFormat)) {
@@ -250,7 +322,7 @@ WebGLRenderbuffer::RenderbufferStorage(const GLsizei samples, const GLenum inter
     }
 
     mSamples = samples;
-    mInternalFormat = internalFormat;
+    mFormat = format;
     mWidth = width;
     mHeight = height;
     mStatus = WebGLImageDataStatus::UninitializedImageData;

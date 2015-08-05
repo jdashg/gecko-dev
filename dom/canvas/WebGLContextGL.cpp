@@ -1663,17 +1663,17 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
 
     // Convert DEPTH_STENCIL to sized type for testing
     GLenum sizedInternalFormat = internalFormat;
-    if (sizedInternalFormat == LOCAL_GL_DEPTH_STENCIL)
+    if (sizedInternalFormat == LOCAL_GL_DEPTH_STENCIL) {
         sizedInternalFormat = LOCAL_GL_DEPTH24_STENCIL8;
-
-    bool isFormatValid = false;
-    const webgl::FormatInfo* info = webgl::GetInfoBySizedFormat(sizedInternalFormat);
-    if (info) {
-        const webgl::FormatUsageInfo* usage = mFormatUsage->GetUsage(info);
-        isFormatValid = usage && usage->asRenderbuffer;
     }
 
-    if (!isFormatValid) {
+    const webgl::FormatInfo* format = webgl::GetInfoBySizedFormat(sizedInternalFormat);
+    const webgl::FormatUsageInfo* formatUsage = nullptr;
+    if (format) {
+        formatUsage = mFormatUsage->GetUsage(format);
+    }
+
+    if (!formatUsage || !formatUsage->asRenderbuffer) {
         ErrorInvalidEnumInfo("`internalFormat`", funcName, internalFormat);
         return;
     }
@@ -1682,24 +1682,13 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
 
     MakeContextCurrent();
 
-    bool willRealloc = samples != mBoundRenderbuffer->Samples() ||
-                       internalFormat != mBoundRenderbuffer->InternalFormat() ||
-                       width != mBoundRenderbuffer->Width() ||
-                       height != mBoundRenderbuffer->Height();
-
-    if (willRealloc) {
-        GetAndFlushUnderlyingGLErrors();
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormat,
-                                                width, height);
-        GLenum error = GetAndFlushUnderlyingGLErrors();
-        if (error) {
-            GenerateWarning("%s generated error %s", funcName,
-                            ErrorName(error));
-            return;
-        }
-    } else {
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormat,
-                                                width, height);
+    GetAndFlushUnderlyingGLErrors();
+    mBoundRenderbuffer->RenderbufferStorage(samples, formatUsage, width, height);
+    GLenum error = GetAndFlushUnderlyingGLErrors();
+    if (error) {
+        GenerateWarning("%s generated error %s", funcName,
+                        ErrorName(error));
+        return;
     }
 }
 
