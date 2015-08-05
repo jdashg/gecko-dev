@@ -380,13 +380,13 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
             return JS::Int32Value(i);
         }
         case LOCAL_GL_MAX_TEXTURE_SIZE:
-            return JS::Int32Value(mGLMaxTextureSize);
+            return JS::Int32Value(mImplMaxTextureSize);
 
         case LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE:
-            return JS::Int32Value(mGLMaxCubeMapTextureSize);
+            return JS::Int32Value(mImplMaxCubeMapTextureSize);
 
         case LOCAL_GL_MAX_RENDERBUFFER_SIZE:
-            return JS::Int32Value(mGLMaxRenderbufferSize);
+            return JS::Int32Value(mImplMaxRenderbufferSize);
 
         case LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS:
             return JS::Int32Value(mGLMaxVertexUniformVectors);
@@ -449,13 +449,13 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
 
         // bool, WebGL-specific
         case UNPACK_FLIP_Y_WEBGL:
-            return JS::BooleanValue(mPixelStoreFlipY);
+            return JS::BooleanValue(mPixelStore_FlipY);
         case UNPACK_PREMULTIPLY_ALPHA_WEBGL:
-            return JS::BooleanValue(mPixelStorePremultiplyAlpha);
+            return JS::BooleanValue(mPixelStore_PremultiplyAlpha);
 
         // uint, WebGL-specific
         case UNPACK_COLORSPACE_CONVERSION_WEBGL:
-            return JS::NumberValue(uint32_t(mPixelStoreColorspaceConversion));
+            return JS::NumberValue(uint32_t(mPixelStore_ColorspaceConversion));
 
         ////////////////////////////////
         // Complex values

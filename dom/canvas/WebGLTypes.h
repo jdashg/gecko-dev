@@ -103,6 +103,7 @@ enum class WebGLTexelFormat : uint8_t {
     RA32F, // OES_texture_float
     // 3-channel formats
     RGB8,
+    RGBX8, // used for DOM elements. Source format only.
     BGRX8, // used for DOM elements. Source format only.
     RGB565,
     RGB16F, // OES_texture_half_float

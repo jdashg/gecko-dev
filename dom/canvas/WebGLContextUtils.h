@@ -15,38 +15,6 @@
 
 namespace mozilla {
 
-bool IsGLDepthFormat(TexInternalFormat format);
-bool IsGLDepthStencilFormat(TexInternalFormat format);
-bool FormatHasAlpha(TexInternalFormat format);
-bool FormatHasDepth(TexInternalFormat format);
-
-void
-DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,
-                                         TexInternalFormat internalformat,
-                                         GLenum* const out_driverInternalFormat,
-                                         GLenum* const out_driverFormat,
-                                         GLenum* const out_driverType);
-TexInternalFormat
-EffectiveInternalFormatFromInternalFormatAndType(TexInternalFormat internalformat,
-                                                 TexType type);
-TexInternalFormat
-EffectiveInternalFormatFromUnsizedInternalFormatAndType(TexInternalFormat internalformat,
-                                                        TexType type);
-void
-UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(TexInternalFormat effectiveinternalformat,
-                                                        TexInternalFormat* const out_internalformat,
-                                                        TexType* const out_type);
-TexType TypeFromInternalFormat(TexInternalFormat internalformat);
-
-TexInternalFormat
-UnsizedInternalFormatFromInternalFormat(TexInternalFormat internalformat);
-
-void CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
-                                           TexFormat* const out_format,
-                                           TexType* const out_type);
-
-size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
-
 // For use with the different texture calls, i.e.
 //   TexImage2D, CopyTex[Sub]Image2D, ...
 // that take a "target" parameter. This parameter is not always the same as
@@ -63,9 +31,6 @@ TexTarget TexImageTargetToTexTarget(TexImageTarget texImageTarget);
 
 // Helper function to create a JS::Value from a C string
 JS::Value StringValue(JSContext* cx, const char* str, ErrorResult& rv);
-
-bool IsCompressedTextureFormat(GLenum format);
-bool IsTextureFormatCompressed(TexInternalFormat format);
 
 struct GLComponents
 {
@@ -99,7 +64,7 @@ WebGLContext::WebGLObjectAsJSValue(JSContext* cx, const WebGLObjectType* object,
     if (!object)
         return JS::NullValue();
 
-    MOZ_ASSERT(this == object->Context());
+    MOZ_ASSERT(this == object->mContext);
     JS::Rooted<JS::Value> v(cx);
     JS::Rooted<JSObject*> wrapper(cx, GetWrapper());
     JSAutoCompartment ac(cx, wrapper);

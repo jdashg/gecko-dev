@@ -10,16 +10,47 @@
 
 namespace mozilla {
 
+static bool
+ValidateTargetMatchesFuncDims(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
+                              GLenum rawTexTarget)
+{
+    uint8_t targetDims = 0;
+    switch (rawTexTarget) {
+    case LOCAL_GL_TEXTURE_2D:
+    case LOCAL_GL_TEXTURE_CUBE_MAP:
+        targetDims = 2;
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+        targetDims = 3;
+        break;
+    }
+
+    if (targetDims != funcDims) {
+        webgl->ErrorInvalidEnum("%s: Invalid texTarget.", funcName);
+        return false;
+    }
+
+    return true;
+}
+
 void
-WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height)
+WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internalFormat,
+                            GLsizei width, GLsizei height)
 {
     const char funcName[] = "TexStorage2D";
-    TexTarget texTarget;
-    WebGLTexture* tex;
-    if (!ValidateTexTarget(this, rawTexTarget, funcName, &texTarget, &tex))
+    const uint8_t funcDims = 2;
+
+    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
         return;
 
-    tex->TexStorage2D(texTarget, levels, internalFormat, width, height);
+    TexTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexTarget(this, funcName, rawTexTarget, &target, &tex))
+        return;
+
+    const GLsizei depth = 1;
+    tex->TexStorage(funcName, target, levels, internalFormat, width, height, depth);
 }
 
 void
@@ -27,85 +58,178 @@ WebGL2Context::TexStorage3D(GLenum rawTexTarget, GLsizei levels, GLenum internal
                             GLsizei width, GLsizei height, GLsizei depth)
 {
     const char funcName[] = "texStorage3D";
-    TexTarget texTarget;
-    WebGLTexture* tex;
-    if (!ValidateTexTarget(this, rawTexTarget, funcName, &texTarget, &tex))
+    const uint8_t funcDims = 3;
+
+    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
         return;
 
-    tex->TexStorage3D(texTarget, levels, internalFormat, width, height, depth);
+    TexTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexTarget(this, funcName, rawTexTarget, &target, &tex))
+        return;
+
+    tex->TexStorage(funcName, target, levels, internalFormat, width, height, depth);
 }
 
 void
 WebGL2Context::TexImage3D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
-                          GLsizei width, GLsizei height, GLsizei depth,
-                          GLint border, GLenum unpackFormat, GLenum unpackType,
-                          const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                          ErrorResult& out_rv)
+                          GLsizei width, GLsizei height, GLsizei depth, GLint border,
+                          GLenum unpackFormat, GLenum unpackType,
+                          const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView)
 {
     const char funcName[] = "texImage3D";
-    TexImageTarget texImageTarget;
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
     WebGLTexture* tex;
-    if (!ValidateTexImageTarget(this, rawTexImageTarget, funcName, &texImageTarget, &tex))
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
     {
         return;
     }
 
-    tex->TexImage3D(texImageTarget, level, internalFormat, width, height, depth, border,
-                    unpackFormat, unpackType, maybeView, &out_rv);
+    const bool isSubImage = false;
+    const GLint xOffset = 0;
+    const GLint yOffset = 0;
+    const GLint zOffset = 0;
+    tex->TexOrSubImage(isSubImage, funcName, target, level, internalFormat, xOffset,
+                       yOffset, zOffset, width, height, depth, border, unpackFormat,
+                       unpackType, maybeView);
 }
 
 void
-WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level,
-                             GLint xOffset, GLint yOffset, GLint zOffset,
-                             GLsizei width, GLsizei height, GLsizei depth,
-                             GLenum unpackFormat, GLenum unpackType,
+WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                             GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
+                             GLsizei depth, GLenum unpackFormat, GLenum unpackType,
                              const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                             ErrorResult& out_rv)
+                             ErrorResult& /*out_rv*/)
 {
     const char funcName[] = "texSubImage3D";
-    TexImageTarget texImageTarget;
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
     WebGLTexture* tex;
-    if (!ValidateTexImageTarget(this, rawTexImageTarget, funcName, &texImageTarget, &tex))
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
     {
         return;
     }
 
-    tex->TexSubImage3D(texImageTarget, level, xOffset, yOffset, zOffset, width, height,
-                       depth, unpackFormat, unpackType, maybeView, &out_rv);
-
+    const bool isSubImage = true;
+    const GLenum internalFormat = 0;
+    const GLint border = 0;
+    tex->TexOrSubImage(isSubImage, funcName, target, level, internalFormat, xOffset,
+                       yOffset, zOffset, width, height, depth, border, unpackFormat,
+                       unpackType, maybeView);
 }
 
 void
-WebGL2Context::TexSubImage3D(GLenum target, GLint level,
-                             GLint xOffset, GLint yOffset, GLint zOffset,
-                             GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                             ErrorResult& out_rv)
+WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                             GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                             GLenum unpackType, dom::ImageData* imageData,
+                             ErrorResult& /*out_rv*/)
 {
-    GenerateWarning("texSubImage3D: Not implemented.");
+    const char funcName[] = "texSubImage3D";
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
+    {
+        return;
+    }
+
+    const bool isSubImage = true;
+    const GLenum internalFormat = 0;
+    tex->TexOrSubImage(isSubImage, funcName, target, level, internalFormat, xOffset,
+                       yOffset, zOffset, unpackFormat, unpackType, imageData);
 }
 
 void
-WebGL2Context::CopyTexSubImage3D(GLenum target, GLint level,
-                                 GLint xOffset, GLint yOffset, GLint zOffset,
-                                 GLint x, GLint y, GLsizei width, GLsizei height)
+WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                             GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                             GLenum unpackType, dom::Element* elem,
+                             ErrorResult* const out_rv)
 {
-    GenerateWarning("copyTexSubImage3D: Not implemented.");
+    const char funcName[] = "texSubImage3D";
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
+    {
+        return;
+    }
+
+    const bool isSubImage = true;
+    const GLenum internalFormat = 0;
+    tex->TexOrSubImage(isSubImage, funcName, target, level, internalFormat, xOffset,
+                       yOffset, zOffset, unpackFormat, unpackType, elem, out_rv);
 }
 
 void
-WebGL2Context::CompressedTexImage3D(GLenum target, GLint level, GLenum internalFormat,
-                                    GLsizei width, GLsizei height, GLsizei depth,
-                                    GLint border, GLsizei imageSize, const dom::ArrayBufferViewOrSharedArrayBufferView& view)
+WebGL2Context::CompressedTexImage3D(GLenum rawTexImageTarget, GLint level,
+                                    GLenum internalFormat, GLsizei width, GLsizei height,
+                                    GLsizei depth, GLint border,
+                                    const dom::ArrayBufferViewOrSharedArrayBufferView& view)
 {
-    GenerateWarning("compressedTexImage3D: Not implemented.");
+    const char funcName[] = "compressedTexImage3D";
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->CompressedTexImage(funcName, target, level, internalFormat, width, height, depth,
+                            border, view);
 }
 
 void
-WebGL2Context::CompressedTexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
+WebGL2Context::CompressedTexSubImage3D(GLenum rawTexImageTarget, GLint level,
+                                       GLint xOffset, GLint yOffset, GLint zOffset,
                                        GLsizei width, GLsizei height, GLsizei depth,
-                                       GLenum unpackFormat, GLsizei imageSize, const dom::ArrayBufferViewOrSharedArrayBufferView& view)
+                                       GLenum sizedUnpackFormat,
+                                       const dom::ArrayBufferViewOrSharedArrayBufferView& view)
 {
-    GenerateWarning("compressedTexSubImage3D: Not implemented.");
+    const char funcName[] = "compressedTexSubImage3D";
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->CompressedTexSubImage(funcName, target, level, xOffset, yOffset, zOffset, width,
+                               height, depth, sizedUnpackFormat, view);
+}
+
+void
+WebGL2Context::CopyTexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
+                                 GLint yOffset, GLint zOffset, GLint x, GLint y,
+                                 GLsizei width, GLsizei height)
+{
+    const char funcName[] = "copyTexSubImage3D";
+    const uint8_t funcDims = 3;
+
+    TexImageTarget target;
+    WebGLTexture* tex;
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget, &target,
+                                &tex))
+    {
+        return;
+    }
+
+    tex->CopyTexSubImage(funcName, target, level, xOffset, yOffset, zOffset, x, y, width,
+                         height);
 }
 
 bool

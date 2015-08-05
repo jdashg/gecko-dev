@@ -12,9 +12,6 @@
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;
-
-
 WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
@@ -28,20 +25,29 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
         gl->fEnable(LOCAL_GL_FRAMEBUFFER_SRGB_EXT);
     }
 
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
+    auto& fua = webgl->mFormatUsage;
 
-    auto addFormatIfMissing = [authority](EffectiveFormat effectiveFormat,
-                                          GLenum unpackFormat, GLenum unpackType,
-                                          bool asRenderbuffer)
-        {
-            if (!authority->GetUsage(effectiveFormat)) {
-                authority->AddFormat(effectiveFormat, asRenderbuffer, asRenderbuffer, true, true);
-                authority->AddUnpackOption(unpackFormat, unpackType, effectiveFormat);
-            }
-        };
+    webgl::FormatUsageInfo* usage;
+    webgl::PackingInfo pi;
+    webgl::DriverUnpackInfo dui;
 
-    addFormatIfMissing(EffectiveFormat::SRGB8       , LOCAL_GL_SRGB      , LOCAL_GL_UNSIGNED_BYTE, false);
-    addFormatIfMissing(EffectiveFormat::SRGB8_ALPHA8, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE, true);
+    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8);
+    usage->isRenderable = false;
+    usage->isFilterable = true;
+    pi = {LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
+    dui = {LOCAL_GL_SRGB, LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
+    fua->AddUnsizedTexFormat(pi, usage);
+    usage->AddUnpack(pi, dui);
+
+    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8_ALPHA8);
+    usage->isRenderable = true;
+    usage->isFilterable = true;
+    pi = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    dui = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    fua->AddUnsizedTexFormat(pi, usage);
+    usage->AddUnpack(pi, dui);
+
+    fua->AddRBFormat(LOCAL_GL_SRGB_ALPHA, usage);
 }
 
 WebGLExtensionSRGB::~WebGLExtensionSRGB()

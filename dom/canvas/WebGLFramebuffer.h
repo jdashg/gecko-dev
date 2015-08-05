@@ -46,7 +46,7 @@ public:
     bool IsDefined() const;
     bool IsDeleteRequested() const;
 
-    TexInternalFormat Format() const;
+    const webgl::FormatUsageInfo* Format() const;
 
     bool HasAlpha() const;
     bool IsReadableFloat() const;
@@ -92,7 +92,8 @@ public:
     void FinalizeAttachment(gl::GLContext* gl,
                             FBAttachment attachmentLoc) const;
 
-    JS::Value GetParameter(WebGLContext* context, GLenum pname);
+    JS::Value GetParameter(WebGLContext* context, GLenum target, GLenum attachment,
+                           GLenum pname);
 
     void OnBackingStoreRespecified() const;
 };
@@ -161,7 +162,7 @@ public:
     FBStatus PrecheckFramebufferStatus() const;
     FBStatus CheckFramebufferStatus() const;
 
-    GLenum
+    const webgl::FormatUsageInfo*
     GetFormatForAttachment(const WebGLFBAttachPoint& attachment) const;
 
     bool HasDepthStencilConflict() const {
@@ -198,7 +199,7 @@ public:
     void DetachRenderbuffer(const WebGLRenderbuffer* rb);
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
     void FinalizeAttachments() const;
@@ -222,11 +223,12 @@ public:
         mStatus = 0;
     }
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format,
+    bool ValidateForRead(const char* info,
+                         const webgl::FormatUsageInfo** const out_format,
                          uint32_t* const out_width, uint32_t* const out_height);
 
-    JS::Value GetAttachmentParameter(JSContext* cx, GLenum attachment, GLenum pname,
-                                     ErrorResult& rv);
+    JS::Value GetAttachmentParameter(JSContext* cx, GLenum target, GLenum attachment,
+                                     GLenum pname, ErrorResult* const out_error);
 };
 
 } // namespace mozilla
