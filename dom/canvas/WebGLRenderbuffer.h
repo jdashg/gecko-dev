@@ -33,13 +33,6 @@ public:
         return mImageDataStatus == WebGLImageDataStatus::UninitializedImageData;
     }
 
-    void SetImageDataStatus(WebGLImageDataStatus x) {
-        // there is no way to go from having image data to not having any
-        MOZ_ASSERT(x != WebGLImageDataStatus::NoImageData ||
-                   mImageDataStatus == WebGLImageDataStatus::NoImageData);
-        mImageDataStatus = x;
-    }
-
     bool IsDefined() const {
         if (mInternalFormat == LOCAL_GL_NONE) {
             MOZ_ASSERT(!mWidth && !mHeight);
@@ -49,19 +42,10 @@ public:
     }
 
     GLsizei Samples() const { return mSamples; }
-    void SetSamples(GLsizei samples) { mSamples = samples; }
 
     GLuint PrimaryGLName() const { return mPrimaryRB; }
 
     GLenum InternalFormat() const { return mInternalFormat; }
-    void SetInternalFormat(GLenum internalFormat) {
-        mInternalFormat = internalFormat;
-    }
-
-    GLenum InternalFormatForGL() const { return mInternalFormatForGL; }
-    void SetInternalFormatForGL(GLenum internalFormatForGL) {
-        mInternalFormatForGL = internalFormatForGL;
-    }
 
     int64_t MemoryUsage() const;
 
@@ -70,8 +54,8 @@ public:
     }
 
     void BindRenderbuffer() const;
-    void RenderbufferStorage(GLsizei samples, GLenum internalFormat,
-                             GLsizei width, GLsizei height) const;
+    void RenderbufferStorage(const GLsizei samples, const GLenum internalFormat,
+                             const GLsizei width, const GLsizei height) const;
     void FramebufferRenderbuffer(FBAttachment attachment) const;
     // Only handles a subset of `pname`s.
     GLint GetRenderbufferParameter(RBTarget target, RBParam pname) const;
@@ -89,9 +73,9 @@ protected:
     GLuint mPrimaryRB;
     GLuint mSecondaryRB;
     GLenum mInternalFormat;
-    GLenum mInternalFormatForGL;
     WebGLImageDataStatus mImageDataStatus;
     GLsizei mSamples;
+    bool mIsUsingSecondary;
 #ifdef ANDROID
     // Bug 1140459: Some drivers (including our test slaves!) don't
     // give reasonable answers for IsRenderbuffer, maybe others.

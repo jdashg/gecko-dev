@@ -1678,39 +1678,6 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
         return;
     }
 
-    // certain OpenGL ES renderbuffer formats may not exist on desktop OpenGL
-    GLenum internalFormatForGL = internalFormat;
-
-    switch (internalFormat) {
-    case LOCAL_GL_RGBA4:
-    case LOCAL_GL_RGB5_A1:
-        // 16-bit RGBA formats are not supported on desktop GL
-        if (!gl->IsGLES())
-            internalFormatForGL = LOCAL_GL_RGBA8;
-        break;
-
-    case LOCAL_GL_RGB565:
-        // the RGB565 format is not supported on desktop GL
-        if (!gl->IsGLES())
-            internalFormatForGL = LOCAL_GL_RGB8;
-        break;
-
-    case LOCAL_GL_DEPTH_COMPONENT16:
-        if (!gl->IsGLES() || gl->IsExtensionSupported(gl::GLContext::OES_depth24))
-            internalFormatForGL = LOCAL_GL_DEPTH_COMPONENT24;
-        else if (gl->IsExtensionSupported(gl::GLContext::OES_packed_depth_stencil))
-            internalFormatForGL = LOCAL_GL_DEPTH24_STENCIL8;
-        break;
-
-    case LOCAL_GL_DEPTH_STENCIL:
-        // We emulate this in WebGLRenderbuffer if we don't have the requisite extension.
-        internalFormatForGL = LOCAL_GL_DEPTH24_STENCIL8;
-        break;
-
-    default:
-        break;
-    }
-
     // Validation complete.
 
     MakeContextCurrent();
@@ -1722,7 +1689,7 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
 
     if (willRealloc) {
         GetAndFlushUnderlyingGLErrors();
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormatForGL,
+        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormat,
                                                 width, height);
         GLenum error = GetAndFlushUnderlyingGLErrors();
         if (error) {
@@ -1731,15 +1698,9 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
             return;
         }
     } else {
-        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormatForGL,
+        mBoundRenderbuffer->RenderbufferStorage(samples, internalFormat,
                                                 width, height);
     }
-
-    mBoundRenderbuffer->SetSamples(samples);
-    mBoundRenderbuffer->SetInternalFormat(internalFormat);
-    mBoundRenderbuffer->SetInternalFormatForGL(internalFormatForGL);
-    mBoundRenderbuffer->setDimensions(width, height);
-    mBoundRenderbuffer->SetImageDataStatus(WebGLImageDataStatus::UninitializedImageData);
 }
 
 void
