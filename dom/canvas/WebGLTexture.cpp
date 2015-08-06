@@ -750,6 +750,13 @@ WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
     }
 }
 
+void
+WebGLTexture::InvalidateFakeBlackCache()
+{
+    mContext->InvalidateFakeBlackCache();
+    mFakeBlackStatus = WebGLTextureFakeBlackStatus::Unknown;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // GL calls
 

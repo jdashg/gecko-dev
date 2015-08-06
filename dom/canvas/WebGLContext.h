@@ -36,6 +36,7 @@
 #include "WebGLFormats.h"
 #include "WebGLObjectModel.h"
 #include "WebGLStrongTypes.h"
+#include "WebGLTexture.h"
 
 // Generated
 #include "nsIDOMEventListener.h"
@@ -925,6 +926,22 @@ public:
                       &elem, &out_rv);
     }
 
+    // WebGLTextureUpload.cpp
+    bool ValidateTexImageSpecification(const char* funcName, uint8_t funcDims,
+                                       GLenum texImageTarget, GLint level,
+                                       GLsizei width, GLsizei height, GLsizei depth,
+                                       GLint border,
+                                       TexImageTarget* const out_target,
+                                       WebGLTexture** const out_texture,
+                                       WebGLTexture::ImageInfo** const out_imageInfo);
+    bool ValidateTexImageSelection(const char* funcName, uint8_t funcDims,
+                                   GLenum texImageTarget, GLint level, GLint xOffset,
+                                   GLint yOffset, GLint zOffset, GLsizei width,
+                                   GLsizei height, GLsizei depth,
+                                   TexImageTarget* const out_target,
+                                   WebGLTexture** const out_texture,
+                                   WebGLTexture::ImageInfo** const out_imageInfo);
+
 // -----------------------------------------------------------------------------
 // Vertices Feature (WebGLContextVertices.cpp)
 public:
@@ -1093,6 +1110,11 @@ protected:
     GLsizei mGLMaxSamples;
     GLuint  mGLMax3DTextureSize;
     GLuint  mGLMaxArrayTextureLayers;
+
+    uint32_t mImplMaxTextureSize;
+    uint32_t mImplMaxCubeMapTextureSize;
+    uint32_t mImplMax3DTextureSize;
+    uint32_t mImplMaxArrayTextureLayers;
 
 public:
     GLuint MaxVertexAttribs() const {
@@ -1383,11 +1405,18 @@ protected:
     WebGLRefPtr<WebGLVertexArray> mDefaultVertexArray;
 
     // PixelStore parameters
-    uint32_t mPixelStorePackAlignment;
-    uint32_t mPixelStoreUnpackAlignment;
-    uint32_t mPixelStoreColorspaceConversion;
-    bool mPixelStoreFlipY;
-    bool mPixelStorePremultiplyAlpha;
+    uint32_t mPixelStore_PackAlignment;
+    uint32_t mPixelStore_UnpackAlignment;
+    uint32_t mPixelStore_UnpackRowLength;
+    uint32_t mPixelStore_UnpackImageHeight;
+    uint32_t mPixelStore_UnpackSkipPixels;
+    uint32_t mPixelStore_UnpackSkipRows;
+    uint32_t mPixelStore_UnpackSkipImages;
+
+    uint32_t mPixelStore_ColorspaceConversion;
+    bool mPixelStore_FlipY;
+    bool mPixelStore_PremultiplyAlpha;
+
 
     // Fake-black
 public:
@@ -1628,11 +1657,11 @@ WebGLContext::ValidateObject(const char* info, ObjectType* object)
 size_t RoundUpToMultipleOf(size_t value, size_t multiple);
 
 bool
-ValidateTexTarget(WebGLContext* webgl, GLenum rawTexTarget, const char* funcName,
+ValidateTexTarget(WebGLContext* webgl, const char* funcName, GLenum rawTexTarget,
                   TexTarget* const out_texTarget, WebGLTexture** const out_tex);
 bool
-ValidateTexImageTarget(WebGLContext* webgl, GLenum rawTexImageTarget,
-                       const char* funcName, TexImageTarget* const out_texImageTarget,
+ValidateTexImageTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
+                       GLenum rawTexImageTarget, TexImageTarget* const out_texImageTarget,
                        WebGLTexture** const out_tex);
 
 // Returns x rounded to the next highest multiple of y.

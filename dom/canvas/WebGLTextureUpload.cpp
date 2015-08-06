@@ -65,44 +65,6 @@ SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat)
     }
 }
 
-static bool
-DoesTargetMatchDimensions(WebGLContext* webgl, TexImageTarget target, uint8_t funcDims,
-                          const char* funcName)
-{
-    uint8_t targetDims;
-    switch (target.get()) {
-    case LOCAL_GL_TEXTURE_2D:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-        targetDims = 2;
-        break;
-
-    case LOCAL_GL_TEXTURE_3D:
-        targetDims = 3;
-        break;
-
-    default:
-        MOZ_CRASH("Unhandled texImageTarget.");
-    }
-
-    if (targetDims != funcDims) {
-        webgl->ErrorInvalidEnum("%s: `target` must match function dimensions.", funcName);
-        return false;
-    }
-
-    return true;
-}
-
-
-
-
-
-
-
 //////////////////////////////////////////////////////////////////////////////////////////
 // Utils
 
@@ -161,62 +123,9 @@ GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint32_t rowByteAlignment,
     return true;
 }
 
-
-bool
-WebGLTexture::ValidateTexImageTarget(const char* funcName, uint8_t funcDims,
-                                     GLenum texImageTarget, bool* const out_isCubeMap,
-                                     TexImageTarget* const out_target,
-                                     WebGLTexture** const out_texture)
-{
-    // Check texImageTarget
-    bool isTargetValid = (funcDims == 2);
-    bool isCubeMap = false;
-
-    switch (rawTexImageTarget) {
-    case LOCAL_GL_TEXTURE_2D:
-        break;
-
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-        isCubeMap = true;
-        break;
-
-    case LOCAL_GL_TEXTURE_3D:
-    case LOCAL_GL_TEXTURE_2D_ARRAY:
-        isTargetValid = (funcDims == 3);
-        break;
-
-    default:
-        isTargetValid = false;
-        break;
-    }
-
-    if (!isTargetValid) {
-        ErrorInvalidEnum("%s: Bad `target`.", funcName);
-        return false;
-    }
-    TexImageTarget target = rawTexImageTarget;
-
-    WebGLTexture* texture = ActiveBoundTextureForTexImageTarget(target);
-    if (!texture) {
-        ErrorInvalidOperation("%s: No texture is bound to the active target.", funcName);
-        return false;
-    }
-
-    *out_isCubeMap = isCubeMap;
-    *out_target = target;
-    *out_texture = texture;
-    return true;
-}
-
-
 static bool
-ValidateTexImage(const char* funcName, WebGLTexture* texture, TexImageTarget target,
-                 GLint level, WebGLContext* webgl,
+ValidateTexImage(WebGLContext* webgl, WebGLTexture* texture, const char* funcName,
+                 TexImageTarget target, GLint level,
                  WebGLTexture::ImageInfo** const out_imageInfo)
 {
     // Check level
@@ -240,86 +149,84 @@ ValidateTexImage(const char* funcName, WebGLTexture* texture, TexImageTarget tar
 
 // For *TexImage*
 bool
-WebGLTexture::ValidateTexImageSpecification(const char* funcName, uint8_t funcDims,
-                                            GLenum texImageTarget, GLint level,
+WebGLTexture::ValidateTexImageSpecification(const char* funcName, TexImageTarget target,
+                                            GLint level,
                                             GLsizei width, GLsizei height, GLsizei depth,
                                             GLint border,
-                                            TexImageTarget* const out_target,
-                                            WebGLTexture** const out_texture,
                                             WebGLTexture::ImageInfo** const out_imageInfo)
 {
-    bool isCubeMap;
-    TexImageTarget target;
-    WebGLTexture* texture;
-    if (!ValidateTexImageTarget(funcName, funcDims, texImageTarget, level, &isCubeMap,
-                                &target, &texture))
-    {
+    if (mImmutable) {
+        mContext->ErrorInvalidOperation("%s: Specified texture is immutable.", funcName);
         return false;
     }
-
-    if (texture->mImmutable) {
-        ErrorInvalidOperation("%s: Specified texture is immutable.", funcName);
-        return false;
-    }
-
-    WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImage(funcName, texture, target, level, this, &imageInfo))
-        return false;
 
     // Check border
     if (border != 0) {
-        ErrorInvalidValue("%s: `border` must be 0.", funcName);
+        mContext->ErrorInvalidValue("%s: `border` must be 0.", funcName);
         return false;
     }
 
-    if (width < 0 || height < 0 || depth < 0) {
+    if (level < 0 || width < 0 || height < 0 || depth < 0) {
         /* GL ES Version 2.0.25 - 3.7.1 Texture Image Specification
          *   "If wt and ht are the specified image width and height,
          *   and if either wt or ht are less than zero, then the error
          *   INVALID_VALUE is generated."
          */
-        ErrorInvalidValue("%s: `width`/`height`/`depth` must be >= 0.", funcName);
+        mContext->ErrorInvalidValue("%s: `level`/`width`/`height`/`depth` must be >= 0.",
+                                    funcName);
         return false;
     }
 
-    /* NOTE: GL_MAX_TEXTURE_SIZE is *not* the max allowed texture size. Rather, it is the
+    /* GLES 3.0.4, p133-134:
+     * GL_MAX_TEXTURE_SIZE is *not* the max allowed texture size. Rather, it is the
      * max (width/height) size guaranteed not to generate an INVALID_VALUE for too-large
      * dimensions. Sizes larger than GL_MAX_TEXTURE_SIZE *may or may not* result in an
      * INVALID_VALUE, or possibly GL_OOM.
      *
      * However, we have needed to set our maximums lower in the past to prevent resource
-     * corruption. Therefore we have mImpleMaxTextureSize, which is neither necessarily
+     * corruption. Therefore we have mImplMaxTextureSize, which is neither necessarily
      * lower nor higher than MAX_TEXTURE_SIZE.
+     *
+     * Note that mImplMaxTextureSize must be >= than the advertized MAX_TEXTURE_SIZE.
+     * For simplicity, we advertize MAX_TEXTURE_SIZE as mImplMaxTextureSize.
      */
 
-    GLsizei maxWidthHeight;
-    GLsizei maxDepth;
+    uint32_t maxWidthHeight = 0;
+    uint32_t maxDepth = 0;
 
-    switch (texImageTarget) {
-    case LOCAL_GL_TEXTURE_2D:
-        maxWidthHeight = mImplMaxTextureSize >> level;
-        maxDepth = 1;
-        break;
+    if (level <= 31) {
+        switch (target.get()) {
+        case LOCAL_GL_TEXTURE_2D:
+            maxWidthHeight = mContext->mImplMaxTextureSize >> level;
+            maxDepth = 1;
+            break;
 
-    case LOCAL_GL_TEXTURE_3D:
-        maxWidthHeight = mImplMax3DTextureSize >> level;
-        maxDepth = maxWidthHeight;
-        break;
+        case LOCAL_GL_TEXTURE_3D:
+            maxWidthHeight = mContext->mImplMax3DTextureSize >> level;
+            maxDepth = maxWidthHeight;
+            break;
 
-    case LOCAL_GL_TEXTURE_2D_ARRAY:
-        maxWidthHeight = mImplMaxTextureSize >> level;
-        maxDepth = mGLMaxArrayTextureLayers;
-        break;
+        case LOCAL_GL_TEXTURE_2D_ARRAY:
+            maxWidthHeight = mContext->mImplMaxTextureSize >> level;
+            // "The maximum number of layers for two-dimensional array textures (depth) must
+            //  be at least MAX_ARRAY_TEXTURE_LAYERS for all levels."
+            maxDepth = mContext->mImplMaxArrayTextureLayers;
+            break;
 
-    default: // cube maps
-        MOZ_ASSERT(isCubeMap);
-        maxWidthHeight = mImplMaxCubeMapTextureSize >> level;
-        maxDepth = 1;
-        break;
+        default: // cube maps
+            MOZ_ASSERT(IsCubeMap());
+            maxWidthHeight = mContext->mImplMaxCubeMapTextureSize >> level;
+            maxDepth = 1;
+            break;
+        }
     }
 
-    if (width > maxWidthHeight || height > maxWidthHeight || depth > maxDepth) {
-        ErrorInvalidValue("%s: Requested size is unsupported.", funcName);
+    if (uint32_t(width) > maxWidthHeight ||
+        uint32_t(height) > maxWidthHeight ||
+        uint32_t(depth) > maxDepth)
+    {
+        mContext->ErrorInvalidValue("%s: Requested size at this level is unsupported.",
+                                    funcName);
         return false;
     }
 
@@ -331,60 +238,52 @@ WebGLTexture::ValidateTexImageSpecification(const char* funcName, uint8_t funcDi
          *
          * This restriction does not apply to GL ES Version 3.0+.
          */
-        bool requirePOT = (!IsWebGL2() && level != 0);
+        bool requirePOT = (!mContext->IsWebGL2() && level != 0);
 
         if (requirePOT) {
-            if (!IsPOTAssumingNonnegative(width) || !IsPOTAssumingNonnegative(height)) {
-                ErrorInvalidValue("%s: For level > 0, width and height must be powers of"
-                                  " two.",
-                                  funcName);
+            if (!IsPowerOfTwo(width) || !IsPowerOfTwo(height)) {
+                mContext->ErrorInvalidValue("%s: For level > 0, width and height must be"
+                                            " powers of two.",
+                                            funcName);
                 return false;
             }
         }
     }
 
-    *out_target = target;
-    *out_texture = texture;
+    WebGLTexture::ImageInfo* imageInfo;
+    if (!ValidateTexImage(mContext, this, funcName, target, level, &imageInfo))
+        return false;
+
     *out_imageInfo = imageInfo;
     return true;
 }
 
 // For *TexSubImage*
 bool
-WebGLTexture::ValidateTexImageSelection(const char* funcName, uint8_t funcDims,
-                                        GLenum texImageTarget, GLint level, GLint xOffset,
+WebGLTexture::ValidateTexImageSelection(const char* funcName, TexImageTarget target,
+                                        GLint level, GLint xOffset,
                                         GLint yOffset, GLint zOffset, GLsizei width,
                                         GLsizei height, GLsizei depth,
-                                        TexImageTarget* const out_target,
-                                        WebGLTexture** const out_texture,
                                         WebGLTexture::ImageInfo** const out_imageInfo)
 {
-    bool isCubeMap;
-    TexImageTarget target;
-    WebGLTexture* texture;
-    if (!ValidateTexImageTarget(funcName, funcDims, texImageTarget, &isCubeMap, &target,
-                                &texture))
-    {
-        return false;
-    }
-
-    if (texture->mImmutable) {
-        ErrorInvalidOperation("%s: Specified texture is immutable.", funcName);
+    if (mImmutable) {
+        mContext->ErrorInvalidOperation("%s: Specified texture is immutable.", funcName);
         return false;
     }
 
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImage(funcName, texture, target, level, this, &imageInfo))
+    if (!ValidateTexImage(mContext, this, funcName, target, level, &imageInfo))
         return false;
 
-    if (imageInfo->IsValid()) {
-        ErrorInvalidOperation("%s: The specified TexImage has not yet been specified.",
-                              funcName);
+    if (imageInfo->IsDefined()) {
+        mContext->ErrorInvalidOperation("%s: The specified TexImage has not yet been"
+                                        " specified.",
+                                        funcName);
         return false;
     }
 
     if (xOffset < 0 || yOffset < 0 || zOffset < 0) {
-        ErrorInvalidValue("%s: Offsets must be >=0.", funcName);
+        mContext->ErrorInvalidValue("%s: Offsets must be >=0.", funcName);
         return false;
     }
 
@@ -392,18 +291,16 @@ WebGLTexture::ValidateTexImageSelection(const char* funcName, uint8_t funcDims,
     const auto totalY = CheckedUint32(yOffset) + height;
     const auto totalZ = CheckedUint32(zOffset) + depth;
 
-    if (!totalX.isValid() || totalX.value() > imageInfo->Width() ||
-        !totalY.isValid() || totalY.value() > imageInfo->Height() ||
-        !totalZ.isValid() || totalZ.value() > imageInfo->Depth())
+    if (!totalX.isValid() || totalX.value() > imageInfo->mWidth ||
+        !totalY.isValid() || totalY.value() > imageInfo->mHeight ||
+        !totalZ.isValid() || totalZ.value() > imageInfo->mDepth)
     {
-        ErrorInvalidValue("%s: Offset+size must be <= the size of the existing"
-                          " specified image.",
-                          funcName);
+        mContext->ErrorInvalidValue("%s: Offset+size must be <= the size of the existing"
+                                    " specified image.",
+                                    funcName);
         return false;
     }
 
-    *out_target = target;
-    *out_texture = texture;
     *out_imageInfo = imageInfo;
     return true;
 }
@@ -413,13 +310,14 @@ bool
 WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei width,
                                 GLsizei height, GLsizei depth, GLenum unpackFormat,
                                 GLenum unpackType, size_t dataSize,
-                                ElementTexSource* texSource,
+                                webgl::ElementTexSource* texSource,
                                 const webgl::FormatInfo** const out_format)
 {
-    const webgl::FormatInfo* format = GetInfoByUnpackTuple(unpackFormat, unpackType);
+    auto format = webgl::GetInfoByUnpackTuple(unpackFormat, unpackType);
 
     if (!format || format->compression) {
-        ErrorInvalidOperation("%s: Invalid format/type for unpacking.", funcName);
+        mContext->ErrorInvalidOperation("%s: Invalid format/type for unpacking.",
+                                        funcName);
         return false;
     }
 
@@ -429,16 +327,17 @@ WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
         return true;
     }
 
-    const auto bytesPerPixel = format->bytesPerPixel;
-    const auto rowByteAlignment = mPixelStore_UnpackAlignment;
-    const auto maybeStridePixelsPerRow = mPixelStore_UnpackRowLength;
-    const auto maybeStrideRowsPerImage = mPixelStore_UnpackImageHeight;
-    const auto skipPixelsPerRow = mPixelStore_UnpackSkipPixels;
-    const auto skipRowsPerImage = mPixelStore_UnpackSkipRows;
-    const auto skipImages = (funcDims == 3) ? mPixelStore_UnpackSkipImages : 0;
+    const auto bytesPerPixel           = format->bytesPerPixel;
+    const auto rowByteAlignment        = mContext->mPixelStore_UnpackAlignment;
+    const auto maybeStridePixelsPerRow = mContext->mPixelStore_UnpackRowLength;
+    const auto maybeStrideRowsPerImage = mContext->mPixelStore_UnpackImageHeight;
+    const auto skipPixelsPerRow        = mContext->mPixelStore_UnpackSkipPixels;
+    const auto skipRowsPerImage        = mContext->mPixelStore_UnpackSkipRows;
+    const auto skipImages              = (funcDims == 3) ? mContext->mPixelStore_UnpackSkipImages
+                                                         : 0;
     const auto usedPixelsPerRow = width;
     const auto usedRowsPerImage = height;
-    const auto usedImages = depth;
+    const auto usedImages       = depth;
 
     uint32_t bytesNeeded;
     if (!GetPackedSizeForUnpack(bytesPerPixel, rowByteAlignment,
@@ -447,16 +346,17 @@ WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
                                 usedPixelsPerRow, usedRowsPerImage, usedImages,
                                 &bytesNeeded)
     {
-        ErrorInvalidOperation("%s: Overflow while computing the needed buffer size.",
-                              funcName);
+        mContext->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
+                                        " size.",
+                                        funcName);
         return false;
     }
 
     if (byteLength < bytesNeeded) {
-        ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u, has %u)",
-                              funcName, packedBytes, byteLength);
+        mContext->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u, has"
+                                        " %u)",
+                                        funcName, packedBytes, byteLength);
         return false;
-    }
     }
 
     *out_format = format;
@@ -867,7 +767,7 @@ WebGLTexture::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texIm
     TexImageTarget target;
     WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSpecification(funcName, funcDims, texImageTarget, level, width,
+    if (!ValidateTexImageSpecification(funcName, texImageTarget, level, width,
                                        height, depth, border, &target, &texture,
                                        &imageInfo))
     {
@@ -1197,16 +1097,14 @@ WebGLTexture::TexStorage_base(const char* funcName, uint8_t funcDims,
         return false;
     }
 
-    const bool isCubeMap = (texTarget == LOCAL_GL_TEXTURE_CUBE_MAP);
-
-    const GLenum testTexImageTarget = isCubeMap ? LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X
-                                                : texTarget;
+    const GLenum testTexImageTarget = IsCubeMap() ? LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X
+                                                  : texTarget;
     const GLint testLevel = 0;
                                                                        :
     TexImageTarget target;
     WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSpecification(funcName, funcDims, testTexImageTarget, testLevel,
+    if (!ValidateTexImageSpecification(funcName, testTexImageTarget, testLevel,
                                        width, height, depth, border, &target, &texture,
                                        &imageInfo))
     {
@@ -1301,7 +1199,7 @@ WebGLTexture::CompressedTexImage_base(const char* funcName, uint8_t funcDims,
     TexImageTarget target;
     WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSpecification(funcName, funcDims, texImageTarget, level, width,
+    if (!ValidateTexImageSpecification(funcName, texImageTarget, level, width,
                                        height, depth, border, &target, &texture,
                                        &imageInfo))
     {
@@ -1528,7 +1426,7 @@ WebGLTexture::CopyTexImage2D_base(GLenum imageTarget, GLint level, GLenum intern
     TexImageTarget target;
     WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSpecification(funcName, funcDims, texImageTarget, level, width,
+    if (!ValidateTexImageSpecification(funcName, texImageTarget, level, width,
                                        height, depth, border, &target, &texture,
                                        &imageInfo))
     {
@@ -3160,16 +3058,16 @@ WebGLTexture::TexStorage_base(const char* funcName, uint8_t funcDims,
         return false;
     }
 
-    const bool isCubeMap = (texTarget == LOCAL_GL_TEXTURE_CUBE_MAP);
+    const bool isCubeMap = IsCubeMap();
 
-    const GLenum testTexImageTarget = isCubeMap ? LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X
+    const GLenum testTexImageTarget = IsCubeMap ? LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X
                                                 : texTarget;
     const GLint testLevel = 0;
                                                                        :
     TexImageTarget target;
     WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSpecification(funcName, funcDims, testTexImageTarget, testLevel,
+    if (!ValidateTexImageSpecification(funcName, testTexImageTarget, testLevel,
                                        width, height, depth, border, &target, &texture,
                                        &imageInfo))
     {

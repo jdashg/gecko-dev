@@ -10,13 +10,43 @@
 
 namespace mozilla {
 
+static bool
+ValidateTargetMatchesFuncDims(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
+                              GLenum rawTexTarget)
+{
+    uint8_t targetDims = 0;
+    switch (rawTexTarget) {
+    case LOCAL_GL_TEXTURE_2D:
+    case LOCAL_GL_TEXTURE_CUBE_MAP:
+        targetDims = 2;
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+        targetDims = 3;
+        break;
+    }
+
+    if (targetDims != funcDims) {
+        webgl->ErrorInvalidEnum("%s: Invalid texTarget.", funcName);
+        return false;
+    }
+
+    return true;
+}
+
 void
-WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internalFormat, GLsizei width, GLsizei height)
+WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internalFormat,
+                            GLsizei width, GLsizei height)
 {
     const char funcName[] = "TexStorage2D";
+    const uint8_t funcDims = 2;
+
+    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
+        return;
+
     TexTarget texTarget;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, rawTexTarget, funcName, &texTarget, &tex))
+    if (!ValidateTexTarget(this, funcName, rawTexTarget, &texTarget, &tex))
         return;
 
     tex->TexStorage2D(texTarget, levels, internalFormat, width, height);
@@ -27,9 +57,14 @@ WebGL2Context::TexStorage3D(GLenum rawTexTarget, GLsizei levels, GLenum internal
                             GLsizei width, GLsizei height, GLsizei depth)
 {
     const char funcName[] = "texStorage3D";
+    const uint8_t funcDims = 3;
+
+    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
+        return;
+
     TexTarget texTarget;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, rawTexTarget, funcName, &texTarget, &tex))
+    if (!ValidateTexTarget(this, funcName, rawTexTarget, &texTarget, &tex))
         return;
 
     tex->TexStorage3D(texTarget, levels, internalFormat, width, height, depth);
@@ -43,9 +78,12 @@ WebGL2Context::TexImage3D(GLenum rawTexImageTarget, GLint level, GLenum internal
                           ErrorResult& out_rv)
 {
     const char funcName[] = "texImage3D";
+    const uint8_t funcDims = 3;
+
     TexImageTarget texImageTarget;
     WebGLTexture* tex;
-    if (!ValidateTexImageTarget(this, rawTexImageTarget, funcName, &texImageTarget, &tex))
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget,
+                                &texImageTarget, &tex))
     {
         return;
     }
@@ -63,9 +101,12 @@ WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level,
                              ErrorResult& out_rv)
 {
     const char funcName[] = "texSubImage3D";
+    const uint8_t funcDims = 3;
+
     TexImageTarget texImageTarget;
     WebGLTexture* tex;
-    if (!ValidateTexImageTarget(this, rawTexImageTarget, funcName, &texImageTarget, &tex))
+    if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget,
+                                &texImageTarget, &tex))
     {
         return;
     }
