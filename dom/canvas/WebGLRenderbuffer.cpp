@@ -86,62 +86,21 @@ WebGLRenderbuffer::Delete()
 int64_t
 WebGLRenderbuffer::MemoryUsage() const
 {
-    int64_t pixels = int64_t(Width()) * int64_t(Height());
-
-    GLenum primaryFormat = InternalFormatForGL();
     // If there is no defined format, we're not taking up any memory
-    if (!primaryFormat)
+    if (!mFormat)
         return 0;
 
-    int64_t secondarySize = 0;
-    if (mSecondaryRB) {
-        if (NeedsDepthStencilEmu(mContext->gl, primaryFormat)) {
-            primaryFormat = DepthStencilDepthFormat(mContext->gl);
-            secondarySize = 1*pixels; // STENCIL_INDEX8
-        } else {
-            secondarySize = 1*1*2; // 1x1xRGBA4
-        }
+    auto bytesPerPixel = mFormat->formatInfo->bytesPerPixel;
+    uint64_t pixels = uint64_t(mWidth) * uint64_t(mHeight);
+
+    uint64_t totalSize = pixels * bytesPerPixel;
+
+    // If we have the same bytesPerPixel whether or not we have a secondary RB.
+    if (mSecondaryRB && !mIsUsingSecondary) {
+        totalSize += 2; // 1x1xRGBA4
     }
 
-    int64_t primarySize = 0;
-    switch (primaryFormat) {
-        case LOCAL_GL_STENCIL_INDEX8:
-            primarySize = 1*pixels;
-            break;
-        case LOCAL_GL_RGBA4:
-        case LOCAL_GL_RGB5_A1:
-        case LOCAL_GL_RGB565:
-        case LOCAL_GL_DEPTH_COMPONENT16:
-            primarySize = 2*pixels;
-            break;
-        case LOCAL_GL_RGB8:
-        case LOCAL_GL_DEPTH_COMPONENT24:
-            primarySize = 3*pixels;
-            break;
-        case LOCAL_GL_RGBA8:
-        case LOCAL_GL_SRGB8_ALPHA8_EXT:
-        case LOCAL_GL_DEPTH24_STENCIL8:
-        case LOCAL_GL_DEPTH_COMPONENT32:
-            primarySize = 4*pixels;
-            break;
-        case LOCAL_GL_RGB16F:
-            primarySize = 2*3*pixels;
-            break;
-        case LOCAL_GL_RGBA16F:
-            primarySize = 2*4*pixels;
-            break;
-        case LOCAL_GL_RGB32F:
-            primarySize = 4*3*pixels;
-            break;
-        case LOCAL_GL_RGBA32F:
-            primarySize = 4*4*pixels;
-            break;
-        default:
-            MOZ_ASSERT(false, "Unknown `primaryFormat`.");
-            break;
-    }
-
-    return primarySize + secondarySize;
+    return int64_t(totalSize);
 }
 
 void
@@ -288,7 +247,7 @@ GetRBSizedFormat(webgl::EffectiveFormat effFormat)
 void
 WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
                                        const webgl::FormatUsageInfo* format,
-                                       GLsizei width, GLsizei height) const
+                                       GLsizei width, GLsizei height)
 {
     MOZ_ASSERT(mContext->mBoundRenderbuffer == this);
 
@@ -325,7 +284,7 @@ WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
     mFormat = format;
     mWidth = width;
     mHeight = height;
-    mStatus = WebGLImageDataStatus::UninitializedImageData;
+    mImageDataStatus = WebGLImageDataStatus::UninitializedImageData;
     mIsUsingSecondary = bool(secondaryFormat);
 
     InvalidateStatusOfAttachedFBs();
@@ -362,20 +321,10 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
 
     switch (pname.get()) {
     case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE:
-        if (NeedsDepthStencilEmu(mContext->gl, InternalFormatForGL())) {
-            if (gl->WorkAroundDriverBugs() &&
-                gl->Renderer() == gl::GLRenderer::Tegra)
-            {
-                return 8;
-            }
+        if (!mFormat->formatInfo->hasStencil)
+            return 0;
 
-            gl::ScopedBindRenderbuffer autoRB(gl, mSecondaryRB);
-
-            GLint i = 0;
-            gl->fGetRenderbufferParameteriv(target.get(), pname.get(), &i);
-            return i;
-        }
-        // Fall through otherwise.
+        return 8;
 
     case LOCAL_GL_RENDERBUFFER_WIDTH:
     case LOCAL_GL_RENDERBUFFER_HEIGHT:
@@ -394,6 +343,12 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
     MOZ_ASSERT(false,
                "This function should only be called with valid `pname`.");
     return 0;
+}
+
+GLenum
+WebGLRenderbuffer::GetInternalFormat() const
+{
+    return GetRBSizedFormat(mFormat->formatInfo->effectiveFormat);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLRenderbuffer)

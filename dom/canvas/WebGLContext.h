@@ -1243,7 +1243,8 @@ protected:
                                            WebGLProgram* program,
                                            const char* funcName);
 
-    bool ValidateCurFBForRead(const char* funcName, TexInternalFormat* const out_format,
+    bool ValidateCurFBForRead(const char* funcName,
+                              const webgl::FormatUsageInfo** const out_format,
                               uint32_t* const out_width, uint32_t* const out_height);
 
     void Invalidate();

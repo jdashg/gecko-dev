@@ -1828,14 +1828,21 @@ RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
 
 bool
 WebGLContext::ValidateCurFBForRead(const char* funcName,
-                                   TexInternalFormat* const out_format,
+                                   const webgl::FormatUsageInfo** const out_format,
                                    uint32_t* const out_width, uint32_t* const out_height)
 {
     if (!mBoundReadFramebuffer) {
         ClearBackbufferIfNeeded();
-        // FIXME - here we're assuming that the default framebuffer is backed by UNSIGNED_BYTE
-        // that might not always be true, say if we had a 16bpp default framebuffer.
-        *out_format = mOptions.alpha ? LOCAL_GL_RGBA8 : LOCAL_GL_RGB8;
+
+        // FIXME - here we're assuming that the default framebuffer is backed by
+        // UNSIGNED_BYTE that might not always be true, say if we had a 16bpp default
+        // framebuffer.
+        auto effFormat = mOptions.alpha ? webgl::EffectiveFormat::RGBA8
+                                        : webgl::EffectiveFormat::RGB8;
+
+        *out_format = mFormatUsage->GetUsage(effFormat);
+        MOZ_ASSERT(*out_format);
+
         *out_width = mWidth;
         *out_height = mHeight;
         return true;

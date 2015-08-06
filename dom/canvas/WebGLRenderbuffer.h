@@ -47,6 +47,8 @@ public:
 
     const webgl::FormatUsageInfo* Format() const { return mFormat; }
 
+    GLenum GetInternalFormat() const;
+
     int64_t MemoryUsage() const;
 
     WebGLContext* GetParentObject() const {
@@ -55,7 +57,7 @@ public:
 
     void BindRenderbuffer() const;
     void RenderbufferStorage(GLsizei samples, const webgl::FormatUsageInfo* format,
-                             GLsizei width, GLsizei height) const;
+                             GLsizei width, GLsizei height);
     void FramebufferRenderbuffer(FBAttachment attachment) const;
     // Only handles a subset of `pname`s.
     GLint GetRenderbufferParameter(RBTarget target, RBParam pname) const;
@@ -87,6 +89,7 @@ protected:
 
     friend class WebGLContext;
     friend class WebGLFramebuffer;
+    friend class WebGLFBAttachPoint;
 };
 
 } // namespace mozilla

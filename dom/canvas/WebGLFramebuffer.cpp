@@ -82,13 +82,14 @@ WebGLFramebuffer::GetFormatForAttachment(const WebGLFBAttachPoint& attachment) c
 bool
 WebGLFBAttachPoint::IsReadableFloat() const
 {
-    TexInternalFormat internalformat = Format();
-    MOZ_ASSERT(internalformat != LOCAL_GL_NONE);
+    auto formatUsage = Format();
+    MOZ_ASSERT(formatUsage);
 
-    TexType type = TypeFromInternalFormat(internalformat);
-    return type == LOCAL_GL_FLOAT ||
-           type == LOCAL_GL_HALF_FLOAT_OES ||
-           type == LOCAL_GL_HALF_FLOAT;
+    auto format = formatUsage->formatInfo;
+    if (!format->isColorFormat)
+        return false;
+
+    return format->componentType == webgl::ComponentType::Float;
 }
 
 void
@@ -237,7 +238,7 @@ WebGLFBAttachPoint::IsComplete() const
         mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
                                          WebGLContext::kMaxColorAttachments))
     {
-        return format->hasColor;
+        return format->isColorFormat;
     }
 
     if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
@@ -880,7 +881,8 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* info, TexInternalFormat* const out_format,
+WebGLFramebuffer::ValidateForRead(const char* info,
+                                  const webgl::FormatUsageInfo** const out_format,
                                   uint32_t* const out_width, uint32_t* const out_height)
 {
     if (mReadBufferMode == LOCAL_GL_NONE) {

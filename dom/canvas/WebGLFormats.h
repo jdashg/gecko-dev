@@ -157,16 +157,14 @@ enum class UnsizedFormat : uint8_t {
     DS,
 };
 
-// GLES 3.0.4 p114 Table 3.4
+// GLES 3.0.4 p114 Table 3.4, p240
 enum class ComponentType : uint8_t {
-    None,         // DEPTH_COMPONENT32F
+    None,         // DEPTH24_STENCIL8
     Int,          // RGBA32I
-    UInt,         // RGBA32UI
+    UInt,         // RGBA32UI, STENCIL_INDEX8
     NormInt,      // RGBA8_SNORM
-    NormUInt,     // RGBA8
-    NormUIntSRGB, // SRGB8_ALPHA8
+    NormUInt,     // RGBA8, DEPTH_COMPONENT16
     Float,        // RGBA32F
-    SharedExp,    // RGB9_E5
 };
 
 enum class SubImageUpdateBehavior : uint8_t {
@@ -190,9 +188,10 @@ struct FormatInfo {
     const EffectiveFormat effectiveFormat;
     const char* const name;
     const UnsizedFormat unsizedFormat;
-    const ComponentType colorComponentType;
+    const ComponentType componentType;
     const uint8_t bytesPerPixel; // 0 iff `!!compression`.
     const bool isColorFormat;
+    const bool isSRGB;
     const bool hasAlpha;
     const bool hasDepth;
     const bool hasStencil;

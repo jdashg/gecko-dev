@@ -685,6 +685,20 @@ WebGLContext::GetBufferParameter(GLenum target, GLenum pname)
     return JS::NullValue();
 }
 
+static JS::Value
+MissingAttachmentCausesInvalidOp(WebGLContext* webgl)
+{
+    webgl->ErrorInvalidOperation("getFramebufferAttachmentParameter: Valid pname, but"
+                                 " missing attachment.");
+    return JS::NullValue();
+}
+
+static JS::Value
+JSUint32Value(uint32_t val)
+{
+    return JS::NumberValue(val);
+}
+
 JS::Value
 WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                                                 GLenum target,
@@ -714,6 +728,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
     }
 
     if (!fb) {
+        // This isn't actually true. GLES 3.0.4, p240: "If the default framebuffer[...]".
         ErrorInvalidOperation("getFramebufferAttachmentParameter: cannot query"
                               " framebuffer 0.");
         return JS::NullValue();
@@ -736,165 +751,121 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
 
     const WebGLFBAttachPoint& fba = fb->GetAttachPoint(attachment);
 
-    if (fba.Renderbuffer()) {
-        switch (pname) {
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
-                if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
-                    auto format = fba.Renderbuffer()->Format();
-                    if (format->formatInfo->colorComponentType == NormUIntSRGB)
-                        return JS::NumberValue(uint32_t(LOCAL_GL_SRGB_EXT));
+    switch (pname) {
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
+        if (fba.Renderbuffer())
+            return JSUint32Value(LOCAL_GL_RENDERBUFFER);
 
-                    return JS::NumberValue(uint32_t(LOCAL_GL_LINEAR));
-                }
-                break;
+        if (fba.Texture())
+            return JSUint32Value(LOCAL_GL_TEXTURE);
 
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
-                return JS::NumberValue(uint32_t(LOCAL_GL_RENDERBUFFER));
+        return JSUint32Value(LOCAL_GL_NONE);
 
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-                return WebGLObjectAsJSValue(cx, fba.Renderbuffer(), rv);
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
+        if (fba.Renderbuffer())
+            return WebGLObjectAsJSValue(cx, fba.Renderbuffer(), rv);
 
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: {
-                if (!IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float) &&
-                    !IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
-                {
-                    break;
-                }
+        if (fba.Texture())
+            return WebGLObjectAsJSValue(cx, fba.Texture(), rv);
 
-                if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-                    ErrorInvalidOperation("getFramebufferAttachmentParameter: Cannot get component"
-                                          " type of a depth-stencil attachment.");
-                    return JS::NullValue();
-                }
-
-                if (!fba.IsComplete())
-                    return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
-
-                uint32_t ret = LOCAL_GL_NONE;
-                switch (fba.Renderbuffer()->InternalFormat()) {
-                case LOCAL_GL_RGBA4:
-                case LOCAL_GL_RGB5_A1:
-                case LOCAL_GL_RGB565:
-                case LOCAL_GL_SRGB8_ALPHA8:
-                    ret = LOCAL_GL_UNSIGNED_NORMALIZED;
-                    break;
-                case LOCAL_GL_RGB16F:
-                case LOCAL_GL_RGBA16F:
-                case LOCAL_GL_RGB32F:
-                case LOCAL_GL_RGBA32F:
-                    ret = LOCAL_GL_FLOAT;
-                    break;
-                case LOCAL_GL_DEPTH_COMPONENT16:
-                case LOCAL_GL_STENCIL_INDEX8:
-                    ret = LOCAL_GL_UNSIGNED_INT;
-                    break;
-                default:
-                    MOZ_ASSERT(false, "Unhandled RB component type.");
-                    break;
-                }
-                return JS::NumberValue(uint32_t(ret));
-            }
-        }
-
-        ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
         return JS::NullValue();
-    } else if (fba.Texture()) {
-        switch (pname) {
-             case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
-                if (IsExtensionEnabled(WebGLExtensionID::EXT_sRGB)) {
-                    const TexInternalFormat effectiveInternalFormat =
-                        fba.Texture()->BaseImageInfo().mFormat;
-
-                    if (effectiveInternalFormat == LOCAL_GL_NONE) {
-                        ErrorInvalidOperation("getFramebufferAttachmentParameter: "
-                                              "texture contains no data");
-                        return JS::NullValue();
-                    }
-
-                    TexInternalFormat unsizedinternalformat = LOCAL_GL_NONE;
-                    TexType type = LOCAL_GL_NONE;
-                    UnsizedInternalFormatAndTypeFromEffectiveInternalFormat(
-                        effectiveInternalFormat, &unsizedinternalformat, &type);
-                    MOZ_ASSERT(unsizedinternalformat != LOCAL_GL_NONE);
-                    const bool srgb = unsizedinternalformat == LOCAL_GL_SRGB ||
-                                      unsizedinternalformat == LOCAL_GL_SRGB_ALPHA;
-                    return srgb ? JS::NumberValue(uint32_t(LOCAL_GL_SRGB))
-                                : JS::NumberValue(uint32_t(LOCAL_GL_LINEAR));
-                }
-                break;
-
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
-                return JS::NumberValue(uint32_t(LOCAL_GL_TEXTURE));
-
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-                return WebGLObjectAsJSValue(cx, fba.Texture(), rv);
-
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
-                return JS::Int32Value(fba.MipLevel());
-
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE: {
-                GLenum face = fba.ImageTarget().get();
-                if (face == LOCAL_GL_TEXTURE_2D)
-                    face = 0;
-                return JS::Int32Value(face);
-            }
-
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE: {
-                if (!IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float) &&
-                    !IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
-                {
-                    break;
-                }
-
-                if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-                    ErrorInvalidOperation("getFramebufferAttachmentParameter: cannot component"
-                                          " type of depth-stencil attachments.");
-                    return JS::NullValue();
-                }
-
-                if (!fba.IsComplete())
-                    return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
-
-                TexInternalFormat effectiveInternalFormat =
-                    fba.Texture()->ImageInfoAt(fba.ImageTarget(), fba.MipLevel()).mFormat;
-                TexType type = TypeFromInternalFormat(effectiveInternalFormat);
-                GLenum ret = LOCAL_GL_NONE;
-                switch (type.get()) {
-                case LOCAL_GL_UNSIGNED_BYTE:
-                case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-                case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-                case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-                    ret = LOCAL_GL_UNSIGNED_NORMALIZED;
-                    break;
-                case LOCAL_GL_FLOAT:
-                case LOCAL_GL_HALF_FLOAT:
-                    ret = LOCAL_GL_FLOAT;
-                    break;
-                case LOCAL_GL_UNSIGNED_SHORT:
-                case LOCAL_GL_UNSIGNED_INT:
-                    ret = LOCAL_GL_UNSIGNED_INT;
-                    break;
-                default:
-                    MOZ_ASSERT(false, "Unhandled RB component type.");
-                    break;
-                }
-                return JS::NumberValue(uint32_t(ret));
-            }
-        }
-
-        ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
-        return JS::NullValue();
-    } else {
-        switch (pname) {
-            case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
-                return JS::NumberValue(uint32_t(LOCAL_GL_NONE));
-
-            default:
-                ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
-                return JS::NullValue();
-        }
     }
 
+
+    const bool hasAttachments = (fba.Renderbuffer() || fba.Texture());
+
+    switch (pname) {
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
+        if (!hasAttachments)
+            return MissingAttachmentCausesInvalidOp(this);
+
+        if (!IsWebGL2() && !IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
+            break;
+
+        if (!fba.IsDefined())
+            return JSUint32Value(LOCAL_GL_LINEAR);
+
+        if (fba.IsDefined()) {
+            if (fba.Format()->formatInfo->isSRGB)
+                return JSUint32Value(LOCAL_GL_SRGB_EXT);
+        }
+
+        return JSUint32Value(LOCAL_GL_LINEAR);
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
+        if (!hasAttachments)
+            return MissingAttachmentCausesInvalidOp(this);
+
+        if (!IsWebGL2() &&
+            !IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float) &&
+            !IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
+        {
+            break;
+        }
+
+        if (!fba.IsDefined())
+            return JSUint32Value(LOCAL_GL_LINEAR);
+
+        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
+            ErrorInvalidOperation("getFramebufferAttachmentParameter: Cannot get component"
+                                  " type of a depth-stencil attachment.");
+            return JS::NullValue();
+        }
+
+        switch (fba.Format()->formatInfo->componentType) {
+        case webgl::ComponentType::Int:
+            return JSUint32Value(LOCAL_GL_INT);
+
+        case webgl::ComponentType::UInt:
+            return JSUint32Value(LOCAL_GL_UNSIGNED_INT);
+
+        case webgl::ComponentType::NormInt:
+            return JSUint32Value(LOCAL_GL_SIGNED_NORMALIZED);
+
+        case webgl::ComponentType::NormUInt:
+            return JSUint32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
+
+        case webgl::ComponentType::Float:
+            return JSUint32Value(LOCAL_GL_FLOAT);
+
+        case webgl::ComponentType::None:
+            return JSUint32Value(LOCAL_GL_NONE);
+        }
+        // Exhaustive switch means nothing's left.
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
+        if (!hasAttachments)
+            return MissingAttachmentCausesInvalidOp(this);
+
+        if (!fba.Texture())
+            break;
+
+        return JSUint32Value(fba.MipLevel());
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE:
+        if (!hasAttachments)
+            return MissingAttachmentCausesInvalidOp(this);
+
+        if (!fba.Texture())
+            break;
+
+        switch (fba.ImageTarget().get()) {
+        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
+        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
+        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
+        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
+        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
+        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+            return JSUint32Value(fba.ImageTarget().get());
+        }
+
+        return JSUint32Value(0);
+
+    default:
+        break;
+    }
+
+    ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
     return JS::NullValue();
 }
 
@@ -932,7 +903,7 @@ WebGLContext::GetRenderbufferParameter(GLenum target, GLenum pname)
         }
         case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
         {
-            return JS::NumberValue(mBoundRenderbuffer->InternalFormat());
+            return JS::NumberValue(mBoundRenderbuffer->GetInternalFormat());
         }
         default:
             ErrorInvalidEnumInfo("getRenderbufferParameter: parameter", pname);
@@ -1478,15 +1449,14 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
     MakeContextCurrent();
 
-    TexInternalFormat srcFormat;
+    const webgl::FormatUsageInfo* srcFormat;
     uint32_t srcWidth;
     uint32_t srcHeight;
     if (!ValidateCurFBForRead("readPixels", &srcFormat, &srcWidth, &srcHeight))
         return;
 
-    const TexType srcType = TypeFromInternalFormat(srcFormat);
-    const bool isSrcTypeFloat = (srcType == LOCAL_GL_FLOAT ||
-                                 srcType == LOCAL_GL_HALF_FLOAT);
+    auto srcType = srcFormat->formatInfo->componentType;
+    const bool isSrcTypeFloat = (srcType == webgl::ComponentType::Float);
 
     // Check the format and type params to assure they are an acceptable pair (as per spec)
 

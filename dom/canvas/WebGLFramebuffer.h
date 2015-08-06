@@ -222,7 +222,8 @@ public:
         mStatus = 0;
     }
 
-    bool ValidateForRead(const char* info, TexInternalFormat* const out_format,
+    bool ValidateForRead(const char* info,
+                         const webgl::FormatUsageInfo** const out_format,
                          uint32_t* const out_width, uint32_t* const out_height);
 
     JS::Value GetAttachmentParameter(JSContext* cx, GLenum attachment, GLenum pname,
