@@ -14,18 +14,18 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
-
+/*
 bool IsGLDepthFormat(TexInternalFormat format);
 bool IsGLDepthStencilFormat(TexInternalFormat format);
 bool FormatHasAlpha(TexInternalFormat format);
 bool FormatHasDepth(TexInternalFormat format);
-
 void
 DriverFormatsFromEffectiveInternalFormat(gl::GLContext* gl,
                                          TexInternalFormat internalformat,
                                          GLenum* const out_driverInternalFormat,
                                          GLenum* const out_driverFormat,
                                          GLenum* const out_driverType);
+
 TexInternalFormat
 EffectiveInternalFormatFromInternalFormatAndType(TexInternalFormat internalformat,
                                                  TexType type);
@@ -46,6 +46,13 @@ void CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
                                            TexType* const out_type);
 
 size_t GetBitsPerTexel(TexInternalFormat effectiveinternalformat);
+*/
+
+void
+DriverFormatsForTextures(gl::GLContext* gl, const webgl::FormatUsageInfo* formatUsage,
+                         GLenum* const out_driverInternalFormat,
+                         GLenum* const out_driverUnpackFormat,
+                         GLenum* const out_driverUnpackType);
 
 // For use with the different texture calls, i.e.
 //   TexImage2D, CopyTex[Sub]Image2D, ...

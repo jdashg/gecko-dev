@@ -293,32 +293,6 @@ WebGLTexture::IsCubeComplete() const
     return true;
 }
 
-static bool
-IsColorFormat(TexInternalFormat format)
-{
-    TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(format);
-
-    // ALPHA *is* a "color format"!
-    return unsizedformat != LOCAL_GL_DEPTH_COMPONENT &&
-           unsizedformat != LOCAL_GL_DEPTH_STENCIL &&
-           unsizedformat != LOCAL_GL_STENCIL_INDEX;
-}
-
-static bool
-FormatSupportsFiltering(WebGLContext* webgl, TexInternalFormat format)
-{
-    TexType type = TypeFromInternalFormat(format);
-
-    if (type == LOCAL_GL_FLOAT)
-        return webgl->IsExtensionEnabled(WebGLExtensionID::OES_texture_float_linear);
-
-    MOZ_ASSERT(type != LOCAL_GL_HALF_FLOAT_OES);
-    if (type == LOCAL_GL_HALF_FLOAT)
-        return webgl->IsExtensionEnabled(WebGLExtensionID::OES_texture_half_float_linear);
-
-    return true;
-}
-
 bool
 WebGLTexture::IsComplete(const char** const out_reason) const
 {
@@ -561,7 +535,7 @@ ClearByMask(WebGLContext* webgl, GLbitfield mask)
 static bool
 ClearWithTempFB(WebGLContext* webgl, GLuint tex,
                 TexImageTarget texImageTarget, GLint level,
-                TexInternalFormat baseInternalFormat,
+                const webgl::FormatUsageInfo* formatUsage,
                 GLsizei width, GLsizei height)
 {
     MOZ_ASSERT(texImageTarget == LOCAL_GL_TEXTURE_2D);
@@ -573,41 +547,27 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
     gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
     GLbitfield mask = 0;
 
-    switch (baseInternalFormat.get()) {
-    case LOCAL_GL_LUMINANCE:
-    case LOCAL_GL_LUMINANCE_ALPHA:
-    case LOCAL_GL_ALPHA:
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_BGR:
-    case LOCAL_GL_BGRA:
+    auto format = formatUsage->formatInfo;
+
+    if (format->isColorFormat) {
         mask = LOCAL_GL_COLOR_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
                                   texImageTarget.get(), tex, level);
-        break;
-    case LOCAL_GL_DEPTH_COMPONENT32_OES:
-    case LOCAL_GL_DEPTH_COMPONENT24_OES:
-    case LOCAL_GL_DEPTH_COMPONENT16:
-    case LOCAL_GL_DEPTH_COMPONENT:
-        mask = LOCAL_GL_DEPTH_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        break;
-
-    case LOCAL_GL_DEPTH24_STENCIL8:
-    case LOCAL_GL_DEPTH_STENCIL:
-        mask = LOCAL_GL_DEPTH_BUFFER_BIT |
-               LOCAL_GL_STENCIL_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
-                                  texImageTarget.get(), tex, level);
-        break;
-
-    default:
-        return false;
+    } else {
+        if (format->hasDepth) {
+            mask |= LOCAL_GL_DEPTH_BUFFER_BIT;
+            gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
+                                      texImageTarget.get(), tex, level);
+        }
+        if (format->hasStencil) {
+            mask |= LOCAL_GL_STENCIL_BUFFER_BIT;
+            gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
+                                      texImageTarget.get(), tex, level);
+        }
     }
-    MOZ_ASSERT(mask);
+
+    if (!mask)
+        return false;
 
     if (ClearByMask(webgl, mask))
         return true;
@@ -677,7 +637,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     CheckedUint32 checked_byteLength = WebGLContext::GetImageSize(imageInfo.mHeight,
                                                                   imageInfo.mWidth,
                                                                   imageInfo.mDepth,
-                                                                  format->bytesPerTexel,
+                                                                  format->bytesPerPixel,
                                                                   unpackAlignment);
     MOZ_ASSERT(checked_byteLength.isValid()); // Should have been checked earlier.
 
@@ -700,8 +660,8 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     GLenum driverInternalFormat = LOCAL_GL_NONE;
     GLenum driverUnpackFormat = LOCAL_GL_NONE;
     GLenum driverUnpackType = LOCAL_GL_NONE;
-    DriverFormatsFromEffectiveInternalFormat(gl, format, &driverInternalFormat,
-                                             &driverUnpackFormat, &driverUnpackType);
+    DriverFormatsForTextures(gl, formatUsage, &driverInternalFormat, &driverUnpackFormat,
+                             &driverUnpackType);
 
     mContext->GetAndFlushUnderlyingGLErrors();
     if (texImageTarget == LOCAL_GL_TEXTURE_3D) {

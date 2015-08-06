@@ -1276,13 +1276,13 @@ WebGLContext::ValidateCopyTexImage(TexInternalFormat srcFormat,
 
     return true;
 }
-
 /**
  * Test the gl(Copy|Compressed)?Tex[Sub]?Image[23]() parameters for errors.
  * Verifies each of the parameters against the WebGL standard and enabled
  * extensions.
  */
 // TODO: Texture dims is here for future expansion in WebGL 2.0
+/*
 bool
 WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
                                GLint xoffset, GLint yoffset, GLint zoffset, GLint width,
@@ -1302,6 +1302,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         ErrorInvalidValue("%s: `border` must be 0.", info);
         return false;
     }
+    */
     /*
     // Check incoming image format and type
     if (!ValidateTexImageFormatAndType(format, type, func, dims))
@@ -1363,7 +1364,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         }
     }
     */
-
+    /*
     // Check texture image size
     if (!ValidateTexImageSize(texImageTarget, level, width, height, 0, func,
                               dims))
@@ -1371,11 +1372,11 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         return false;
     }
 
-    /* 5.14.8 Texture objects - WebGL Spec.
-     *   "If an attempt is made to call these functions with no
-     *    WebGLTexture bound (see above), an INVALID_OPERATION error
-     *    is generated."
-     */
+    // 5.14.8 Texture objects - WebGL Spec.
+    //   "If an attempt is made to call these functions with no
+    //   WebGLTexture bound (see above), an INVALID_OPERATION error
+    //   is generated."
+
     WebGLTexture* tex = ActiveBoundTextureForTexImageTarget(texImageTarget);
     if (!tex) {
         ErrorInvalidOperation("%s: No texture is bound to target %s.", info,
@@ -1400,6 +1401,7 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
             return false;
         }
     }
+    */
     /*
     // Additional checks for depth textures
     if (texImageTarget != LOCAL_GL_TEXTURE_2D &&
@@ -1419,10 +1421,11 @@ WebGLContext::ValidateTexImage(TexImageTarget texImageTarget, GLint level,
         return false;
     }
     */
-
+    /*
     // Parameters are OK
     return true;
 }
+*/
 
 bool
 WebGLContext::ValidateUniformLocation(WebGLUniformLocation* loc, const char* funcName)

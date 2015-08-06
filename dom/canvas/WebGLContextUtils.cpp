@@ -26,7 +26,7 @@
 #include "WebGLContextUtils.h"
 
 namespace mozilla {
-
+/*
 bool
 IsGLDepthFormat(TexInternalFormat internalformat)
 {
@@ -59,7 +59,7 @@ FormatHasDepth(TexInternalFormat format)
     return unsizedformat == LOCAL_GL_DEPTH_COMPONENT ||
            unsizedformat == LOCAL_GL_DEPTH_STENCIL;
 }
-
+*/
 TexTarget
 TexImageTargetToTexTarget(TexImageTarget texImageTarget)
 {
@@ -92,7 +92,7 @@ StringValue(JSContext* cx, const char* chars, ErrorResult& rv)
 
     return JS::StringValue(str);
 }
-
+/*
 GLComponents::GLComponents(TexInternalFormat internalformat)
 {
     TexInternalFormat unsizedformat = UnsizedInternalFormatFromInternalFormat(internalformat);
@@ -245,7 +245,7 @@ CopyTexImageIntermediateFormatAndType(TexInternalFormat effectiveFormat,
         MOZ_CRASH("Bad `effectiveFormat`.");
     }
 }
-
+*/
 TexType
 TypeFromInternalFormat(TexInternalFormat internalformat)
 {
@@ -341,6 +341,15 @@ EffectiveInternalFormatFromInternalFormatAndType(TexInternalFormat internalforma
         return internalformat;
 
     return LOCAL_GL_NONE;
+}
+
+void
+DriverFormatsForTextures(gl::GLContext* gl, const webgl::FormatUsageInfo* formatUsage,
+                         GLenum* const out_driverInternalFormat,
+                         GLenum* const out_driverUnpackFormat,
+                         GLenum* const out_driverUnpackType)
+{
+    MOZ_CRASH("not implemented");
 }
 
 /**
