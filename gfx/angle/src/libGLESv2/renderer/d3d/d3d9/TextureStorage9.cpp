@@ -229,8 +229,10 @@ gl::Error TextureStorage9_2D::getBaseTexture(IDirect3DBaseTexture9 **outTexture)
         ASSERT(mMipLevels > 0);
 
         IDirect3DDevice9 *device = mRenderer->getDevice();
-        HRESULT result = device->CreateTexture(mTextureWidth, mTextureHeight, mMipLevels, getUsage(), mTextureFormat,
-                                               getPool(), &mTexture, NULL);
+        auto usage = getUsage();
+        auto pool = getPool();
+        HRESULT result = device->CreateTexture(mTextureWidth, mTextureHeight, mMipLevels, usage, mTextureFormat,
+                                               pool, &mTexture, NULL);
 
         if (FAILED(result))
         {
@@ -267,7 +269,7 @@ gl::Error TextureStorage9_2D::copyToStorage(TextureStorage *destStorage)
             return error;
         }
 
-        error = mRenderer->copyToRenderTarget(dstSurf, srcSurf, isManaged());
+        error = mRenderer->copyToRenderTarget(dstSurf, srcSurf);
 
         SafeRelease(srcSurf);
         SafeRelease(dstSurf);
@@ -447,7 +449,7 @@ gl::Error TextureStorage9_Cube::copyToStorage(TextureStorage *destStorage)
                 return error;
             }
 
-            error = mRenderer->copyToRenderTarget(dstSurf, srcSurf, isManaged());
+            error = mRenderer->copyToRenderTarget(dstSurf, srcSurf);
 
             SafeRelease(srcSurf);
             SafeRelease(dstSurf);

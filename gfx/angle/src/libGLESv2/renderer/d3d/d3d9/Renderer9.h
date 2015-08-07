@@ -194,7 +194,7 @@ class Renderer9 : public Renderer
     virtual rx::VertexConversionType getVertexConversionType(const gl::VertexFormat &vertexFormat) const;
     virtual GLenum getVertexComponentType(const gl::VertexFormat &vertexFormat) const;
 
-    gl::Error copyToRenderTarget(IDirect3DSurface9 *dest, IDirect3DSurface9 *source, bool fromManaged);
+    gl::Error copyToRenderTarget(IDirect3DSurface9 *dest, IDirect3DSurface9 *source);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Renderer9);

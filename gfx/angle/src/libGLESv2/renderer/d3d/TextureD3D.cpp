@@ -1019,17 +1019,7 @@ gl::Error TextureD3D_2D::createCompleteStorage(bool renderTarget, TextureStorage
 
 gl::Error TextureD3D_2D::setCompleteTexStorage(TextureStorage *newCompleteTexStorage)
 {
-    if (newCompleteTexStorage && newCompleteTexStorage->isManaged())
-    {
-        for (int level = 0; level < newCompleteTexStorage->getLevelCount(); level++)
-        {
-            gl::Error error = mImageArray[level]->setManagedSurface2D(newCompleteTexStorage, level);
-            if (error.isError())
-            {
-                return error;
-            }
-        }
-    }
+    ASSERT(!newCompleteTexStorage || !newCompleteTexStorage->isManaged());
 
     SafeDelete(mTexStorage);
     mTexStorage = newCompleteTexStorage;
@@ -1505,20 +1495,7 @@ gl::Error TextureD3D_Cube::createCompleteStorage(bool renderTarget, TextureStora
 
 gl::Error TextureD3D_Cube::setCompleteTexStorage(TextureStorage *newCompleteTexStorage)
 {
-    if (newCompleteTexStorage && newCompleteTexStorage->isManaged())
-    {
-        for (int faceIndex = 0; faceIndex < 6; faceIndex++)
-        {
-            for (int level = 0; level < newCompleteTexStorage->getLevelCount(); level++)
-            {
-                gl::Error error = mImageArray[faceIndex][level]->setManagedSurfaceCube(newCompleteTexStorage, faceIndex, level);
-                if (error.isError())
-                {
-                    return error;
-                }
-            }
-        }
-    }
+    ASSERT(!newCompleteTexStorage || !newCompleteTexStorage->isManaged());
 
     SafeDelete(mTexStorage);
     mTexStorage = newCompleteTexStorage;

@@ -36,7 +36,8 @@ Image9::~Image9()
     SafeRelease(mSurface);
 }
 
-gl::Error Image9::generateMip(IDirect3DSurface9 *destSurface, IDirect3DSurface9 *sourceSurface)
+gl::Error Image9::generateMip(IDirect3DDevice9 *device, IDirect3DSurface9 *destSurface,
+                              IDirect3DSurface9 *sourceSurface)
 {
     D3DSURFACE_DESC destDesc;
     HRESULT result = destSurface->GetDesc(&destDesc);
@@ -83,8 +84,9 @@ gl::Error Image9::generateMip(IDirect3DSurface9 *destSurface, IDirect3DSurface9 
 
     ASSERT(sourceData && destData);
 
-    d3dFormatInfo.mipGenerationFunction(sourceDesc.Width, sourceDesc.Height, 1, sourceData, sourceLocked.Pitch, 0,
-                                        destData, destLocked.Pitch, 0);
+    d3dFormatInfo.mipGenerationFunction(sourceDesc.Width, sourceDesc.Height, 1,
+                                        sourceData, sourceLocked.Pitch, 0, destData,
+                                        destLocked.Pitch, 0);
 
     destSurface->UnlockRect();
     sourceSurface->UnlockRect();
@@ -98,7 +100,7 @@ Image9 *Image9::makeImage9(Image *img)
     return static_cast<rx::Image9*>(img);
 }
 
-gl::Error Image9::generateMipmap(Image9 *dest, Image9 *source)
+gl::Error Image9::generateMipmap(IDirect3DDevice9 *device, Image9 *dest, Image9 *source)
 {
     IDirect3DSurface9 *sourceSurface = NULL;
     gl::Error error = source->getSurface(&sourceSurface);
@@ -114,7 +116,7 @@ gl::Error Image9::generateMipmap(Image9 *dest, Image9 *source)
         return error;
     }
 
-    error = generateMip(destSurface, sourceSurface);
+    error = generateMip(device, destSurface, sourceSurface);
     if (error.isError())
     {
         return error;
@@ -335,55 +337,6 @@ gl::Error Image9::getSurface(IDirect3DSurface9 **outSurface)
     return gl::Error(GL_NO_ERROR);
 }
 
-gl::Error Image9::setManagedSurface2D(TextureStorage *storage, int level)
-{
-    IDirect3DSurface9 *surface = NULL;
-    TextureStorage9_2D *storage9 = TextureStorage9_2D::makeTextureStorage9_2D(storage);
-    gl::Error error = storage9->getSurfaceLevel(level, false, &surface);
-    if (error.isError())
-    {
-        return error;
-    }
-    return setManagedSurface(surface);
-}
-
-gl::Error Image9::setManagedSurfaceCube(TextureStorage *storage, int face, int level)
-{
-    IDirect3DSurface9 *surface = NULL;
-    TextureStorage9_Cube *storage9 = TextureStorage9_Cube::makeTextureStorage9_Cube(storage);
-    gl::Error error = storage9->getCubeMapSurface(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level, false, &surface);
-    if (error.isError())
-    {
-        return error;
-    }
-    return setManagedSurface(surface);
-}
-
-gl::Error Image9::setManagedSurface(IDirect3DSurface9 *surface)
-{
-    D3DSURFACE_DESC desc;
-    surface->GetDesc(&desc);
-    ASSERT(desc.Pool == D3DPOOL_MANAGED);
-
-    if ((GLsizei)desc.Width == mWidth && (GLsizei)desc.Height == mHeight)
-    {
-        if (mSurface)
-        {
-            gl::Error error = copyLockableSurfaces(surface, mSurface);
-            SafeRelease(mSurface);
-            if (error.isError())
-            {
-                return error;
-            }
-        }
-
-        mSurface = surface;
-        mD3DPool = desc.Pool;
-    }
-
-    return gl::Error(GL_NO_ERROR);
-}
-
 gl::Error Image9::copyToStorage(TextureStorage *storage, const gl::ImageIndex &index, const gl::Box &region)
 {
     gl::Error error = createSurface();
@@ -443,36 +396,13 @@ gl::Error Image9::copyToSurface(IDirect3DSurface9 *destSurface, GLint xoffset, G
 
     IDirect3DDevice9 *device = mRenderer->getDevice();
 
-    if (mD3DPool == D3DPOOL_MANAGED)
+    ASSERT(mD3DPool != D3DPOOL_MANAGED);
+    // UpdateSurface: source must be SYSTEMMEM, dest must be DEFAULT pools
+    HRESULT result = device->UpdateSurface(sourceSurface, &rect, destSurface, &point);
+    ASSERT(SUCCEEDED(result));
+    if (FAILED(result))
     {
-        D3DSURFACE_DESC desc;
-        sourceSurface->GetDesc(&desc);
-
-        IDirect3DSurface9 *surf = 0;
-        HRESULT result = device->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &surf, NULL);
-        if (FAILED(result))
-        {
-            return gl::Error(GL_OUT_OF_MEMORY, "Internal CreateOffscreenPlainSurface call failed, result: 0x%X.", result);
-        }
-
-        copyLockableSurfaces(surf, sourceSurface);
-        result = device->UpdateSurface(surf, &rect, destSurface, &point);
-        SafeRelease(surf);
-        ASSERT(SUCCEEDED(result));
-        if (FAILED(result))
-        {
-            return gl::Error(GL_OUT_OF_MEMORY, "Internal UpdateSurface call failed, result: 0x%X.", result);
-        }
-    }
-    else
-    {
-        // UpdateSurface: source must be SYSTEMMEM, dest must be DEFAULT pools
-        HRESULT result = device->UpdateSurface(sourceSurface, &rect, destSurface, &point);
-        ASSERT(SUCCEEDED(result));
-        if (FAILED(result))
-        {
-            return gl::Error(GL_OUT_OF_MEMORY, "Internal UpdateSurface call failed, result: 0x%X.", result);
-        }
+        return gl::Error(GL_OUT_OF_MEMORY, "Internal UpdateSurface call failed, result: 0x%X.", result);
     }
 
     return gl::Error(GL_NO_ERROR);

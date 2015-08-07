@@ -2405,18 +2405,6 @@ int Renderer9::getMaxSwapInterval() const
 
 D3DPOOL Renderer9::getBufferPool(DWORD usage) const
 {
-    if (mD3d9Ex != NULL)
-    {
-        return D3DPOOL_DEFAULT;
-    }
-    else
-    {
-        if (!(usage & D3DUSAGE_DYNAMIC))
-        {
-            return D3DPOOL_MANAGED;
-        }
-    }
-
     return D3DPOOL_DEFAULT;
 }
 
@@ -2999,32 +2987,14 @@ D3DPOOL Renderer9::getTexturePool(DWORD usage) const
     return D3DPOOL_DEFAULT;
 }
 
-gl::Error Renderer9::copyToRenderTarget(IDirect3DSurface9 *dest, IDirect3DSurface9 *source, bool fromManaged)
+gl::Error Renderer9::copyToRenderTarget(IDirect3DSurface9 *dest, IDirect3DSurface9 *source)
 {
     ASSERT(source && dest);
 
     HRESULT result = D3DERR_OUTOFVIDEOMEMORY;
 
-    if (fromManaged)
-    {
-        D3DSURFACE_DESC desc;
-        source->GetDesc(&desc);
-
-        IDirect3DSurface9 *surf = 0;
-        result = mDevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &surf, NULL);
-
-        if (SUCCEEDED(result))
-        {
-            Image9::copyLockableSurfaces(surf, source);
-            result = mDevice->UpdateSurface(surf, NULL, dest, NULL);
-            SafeRelease(surf);
-        }
-    }
-    else
-    {
-        endScene();
-        result = mDevice->StretchRect(source, NULL, dest, NULL, D3DTEXF_NONE);
-    }
+    endScene();
+    result = mDevice->StretchRect(source, NULL, dest, NULL, D3DTEXF_NONE);
 
     if (FAILED(result))
     {
@@ -3044,7 +3014,7 @@ gl::Error Renderer9::generateMipmap(Image *dest, Image *src)
 {
     Image9 *src9 = Image9::makeImage9(src);
     Image9 *dst9 = Image9::makeImage9(dest);
-    return Image9::generateMipmap(dst9, src9);
+    return Image9::generateMipmap(mDevice, dst9, src9);
 }
 
 TextureStorage *Renderer9::createTextureStorage2D(SwapChain *swapChain)
