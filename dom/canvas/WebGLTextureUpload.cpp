@@ -344,7 +344,7 @@ WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
                                 maybeStridePixelsPerRow, maybeStrideRowsPerImage,
                                 skipPixelsPerRow, skipRowsPerImage, skipImages,
                                 usedPixelsPerRow, usedRowsPerImage, usedImages,
-                                &bytesNeeded)
+                                &bytesNeeded))
     {
         mContext->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
                                         " size.",
@@ -352,10 +352,10 @@ WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
         return false;
     }
 
-    if (byteLength < bytesNeeded) {
+    if (dataSize < bytesNeeded) {
         mContext->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u, has"
                                         " %u)",
-                                        funcName, packedBytes, byteLength);
+                                        funcName, bytesNeeded, dataSize);
         return false;
     }
 
@@ -365,20 +365,24 @@ WebGLTexture::ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei w
 
 
 static bool
-ValidateCompressedTexUnpack(const char* funcName, size_t funcDims, GLsizei width,
+ValidateCompressedTexUnpack(WebGLContext* webgl, const char* funcName, size_t funcDims, GLsizei width,
                             GLsizei height, GLsizei depth, GLenum unpackFormat,
-                            size_t dataSize, WebGLContext* webgl,
+                            size_t dataSize,
                             const webgl::FormatInfo** const out_format)
 {
-    const webgl::FormatInfo* format = GetInfoBySizedFormat(unpackFormat);
+    auto format = webgl::GetInfoBySizedFormat(unpackFormat);
 
     if (!format || !format->compression) {
-        ErrorInvalidOperation("%s: Invalid format for unpacking.", funcName);
+        webgl->ErrorInvalidOperation("%s: Invalid format for unpacking.", funcName);
         return false;
     }
-    const CompressedFormatInfo* const compression = format->compression;
 
-    const auto bytesPerBlock = compression->bytesPerBlock;
+    auto compression = format->compression;
+
+    auto bytesPerBlock = compression->bytesPerBlock;
+    auto blockWidth = compression->blockWidth;
+    auto blockHeight = compression->blockHeight;
+
     CheckedUint32 widthInBlocks = (width % blockWidth) ? width / blockWidth + 1
                                                        : width / blockWidth;
     CheckedUint32 heightInBlocks = (height % blockHeight) ? height / blockHeight + 1
@@ -387,7 +391,6 @@ ValidateCompressedTexUnpack(const char* funcName, size_t funcDims, GLsizei width
     CheckedUint32 bytesPerImage = bytesPerBlock * blocksPerImage;
     CheckedUint32 bytesNeeded = bytesPerImage * depth;
 
-    uint32_t bytesNeeded;
     if (!bytesNeeded.isValid())
     {
         webgl->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
@@ -471,68 +474,68 @@ GetTexelFormatForSourceSurface(gfx::SourceSurface* surf,
 
 
 static bool
-GetTexelFormatForUnpackFormatAndType(webgl::EffectiveFormat effectiveFormat,
-                                     WebGLTexelFormat* const out_texelFormat)
+GetTexelFormatForEffectiveFormat(webgl::EffectiveFormat effectiveFormat,
+                                 WebGLTexelFormat* const out_texelFormat)
 {
-    switch (unpackType) {
+    switch (effectiveFormat) {
     case webgl::EffectiveFormat::R8:
     case webgl::EffectiveFormat::Luminance8:
-        *out_texelFormat = WebGLTexelFormat::R8:
+        *out_texelFormat = WebGLTexelFormat::R8;
         return true;
 
     case webgl::EffectiveFormat::Alpha8:
-        *out_texelFormat = WebGLTexelFormat::A8:
+        *out_texelFormat = WebGLTexelFormat::A8;
         return true;
 
     case webgl::EffectiveFormat::R16F:
-        *out_texelFormat = WebGLTexelFormat::R16F:
+        *out_texelFormat = WebGLTexelFormat::R16F;
         return true;
 
     case webgl::EffectiveFormat::R32F:
     case webgl::EffectiveFormat::DEPTH_COMPONENT32F:
-        *out_texelFormat = WebGLTexelFormat::R32F:
+        *out_texelFormat = WebGLTexelFormat::R32F;
         return true;
 
     case webgl::EffectiveFormat::Luminance8Alpha8:
-        *out_texelFormat = WebGLTexelFormat::RA8:
+        *out_texelFormat = WebGLTexelFormat::RA8;
         return true;
 
     case webgl::EffectiveFormat::RGB8:
     case webgl::EffectiveFormat::SRGB8:
-        *out_texelFormat = WebGLTexelFormat::RGB8:
+        *out_texelFormat = WebGLTexelFormat::RGB8;
         return true;
 
     case webgl::EffectiveFormat::RGB565:
-        *out_texelFormat = WebGLTexelFormat::RGB565:
+        *out_texelFormat = WebGLTexelFormat::RGB565;
         return true;
 
     case webgl::EffectiveFormat::RGB16F:
-        *out_texelFormat = WebGLTexelFormat::RGB16F:
+        *out_texelFormat = WebGLTexelFormat::RGB16F;
         return true;
 
     case webgl::EffectiveFormat::RGB32F:
-        *out_texelFormat = WebGLTexelFormat::RGB32F:
+        *out_texelFormat = WebGLTexelFormat::RGB32F;
         return true;
 
     case webgl::EffectiveFormat::RGBA8:
     case webgl::EffectiveFormat::SRGB8_ALPHA8:
-        *out_texelFormat = WebGLTexelFormat::RGBA8:
+        *out_texelFormat = WebGLTexelFormat::RGBA8;
         return true;
 
     case webgl::EffectiveFormat::RGB5_A1:
-        *out_texelFormat = WebGLTexelFormat::RGBA5551:
+        *out_texelFormat = WebGLTexelFormat::RGBA5551;
         return true;
 
     case webgl::EffectiveFormat::RGBA4:
-        *out_texelFormat = WebGLTexelFormat::RGBA4444:
+        *out_texelFormat = WebGLTexelFormat::RGBA4444;
         return true;
 
     case webgl::EffectiveFormat::RGBA16F:
-        *out_texelFormat = WebGLTexelFormat::RGBA16F:
+        *out_texelFormat = WebGLTexelFormat::RGBA16F;
         return true;
 
     case webgl::EffectiveFormat::RGBA32F:
-        *out_texelFormat = WebGLTexelFormat::RGBA32F:
+        *out_texelFormat = WebGLTexelFormat::RGBA32F;
         return true;
 
     case webgl::EffectiveFormat::RGBA32I:
@@ -588,7 +591,7 @@ GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
     size_t alignmentGuess = maxAlignment;
     while (alignmentGuess) {
         size_t guessStride = PadValueToAlignment(width, alignmentGuess);
-        if (guessStride == stide) {
+        if (guessStride == stride) {
             *out_alignment = alignmentGuess;
             return true;
         }
@@ -617,7 +620,7 @@ ConvertDataToFormat(gfx::DataSourceSurface* srcData,
         needsAlphaPremult = false;
 
     WebGLTexelFormat dstFormat;
-    if (!GetTexelFormatForUnpackFormatAndType(dstFormatInfo->effectiveFormat, &dstFormat))
+    if (!GetTexelFormatForEffectiveFormat(dstFormatInfo->effectiveFormat, &dstFormat))
         return nullptr;
 
     const size_t kMaxUnpackAlignment = 8;
