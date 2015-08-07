@@ -828,40 +828,39 @@ GLContextProviderEGL::DestroyEGLSurface(EGLSurface surface)
 }
 #endif // defined(ANDROID)
 
-
 static void
-FillContextAttribs(bool alpha, bool depth, bool stencil, std::vector<EGLint>* out)
+FillContextAttribs(bool alpha, bool depth, bool stencil, nsTArray<EGLint>* out)
 {
-    out->push_back(LOCAL_EGL_SURFACE_TYPE);
-    out->push_back(LOCAL_EGL_PBUFFER_BIT);
+    out->AppendElement(LOCAL_EGL_SURFACE_TYPE);
+    out->AppendElement(LOCAL_EGL_PBUFFER_BIT);
 
-    out->push_back(LOCAL_EGL_RENDERABLE_TYPE);
-    out->push_back(LOCAL_EGL_OPENGL_ES2_BIT);
+    out->AppendElement(LOCAL_EGL_RENDERABLE_TYPE);
+    out->AppendElement(LOCAL_EGL_OPENGL_ES2_BIT);
 
-    out->push_back(LOCAL_EGL_RED_SIZE);
-    out->push_back(8);
+    out->AppendElement(LOCAL_EGL_RED_SIZE);
+    out->AppendElement(8);
 
-    out->push_back(LOCAL_EGL_GREEN_SIZE);
-    out->push_back(8);
+    out->AppendElement(LOCAL_EGL_GREEN_SIZE);
+    out->AppendElement(8);
 
-    out->push_back(LOCAL_EGL_BLUE_SIZE);
-    out->push_back(8);
+    out->AppendElement(LOCAL_EGL_BLUE_SIZE);
+    out->AppendElement(8);
 
-    out->push_back(LOCAL_EGL_ALPHA_SIZE);
-    out->push_back(alpha ? 8 : 0);
+    out->AppendElement(LOCAL_EGL_ALPHA_SIZE);
+    out->AppendElement(alpha ? 8 : 0);
 
-    out->push_back(LOCAL_EGL_DEPTH_SIZE);
-    out->push_back(depth ? 24 : 0);
+    out->AppendElement(LOCAL_EGL_DEPTH_SIZE);
+    out->AppendElement(depth ? 24 : 0);
 
-    out->push_back(LOCAL_EGL_STENCIL_SIZE);
-    out->push_back(stencil ? 8 : 0);
+    out->AppendElement(LOCAL_EGL_STENCIL_SIZE);
+    out->AppendElement(stencil ? 8 : 0);
 
     // EGL_ATTRIBS_LIST_SAFE_TERMINATION_WORKING_AROUND_BUGS
-    out->push_back(LOCAL_EGL_NONE);
-    out->push_back(0);
+    out->AppendElement(LOCAL_EGL_NONE);
+    out->AppendElement(0);
 
-    out->push_back(0);
-    out->push_back(0);
+    out->AppendElement(0);
+    out->AppendElement(0);
 }
 
 static bool
@@ -883,17 +882,15 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(CreateContextFlags flags,
     const bool depth = (flags & CreateContextFlags::SUPPORT_DEPTH);
     const bool stencil = (flags & CreateContextFlags::SUPPORT_STENCIL);
 
-    std::vector<EGLint> configAttribVec;
-    FillContextAttribs(alpha, depth, stencil, &configAttribVec);
+    nsTArray<EGLint> configAttribList;
+    FillContextAttribs(alpha, depth, stencil, &configAttribList);
 
-    const EGLint* configAttribs = configAttribVec.data();
+    const EGLint* configAttribs = configAttribList.Elements();
 
     const EGLint kMaxConfigs = 256;
     EGLConfig configs[kMaxConfigs];
     EGLint foundConfigs = 0;
-    if (!sEGLLibrary.fChooseConfig(EGL_DISPLAY(),
-                                   configAttribs,
-                                   configs, kMaxConfigs,
+    if (!sEGLLibrary.fChooseConfig(EGL_DISPLAY(), configAttribs, configs, kMaxConfigs,
                                    &foundConfigs)
         || foundConfigs == 0)
     {
