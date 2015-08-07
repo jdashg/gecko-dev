@@ -105,7 +105,9 @@ WebGLTexture::SpecifyTexStorage(GLsizei levels, TexInternalFormat internalFormat
     // GLES 3.0.4, p136:
     // "* Any existing levels that are not replaced are reset to their
     //    initial state."
-    mImageInfoMap.clear();
+    for (auto& cur : mImageInfoArr) {
+        cur.Clear();
+    }
 
     const bool hasUninitData = true;
     const ImageInfo baseImageInfo(internalFormat, width, height, depth, hasUninitData);

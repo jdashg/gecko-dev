@@ -20,8 +20,7 @@
 
 namespace mozilla {
 
-/*static*/ const WebGLTexture::ImageInfo WebGLTexture::kUndefinedImageInfo;
-/*static*/ const WebGLTexture::Face WebGLTexture::kNewLevelFace;
+/*static*/ const WebGLTexture::ImageInfo WebGLTexture::ImageInfo::kUndefined;
 
 ////////////////////////////////////////
 
@@ -32,9 +31,27 @@ Mutable(const T& x)
     return const_cast<T&>(x);
 }
 
+void
+WebGLTexture::ImageInfo::Clear()
+{
+    if (!IsDefined())
+        return;
+
+    OnRespecify();
+
+    Mutable(mFormat) = LOCAL_GL_NONE;
+    Mutable(mWidth) = 0;
+    Mutable(mHeight) = 0;
+    Mutable(mDepth) = 0;
+
+    MOZ_ASSERT(!IsDefined());
+}
+
 WebGLTexture::ImageInfo&
 WebGLTexture::ImageInfo::operator =(const ImageInfo& a)
 {
+    MOZ_ASSERT(a.IsDefined());
+
     Mutable(mFormat) = a.mFormat;
     Mutable(mWidth) = a.mWidth;
     Mutable(mHeight) = a.mHeight;
@@ -62,7 +79,7 @@ WebGLTexture::ImageInfo::AddAttachPoint(WebGLFBAttachPoint* attachPoint)
 void
 WebGLTexture::ImageInfo::RemoveAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
-    const size_t numElemsErased = mAttachPoints.erase(attachPoint);
+    const auto numElemsErased = mAttachPoints.erase(attachPoint);
 
     MOZ_ASSERT_IF(IsDefined(), numElemsErased == 1);
     mozilla::unused << numElemsErased;
@@ -115,7 +132,9 @@ WebGLTexture::WebGLTexture(WebGLContext* webgl, GLuint tex)
 void
 WebGLTexture::Delete()
 {
-    mImageInfoMap.clear(); // Invalidate all ImageInfos.
+    for (auto& cur : mImageInfoArr) {
+        cur.Clear();
+    }
 
     mContext->MakeContextCurrent();
     mContext->gl->fDeleteTextures(1, &mGLName);
@@ -135,7 +154,7 @@ WebGLTexture::MemoryUsage() const
 }
 
 void
-WebGLTexture::SetImageInfoAtFace(uint8_t face, size_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfoAtFace(uint8_t face, uint32_t level, const ImageInfo& val)
 {
     ImageInfoAtFace(face, level) = val;
 
@@ -143,22 +162,19 @@ WebGLTexture::SetImageInfoAtFace(uint8_t face, size_t level, const ImageInfo& va
 }
 
 void
-WebGLTexture::SetImageInfosAtLevel(size_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& val)
 {
-    auto res = mImageInfoMap.insert(std::make_pair(level, kNewLevelFace));
-    const auto& itr = res.first;
-
-    for (size_t i = 0; i < mFaceCount; i++) {
-        itr->second.faces[i] = val;
+    for (uint8_t i = 0; i < mFaceCount; i++) {
+        ImageInfoAtFace(i, level) = val;
     }
 
     InvalidateFakeBlackCache();
 }
 
-static inline size_t
+static inline uint32_t
 MaxMipmapLevelsForSize(const WebGLTexture::ImageInfo& info)
 {
-    GLsizei size = std::max(std::max(info.mWidth, info.mHeight), info.mDepth);
+    auto size = std::max(std::max(info.mWidth, info.mHeight), info.mDepth);
 
     // Find floor(log2(maxsize)) + 1. (ES 3.0.4, 3.8 - Mipmapping).
     return mozilla::FloorLog2(size) + 1;
@@ -175,7 +191,9 @@ WebGLTexture::IsMipmapComplete() const
         return false;
 
     // Make a copy so we can modify it.
-    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, mBaseMipmapLevel);
+    const ImageInfo& baseImageInfo = BaseImageInfo();
+    if (!baseImageInfo.IsDefined())
+        return false;
 
     // Reference dimensions based on the current level.
     uint32_t refWidth = baseImageInfo.mWidth;
@@ -183,11 +201,11 @@ WebGLTexture::IsMipmapComplete() const
     uint32_t refDepth = baseImageInfo.mDepth;
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
-    for (size_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
+    for (uint32_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
         // "A cube map texture is mipmap complete if each of the six texture images,
         //  considered individually, is mipmap complete."
 
-        for (size_t face = 0; face < mFaceCount; face++) {
+        for (uint8_t face = 0; face < mFaceCount; face++) {
             const ImageInfo& cur = ImageInfoAtFace(face, level);
 
             // "* The set of mipmap arrays `level_base` through `q` (where `q` is defined
@@ -236,14 +254,14 @@ WebGLTexture::IsCubeComplete() const
 
     // Note that "cube complete" does not imply "mipmap complete".
 
-    const ImageInfo& reference = ImageInfoAtFace(0, mBaseMipmapLevel);
+    const ImageInfo& reference = BaseImageInfo();
+    if (!reference.IsDefined())
+        return false;
+
     auto refWidth = reference.mWidth;
     auto refFormat = reference.mFormat;
 
-    if (!refWidth || !refFormat.get())
-        return false;
-
-    for (size_t face = 0; face < mFaceCount; face++) {
+    for (uint8_t face = 0; face < mFaceCount; face++) {
         const ImageInfo& cur = ImageInfoAtFace(face, mBaseMipmapLevel);
         if (!cur.IsDefined())
             return false;
@@ -416,7 +434,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
 }
 
 
-size_t
+uint32_t
 WebGLTexture::MaxEffectiveMipmapLevel() const
 {
     const bool requiresMipmap = (mMinFilter != LOCAL_GL_NEAREST &&
@@ -427,8 +445,8 @@ WebGLTexture::MaxEffectiveMipmapLevel() const
     const auto& imageInfo = BaseImageInfo();
     MOZ_ASSERT(imageInfo.IsDefined());
 
-    size_t maxLevelBySize = mBaseMipmapLevel + imageInfo.MaxMipmapLevels() - 1;
-    return std::min(maxLevelBySize, mMaxMipmapLevel);
+    uint32_t maxLevelBySize = mBaseMipmapLevel + imageInfo.MaxMipmapLevels() - 1;
+    return std::min<uint32_t>(maxLevelBySize, mMaxMipmapLevel);
 }
 
 bool
@@ -463,10 +481,10 @@ WebGLTexture::ResolveFakeBlackStatus()
     bool hasUninitializedData = false;
     bool hasInitializedData = false;
 
-    const size_t maxLevel = MaxEffectiveMipmapLevel();
+    const auto maxLevel = MaxEffectiveMipmapLevel();
     MOZ_ASSERT(mBaseMipmapLevel <= maxLevel);
-    for (size_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
-        for (size_t face = 0; face < mFaceCount; face++) {
+    for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
+        for (uint8_t face = 0; face < mFaceCount; face++) {
             const auto& cur = ImageInfoAtFace(face, level);
             if (cur.mHasUninitData)
                 hasUninitializedData = true;
@@ -493,8 +511,8 @@ WebGLTexture::ResolveFakeBlackStatus()
                               " the implementation to (slowly) initialize the"
                               " uninitialized TexImages.");
 
-    for (size_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
-        for (size_t face = 0; face < mFaceCount; face++) {
+    for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
+        for (uint8_t face = 0; face < mFaceCount; face++) {
             if (!EnsureInitializedImageData(face, level))
                 return false; // The world just exploded.
         }
@@ -612,7 +630,7 @@ TexImageTargetFromFace(TexTarget target, uint8_t face)
 }
 
 bool
-WebGLTexture::EnsureInitializedImageData(uint8_t face, size_t level)
+WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
 {
     ImageInfo& imageInfo = ImageInfoAtFace(face, level);
     MOZ_ASSERT(imageInfo.IsDefined());
@@ -731,13 +749,13 @@ WebGLTexture::ClampLevelBaseAndMax()
     //  `[0, levels-1]`, `level_max` is then clamped to the range `
     //  `[level_base, levels-1]`, where `levels` is the parameter passed to
     //   TexStorage* for the texture object."
-    mBaseMipmapLevel = Clamp(mBaseMipmapLevel, size_t(0), mImmutableLevelCount - 1);
-    mMaxMipmapLevel = Clamp(mMaxMipmapLevel, mBaseMipmapLevel,
-                            mImmutableLevelCount - 1);
+    mBaseMipmapLevel = Clamp<uint32_t>(mBaseMipmapLevel, 0, mImmutableLevelCount - 1);
+    mMaxMipmapLevel = Clamp<uint32_t>(mMaxMipmapLevel, mBaseMipmapLevel,
+                                      mImmutableLevelCount - 1);
 }
 
 void
-WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
+WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
 {
     const ImageInfo& baseImageInfo = ImageInfoAtFace(0, baseLevel);
     MOZ_ASSERT(baseImageInfo.IsDefined());
@@ -747,7 +765,7 @@ WebGLTexture::PopulateMipChain(size_t baseLevel, size_t maxLevel)
     uint32_t refDepth = baseImageInfo.mDepth;
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
-    for (size_t level = baseLevel; level <= maxLevel; level++) {
+    for (uint32_t level = baseLevel; level <= maxLevel; level++) {
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
                             baseImageInfo.mHasUninitData);
 
