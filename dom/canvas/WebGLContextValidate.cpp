@@ -1940,6 +1940,25 @@ WebGLContext::InitAndValidateGL()
         mDefaultVertexArray->BindVertexArray();
     }
 
+    if (mLoseContextOnMemoryPressure)
+        mContextObserver->RegisterMemoryPressureEvent();
+
+    mPixelStore_FlipY = false;
+    mPixelStore_PremultiplyAlpha = false;
+    mPixelStore_ColorspaceConversion = BROWSER_DEFAULT_WEBGL;
+
+    // GLES 3.0.4, p259:
+    mPixelStore_UnpackImageHeight = 0;
+    mPixelStore_UnpackSkipImages = 0;
+    mPixelStore_UnpackRowLength = 0;
+    mPixelStore_UnpackSkipRows = 0;
+    mPixelStore_UnpackSkipPixels = 0;
+    mPixelStore_UnpackAlignment = 4;
+    mPixelStore_PackRowLength = 0;
+    mPixelStore_PackSkipRows = 0;
+    mPixelStore_PackSkipPixels = 0;
+    mPixelStore_PackAlignment = 4;
+
     return true;
 }
 

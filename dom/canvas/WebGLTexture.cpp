@@ -633,7 +633,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     auto formatUsage = imageInfo.mFormat;
     auto format = formatUsage->formatInfo;
 
-    const auto unpackAlignment = mContext->mPixelStoreUnpackAlignment;
+    const auto unpackAlignment = mContext->mPixelStore_UnpackAlignment;
     CheckedUint32 checked_byteLength = WebGLContext::GetImageSize(imageInfo.mHeight,
                                                                   imageInfo.mWidth,
                                                                   imageInfo.mDepth,

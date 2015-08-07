@@ -1156,36 +1156,105 @@ WebGLContext::PixelStorei(GLenum pname, GLint param)
     if (IsContextLost())
         return;
 
-    switch (pname) {
-        case UNPACK_FLIP_Y_WEBGL:
-            mPixelStoreFlipY = (param != 0);
+    if (IsWebGL2()) {
+        uint32_t* pValueSlot = nullptr;
+        switch (pname) {
+        case LOCAL_GL_UNPACK_IMAGE_HEIGHT:
+            pValueSlot = &mPixelStore_UnpackImageHeight;
             break;
-        case UNPACK_PREMULTIPLY_ALPHA_WEBGL:
-            mPixelStorePremultiplyAlpha = (param != 0);
+
+        case LOCAL_GL_UNPACK_SKIP_IMAGES:
+            pValueSlot = &mPixelStore_UnpackSkipImages;
             break;
-        case UNPACK_COLORSPACE_CONVERSION_WEBGL:
-            if (param == LOCAL_GL_NONE || param == BROWSER_DEFAULT_WEBGL)
-                mPixelStoreColorspaceConversion = param;
-            else
-                return ErrorInvalidEnumInfo("pixelStorei: colorspace conversion parameter", param);
+
+        case LOCAL_GL_UNPACK_ROW_LENGTH:
+            pValueSlot = &mPixelStore_UnpackRowLength;
             break;
-        case LOCAL_GL_PACK_ALIGNMENT:
-        case LOCAL_GL_UNPACK_ALIGNMENT:
-            if (param != 1 &&
-                param != 2 &&
-                param != 4 &&
-                param != 8)
-                return ErrorInvalidValue("pixelStorei: invalid pack/unpack alignment value");
-            if (pname == LOCAL_GL_PACK_ALIGNMENT)
-                mPixelStorePackAlignment = param;
-            else if (pname == LOCAL_GL_UNPACK_ALIGNMENT)
-                mPixelStoreUnpackAlignment = param;
+
+        case LOCAL_GL_UNPACK_SKIP_ROWS:
+            pValueSlot = &mPixelStore_UnpackSkipRows;
+            break;
+
+        case LOCAL_GL_UNPACK_SKIP_PIXELS:
+            pValueSlot = &mPixelStore_UnpackSkipPixels;
+            break;
+
+        case LOCAL_GL_PACK_ROW_LENGTH:
+            pValueSlot = &mPixelStore_PackRowLength;
+            break;
+
+        case LOCAL_GL_PACK_SKIP_ROWS:
+            pValueSlot = &mPixelStore_PackSkipRows;
+            break;
+
+        case LOCAL_GL_PACK_SKIP_PIXELS:
+            pValueSlot = &mPixelStore_PackSkipPixels;
+            break;
+        }
+
+        if (pValueSlot) {
+            if (param < 0) {
+                ErrorInvalidValue("pixelStorei: param must be >= 0.");
+                return;
+            }
+
             MakeContextCurrent();
             gl->fPixelStorei(pname, param);
-            break;
-        default:
-            return ErrorInvalidEnumInfo("pixelStorei: parameter", pname);
+            *pValueSlot = param;
+            return;
+        }
     }
+
+    switch (pname) {
+    case UNPACK_FLIP_Y_WEBGL:
+        mPixelStore_FlipY = bool(param);
+        break;
+
+    case UNPACK_PREMULTIPLY_ALPHA_WEBGL:
+        mPixelStore_PremultiplyAlpha = bool(param);
+        break;
+
+    case UNPACK_COLORSPACE_CONVERSION_WEBGL:
+        switch (param) {
+        case LOCAL_GL_NONE:
+        case BROWSER_DEFAULT_WEBGL:
+            mPixelStore_ColorspaceConversion = param;
+            return;
+
+        default:
+            ErrorInvalidEnumInfo("pixelStorei: colorspace conversion parameter",
+                                 param);
+            return;
+        }
+
+    case LOCAL_GL_PACK_ALIGNMENT:
+    case LOCAL_GL_UNPACK_ALIGNMENT:
+        switch (param) {
+        case 1:
+        case 2:
+        case 4:
+        case 8:
+            if (pname == LOCAL_GL_PACK_ALIGNMENT)
+                mPixelStore_PackAlignment = param;
+            else if (pname == LOCAL_GL_UNPACK_ALIGNMENT)
+                mPixelStore_UnpackAlignment = param;
+
+            MakeContextCurrent();
+            gl->fPixelStorei(pname, param);
+            return;
+
+        default:
+            ErrorInvalidValue("pixelStorei: invalid pack/unpack alignment value");
+            return;
+        }
+
+
+
+    default:
+        break;
+    }
+
+    ErrorInvalidEnumInfo("pixelStorei: parameter", pname);
 }
 
 // `width` in pixels.
@@ -1429,12 +1498,12 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
     // Check the pixels param size
     CheckedUint32 checked_neededByteLength =
-        GetImageSize(height, width, 1, bytesPerPixel, mPixelStorePackAlignment);
+        GetImageSize(height, width, 1, bytesPerPixel, mPixelStore_PackAlignment);
 
     CheckedUint32 checked_plainRowSize = CheckedUint32(width) * bytesPerPixel;
 
     CheckedUint32 checked_alignedRowSize =
-        RoundedToNextMultipleOf(checked_plainRowSize, mPixelStorePackAlignment);
+        RoundedToNextMultipleOf(checked_plainRowSize, mPixelStore_PackAlignment);
 
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidOperation("readPixels: integer overflow computing the needed buffer size");
@@ -1503,7 +1572,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
         // Effectively: gl->fReadPixels(x, y, width, height, format, type, dest);
         ReadPixelsAndConvert(gl, x, y, width, height, format, readType,
-                             mPixelStorePackAlignment, format, type, data);
+                             mPixelStore_PackAlignment, format, type, data);
     } else {
         // the rectangle doesn't fit entirely in the bound buffer. We then have to set to zero the part
         // of the buffer that correspond to out-of-range pixels. We don't want to rely on system OpenGL
@@ -1546,7 +1615,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         uint32_t subrect_plainRowSize = subrect_width * bytesPerPixel;
     // There are checks above to ensure that this doesn't overflow.
         uint32_t subrect_alignedRowSize =
-            RoundedToNextMultipleOf(subrect_plainRowSize, mPixelStorePackAlignment).value();
+            RoundedToNextMultipleOf(subrect_plainRowSize, mPixelStore_PackAlignment).value();
         uint32_t subrect_byteLength = (subrect_height-1)*subrect_alignedRowSize + subrect_plainRowSize;
 
         // create subrect buffer, call glReadPixels, copy pixels into destination buffer, delete subrect buffer
@@ -1557,7 +1626,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // Effectively: gl->fReadPixels(subrect_x, subrect_y, subrect_width,
         //                              subrect_height, format, type, subrect_data.get());
         ReadPixelsAndConvert(gl, subrect_x, subrect_y, subrect_width, subrect_height,
-                             format, readType, mPixelStorePackAlignment, format, type,
+                             format, readType, mPixelStore_PackAlignment, format, type,
                              subrect_data.get());
 
         // notice that this for loop terminates because we already checked that subrect_height is at most height

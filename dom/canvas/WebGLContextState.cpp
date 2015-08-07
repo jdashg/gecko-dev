@@ -449,13 +449,13 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
 
         // bool, WebGL-specific
         case UNPACK_FLIP_Y_WEBGL:
-            return JS::BooleanValue(mPixelStoreFlipY);
+            return JS::BooleanValue(mPixelStore_FlipY);
         case UNPACK_PREMULTIPLY_ALPHA_WEBGL:
-            return JS::BooleanValue(mPixelStorePremultiplyAlpha);
+            return JS::BooleanValue(mPixelStore_PremultiplyAlpha);
 
         // uint, WebGL-specific
         case UNPACK_COLORSPACE_CONVERSION_WEBGL:
-            return JS::NumberValue(uint32_t(mPixelStoreColorspaceConversion));
+            return JS::NumberValue(uint32_t(mPixelStore_ColorspaceConversion));
 
         ////////////////////////////////
         // Complex values

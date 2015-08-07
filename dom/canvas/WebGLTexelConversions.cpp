@@ -351,17 +351,18 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
         // So the case we're handling here is when even though no format conversion is needed,
         // we still might have to flip vertically and/or to adjust to a different stride.
 
-        MOZ_ASSERT(mPixelStoreFlipY || srcStride != dstStride, "Performance trap -- should handle this case earlier, to avoid memcpy");
+        MOZ_ASSERT(mPixelStore_FlipY || srcStride != dstStride,
+                   "Performance trap -- should handle this case earlier, to avoid memcpy");
 
         size_t row_size = width * dstTexelSize; // doesn't matter, src and dst formats agree
         const uint8_t* ptr = src;
         const uint8_t* src_end = src + height * srcStride;
 
-        uint8_t* dst_row = mPixelStoreFlipY
+        uint8_t* dst_row = mPixelStore_FlipY
                            ? dst + (height-1) * dstStride
                            : dst;
         ptrdiff_t dstStrideSigned(dstStride);
-        ptrdiff_t dst_delta = mPixelStoreFlipY ? -dstStrideSigned : dstStrideSigned;
+        ptrdiff_t dst_delta = mPixelStore_FlipY ? -dstStrideSigned : dstStrideSigned;
 
         while(ptr != src_end) {
             memcpy(dst_row, ptr, row_size);
@@ -379,7 +380,7 @@ WebGLContext::ConvertImage(size_t width, size_t height, size_t srcStride, size_t
 
     uint8_t* dstStart = dst;
     ptrdiff_t signedDstStride = dstStride;
-    if (mPixelStoreFlipY) {
+    if (mPixelStore_FlipY) {
         dstStart = dst + (height - 1) * dstStride;
         signedDstStride = -signedDstStride;
     }

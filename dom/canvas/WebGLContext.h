@@ -1288,9 +1288,9 @@ protected:
         MOZ_ASSERT(element);
 
         uint32_t flags = nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
-        if (mPixelStoreColorspaceConversion == LOCAL_GL_NONE)
+        if (mPixelStore_ColorspaceConversion == LOCAL_GL_NONE)
             flags |= nsLayoutUtils::SFE_NO_COLORSPACE_CONVERSION;
-        if (!mPixelStorePremultiplyAlpha)
+        if (!mPixelStore_PremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_PREFER_NO_PREMULTIPLY_ALPHA;
 
         return nsLayoutUtils::SurfaceFromElement(element, flags);
@@ -1405,15 +1405,18 @@ protected:
     WebGLRefPtr<WebGLVertexArray> mDefaultVertexArray;
 
     // PixelStore parameters
-    uint32_t mPixelStore_PackAlignment;
-    uint32_t mPixelStore_UnpackAlignment;
-    uint32_t mPixelStore_UnpackRowLength;
     uint32_t mPixelStore_UnpackImageHeight;
-    uint32_t mPixelStore_UnpackSkipPixels;
-    uint32_t mPixelStore_UnpackSkipRows;
     uint32_t mPixelStore_UnpackSkipImages;
+    uint32_t mPixelStore_UnpackRowLength;
+    uint32_t mPixelStore_UnpackSkipRows;
+    uint32_t mPixelStore_UnpackSkipPixels;
+    uint32_t mPixelStore_UnpackAlignment;
+    uint32_t mPixelStore_PackRowLength;
+    uint32_t mPixelStore_PackSkipRows;
+    uint32_t mPixelStore_PackSkipPixels;
+    uint32_t mPixelStore_PackAlignment;
 
-    uint32_t mPixelStore_ColorspaceConversion;
+    GLenum mPixelStore_ColorspaceConversion;
     bool mPixelStore_FlipY;
     bool mPixelStore_PremultiplyAlpha;
 

@@ -1321,8 +1321,19 @@ WebGLContext::AssertCachedState()
                int4[2] == mViewportWidth &&
                int4[3] == mViewportHeight);
 
-    AssertUintParamCorrect(gl, LOCAL_GL_PACK_ALIGNMENT, mPixelStorePackAlignment);
-    AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_ALIGNMENT, mPixelStoreUnpackAlignment);
+    AssertUintParamCorrect(gl, LOCAL_GL_PACK_ALIGNMENT, mPixelStore_PackAlignment);
+    AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_ALIGNMENT, mPixelStore_UnpackAlignment);
+
+    if (IsWebGL2()) {
+        AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_IMAGE_HEIGHT, mPixelStore_UnpackImageHeight);
+        AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_SKIP_IMAGES , mPixelStore_UnpackSkipImages);
+        AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_ROW_LENGTH  , mPixelStore_UnpackRowLength);
+        AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_SKIP_ROWS   , mPixelStore_UnpackSkipRows);
+        AssertUintParamCorrect(gl, LOCAL_GL_UNPACK_SKIP_PIXELS , mPixelStore_UnpackSkipPixels);
+        AssertUintParamCorrect(gl, LOCAL_GL_PACK_ROW_LENGTH    , mPixelStore_PackRowLength);
+        AssertUintParamCorrect(gl, LOCAL_GL_PACK_SKIP_ROWS     , mPixelStore_PackSkipRows);
+        AssertUintParamCorrect(gl, LOCAL_GL_PACK_SKIP_PIXELS   , mPixelStore_PackSkipPixels);
+    }
 
     MOZ_ASSERT(!GetAndFlushUnderlyingGLErrors());
 #endif

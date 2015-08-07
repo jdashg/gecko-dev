@@ -650,7 +650,7 @@ ConvertDataToFormat(gfx::DataSourceSurface* srcData,
         return nullptr;
     }
 
-    bool yFlip = mPixelStoreFlipY;
+    bool yFlip = mPixelStore_FlipY;
     if (!ConvertImage(width, height, yFlip, srcBuffer, srcStride, srcFormat,
                       srcPremultiplied, dstBuffer, dstStride, dstFormat,
                       dstPremultiplied))
@@ -828,8 +828,8 @@ WebGLTexture::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texIm
     if (texSource) {
         // If the unpack format/type can't be replicated during Blit(), we have to bail
         // and do things in software...
-        bool canBlit = (!mPixelStoreFlipY &&
-                        mPixelStorePrmultiplyAlpha &&
+        bool canBlit = (!mPixelStore_FlipY &&
+                        mPixelStore_PrmultiplyAlpha &&
                         level == 0);
         switch (srcFormat.effectiveFormat) {
         case webgl::EffectiveFormat::RGB8:
@@ -842,8 +842,8 @@ WebGLTexture::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texIm
         }
 
         if (canBlit) {
-            const gl::OriginPos dstOrigin = mPixelStoreFlipY ? gl::OriginPos::BottomLeft
-                                                             : gl::OriginPos::TopLeft;
+            const gl::OriginPos dstOrigin = mPixelStore_FlipY ? gl::OriginPos::BottomLeft
+                                                              : gl::OriginPos::TopLeft;
             if (texSource->BlitToTexture(gl, texture->mGLName, GLenum(target), dstOrigin))
             {
                 didUpload = true;
@@ -866,8 +866,8 @@ WebGLTexture::TexImage_base(const char* funcName, uint8_t funcDims, GLenum texIm
             return;
 
         bool srcPremultiplied = true;
-        bool dstPremultiplied = mPixelStorePremultiplyAlpha ? true : false;
-        bool needsYFlip = mPixelStoreFlipY;
+        bool dstPremultiplied = mPixelStore_PremultiplyAlpha ? true : false;
+        bool needsYFlip = mPixelStore_FlipY;
         bool outOfMemory;
 
         MOZ_ASSERT(!data);
@@ -1013,8 +1013,8 @@ WebGLTexture::TexSubImage_base(const char* funcName, uint8_t funcDims,
             return false;
 
         bool srcPremultiplied = true;
-        bool dstPremultiplied = mPixelStorePremultiplyAlpha ? true : false;
-        bool needsYFlip = mPixelStoreFlipY;
+        bool dstPremultiplied = mPixelStore_PremultiplyAlpha ? true : false;
+        bool needsYFlip = mPixelStore_FlipY;
         bool outOfMemory;
 
         MOZ_ASSERT(!data);

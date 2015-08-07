@@ -111,9 +111,6 @@ WebGLContext::WebGLContext()
     mOptionsFrozen = false;
 
     mActiveTexture = 0;
-    mPixelStoreFlipY = false;
-    mPixelStorePremultiplyAlpha = false;
-    mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
     mVertexAttrib0Vector[0] = 0;
     mVertexAttrib0Vector[1] = 0;
@@ -160,10 +157,6 @@ WebGLContext::WebGLContext()
     mGLMaxUniformBufferBindings = 0;
     mGLMax3DTextureSize = 0;
     mGLMaxArrayTextureLayers = 0;
-
-    // See OpenGL ES 2.0.25 spec, 6.2 State Tables, table 6.13
-    mPixelStorePackAlignment = 4;
-    mPixelStoreUnpackAlignment = 4;
 
     if (NS_IsMainThread()) {
         // XXX mtseng: bug 709490, not thread safe
