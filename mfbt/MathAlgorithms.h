@@ -500,6 +500,27 @@ RotateRight(const T aValue, uint_fast8_t aShift)
   return (aValue >> aShift) | (aValue << (sizeof(T) * CHAR_BIT - aShift));
 }
 
+/**
+ * Returns true if |x| is a power of two.
+ * Zero is not an integer power of two. (-Inf is not an integer)
+ */
+inline bool
+IsPowerOfTwo(size_t x)
+{
+    return x && (x & (x - 1)) == 0;
+}
+
+template<typename T>
+inline T
+Clamp(const T aValue, const T aMin, const T aMax)
+{
+    if (aValue < aMin)
+        return aMin;
+    if (aMax < aValue)
+        return aMax;
+    return aValue;
+}
+
 } /* namespace mozilla */
 
 #endif /* mozilla_MathAlgorithms_h */
