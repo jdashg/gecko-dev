@@ -109,8 +109,9 @@ WebGLTexture::SpecifyTexStorage(GLsizei levels, TexInternalFormat internalFormat
         cur.Clear();
     }
 
-    const bool hasUninitData = true;
-    const ImageInfo baseImageInfo(internalFormat, width, height, depth, hasUninitData);
+    const bool isDataInitialized = false;
+    const ImageInfo baseImageInfo(internalFormat, width, height, depth,
+                                  isDataInitialized);
 
     SetImageInfoAtFace(0, 0, baseImageInfo);
     PopulateMipChain(0, mImmutableLevelCount);
@@ -164,8 +165,9 @@ WebGLTexture::CompressedTexImage2D(TexImageTarget texImageTarget,
     gl->fCompressedTexImage2D(texImageTarget.get(), level, internalFormat, width, height, border, byteLength, data);
 
     const uint32_t depth = 1;
-    const bool hasUninitData = false;
-    const ImageInfo imageInfo(internalFormat, width, height, depth, hasUninitData);
+    const bool isDataInitialized = true;
+    const ImageInfo imageInfo(internalFormat, width, height, depth, isDataInitialized);
+
     SetImageInfoAt(texImageTarget, level, imageInfo);
 }
 
@@ -215,13 +217,13 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
         return;
     }
 
-    if (levelInfo.HasUninitData()) {
+    if (!levelInfo.IsDataInitialized()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 uint32_t(width) == levelInfo.mWidth &&
                                 uint32_t(height) == levelInfo.mHeight;
         if (coversWholeImage) {
-            levelInfo.SetHasUninitData(false, this);
+            levelInfo.SetIsDataInitialized(true, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -343,9 +345,10 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
             // In GLES, read pixels outside the FB bounds are undefined, so we'll need to
             // clear them outselves.
             const uint32_t depth = 1;
-            const bool hasUninitData = true;
+            const bool isDataInitialized = false;
             const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
-                                      hasUninitData);
+                                      isDataInitialized);
+
             SetImageInfoAt(texImageTarget, level, imageInfo);
 
             if (!EnsureInitializedImageData(texImageTarget, level))
@@ -417,9 +420,10 @@ WebGLTexture::CopyTexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
 
     if (!sub) {
         const uint32_t depth = 1;
-        const bool hasUninitData = false;
+        const bool isDataInitialized = true;
         const ImageInfo imageInfo(destEffectiveFormat, width, height, depth,
-                                  hasUninitData);
+                                  isDataInitialized);
+
         SetImageInfoAt(texImageTarget, level, imageInfo);
     }
 }
@@ -494,13 +498,13 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     if (!mContext->mBoundReadFramebuffer)
         mContext->ClearBackbufferIfNeeded();
 
-    if (imageInfo.HasUninitData()) {
+    if (!imageInfo.IsDataInitialized()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 width == texWidth &&
                                 height == texHeight;
         if (coversWholeImage) {
-            imageInfo.SetHasUninitData(false, this);
+            imageInfo.SetIsDataInitialized(true, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -659,7 +663,7 @@ WebGLTexture::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
 
     nsAutoArrayPtr<uint8_t> convertedData;
     void* pixels = nullptr;
-    bool hasUninitData = true;
+    bool isDataInitialized = false;
 
     WebGLTexelFormat dstFormat = GetWebGLTexelFormat(effectiveInternalFormat);
     WebGLTexelFormat actualSrcFormat = srcFormat == WebGLTexelFormat::Auto ? dstFormat : srcFormat;
@@ -680,9 +684,7 @@ WebGLTexture::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
         {
             // no conversion, no flipping, so we avoid copying anything and just pass the source pointer
             pixels = data;
-        }
-        else
-        {
+        } else {
             size_t convertedDataSize = height * dstStride;
             convertedData = new (fallible) uint8_t[convertedDataSize];
             if (!convertedData) {
@@ -699,7 +701,7 @@ WebGLTexture::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
             }
             pixels = reinterpret_cast<void*>(convertedData.get());
         }
-        hasUninitData = false;
+        isDataInitialized = true;
     }
 
     GLenum error = CheckedTexImage2D(texImageTarget, level, internalFormat, width,
@@ -711,7 +713,8 @@ WebGLTexture::TexImage2D_base(TexImageTarget texImageTarget, GLint level,
     }
 
     const uint32_t depth = 1;
-    const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth, hasUninitData);
+    const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
+                              isDataInitialized);
     SetImageInfoAt(texImageTarget, level, imageInfo);
 }
 
@@ -883,13 +886,13 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (byteLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, byteLength);
 
-    if (imageInfo.HasUninitData()) {
+    if (!imageInfo.IsDataInitialized()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 uint32_t(width) == imageInfo.mWidth &&
                                 uint32_t(height) == imageInfo.mHeight;
         if (coversWholeImage) {
-            imageInfo.SetHasUninitData(false, this);
+            imageInfo.SetIsDataInitialized(true, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -1087,9 +1090,9 @@ WebGLTexture::TexImageFromVideoElement(TexImageTarget texImageTarget,
     MOZ_ASSERT(effectiveInternalFormat != LOCAL_GL_NONE);
 
     const uint32_t depth = 1;
-    const bool hasUninitData = false;
+    const bool isDataInitialized = true;
     const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
-                              hasUninitData);
+                              isDataInitialized);
     SetImageInfoAt(texImageTarget, level, imageInfo);
 
     return true;
@@ -1414,9 +1417,9 @@ WebGLTexture::TexImage3D(TexImageTarget texImageTarget, GLint level, GLenum inte
         return mContext->GenerateWarning("texImage3D generated error %s", mContext->ErrorName(error));
     }
 
-    const bool hasUninitData = bool(data);
+    const bool isDataInitialized = bool(data);
     const ImageInfo imageInfo(effectiveInternalFormat, width, height, depth,
-                              hasUninitData);
+                              isDataInitialized);
     SetImageInfoAt(texImageTarget, level, imageInfo);
 }
 
@@ -1489,7 +1492,7 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
     if (dataLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, dataLength);
 
-    if (imageInfo.HasUninitData()) {
+    if (!imageInfo.IsDataInitialized()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 zOffset == 0 &&
@@ -1497,7 +1500,7 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
                                 uint32_t(height) == imageInfo.mHeight &&
                                 uint32_t(depth) == imageInfo.mDepth;
         if (coversWholeImage) {
-            imageInfo.SetHasUninitData(false, this);
+            imageInfo.SetIsDataInitialized(true, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;

@@ -122,7 +122,7 @@ public:
         const uint32_t mDepth;
 
     protected:
-        bool mHasUninitData;
+        bool mIsDataInitialized;
 
         std::set<WebGLFBAttachPoint*> mAttachPoints;
 
@@ -132,16 +132,16 @@ public:
             , mWidth(0)
             , mHeight(0)
             , mDepth(0)
-            , mHasUninitData(true)
+            , mIsDataInitialized(false)
         { }
 
         ImageInfo(TexInternalFormat format, uint32_t width, uint32_t height,
-                  uint32_t depth, bool hasUninitData)
+                  uint32_t depth, bool isDataInitialized)
             : mFormat(format)
             , mWidth(width)
             , mHeight(height)
             , mDepth(depth)
-            , mHasUninitData(hasUninitData)
+            , mIsDataInitialized(isDataInitialized)
         {
             MOZ_ASSERT(mFormat != LOCAL_GL_NONE);
             MOZ_ASSERT_IF(!IsCompressedTextureFormat(mFormat.get()),
@@ -186,16 +186,9 @@ public:
             return true;
         }
 
-        bool HasUninitData() const { return mHasUninitData; }
+        bool IsDataInitialized() const { return mIsDataInitialized; }
 
-        void SetHasUninitData(bool hasUninitData, WebGLTexture* tex) {
-            MOZ_ASSERT(tex);
-            MOZ_ASSERT(this >= &tex.mImageInfoArr[0]);
-            MOZ_ASSERT(this < &tex.mImageInfoArr[kMaxLevelCount * kMaxFaceCount]);
-
-            mHasUninitData = hasUninitData;
-            tex->InvalidateFakeBlackCache();
-        }
+        void SetIsDataInitialized(bool isDataInitialized, WebGLTexture* tex);
     };
 
     ImageInfo mImageInfoArr[kMaxLevelCount * kMaxFaceCount];
