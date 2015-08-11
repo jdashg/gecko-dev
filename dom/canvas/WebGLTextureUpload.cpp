@@ -211,14 +211,13 @@ WebGLTexture::CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level
         return;
     }
 
-    if (levelInfo.mHasUninitData) {
+    if (levelInfo.HasUninitData()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 uint32_t(width) == levelInfo.mWidth &&
                                 uint32_t(height) == levelInfo.mHeight;
         if (coversWholeImage) {
-            levelInfo.mHasUninitData = false;
-            InvalidateFakeBlackCache();
+            levelInfo.SetHasUninitData(false, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -491,14 +490,13 @@ WebGLTexture::CopyTexSubImage2D(TexImageTarget texImageTarget,
     if (!mContext->mBoundReadFramebuffer)
         mContext->ClearBackbufferIfNeeded();
 
-    if (imageInfo.mHasUninitData) {
+    if (imageInfo.HasUninitData()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 width == texWidth &&
                                 height == texHeight;
         if (coversWholeImage) {
-            imageInfo.mHasUninitData = false;
-            InvalidateFakeBlackCache();
+            imageInfo.SetHasUninitData(false, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -885,14 +883,13 @@ WebGLTexture::TexSubImage2D_base(TexImageTarget texImageTarget, GLint level,
     if (byteLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, byteLength);
 
-    if (imageInfo.mHasUninitData) {
+    if (imageInfo.HasUninitData()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 uint32_t(width) == imageInfo.mWidth &&
                                 uint32_t(height) == imageInfo.mHeight;
         if (coversWholeImage) {
-            imageInfo.mHasUninitData = false;
-            InvalidateFakeBlackCache();
+            imageInfo.SetHasUninitData(false, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;
@@ -1494,7 +1491,7 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
     if (dataLength < bytesNeeded)
         return mContext->ErrorInvalidOperation("texSubImage2D: not enough data for operation (need %d, have %d)", bytesNeeded, dataLength);
 
-    if (imageInfo.mHasUninitData) {
+    if (imageInfo.HasUninitData()) {
         bool coversWholeImage = xOffset == 0 &&
                                 yOffset == 0 &&
                                 zOffset == 0 &&
@@ -1502,8 +1499,7 @@ WebGLTexture::TexSubImage3D(TexImageTarget texImageTarget, GLint level,
                                 uint32_t(height) == imageInfo.mHeight &&
                                 uint32_t(depth) == imageInfo.mDepth;
         if (coversWholeImage) {
-            imageInfo.mHasUninitData = false;
-            InvalidateFakeBlackCache();
+            imageInfo.SetHasUninitData(false, this);
         } else {
             if (!EnsureInitializedImageData(texImageTarget, level))
                 return;

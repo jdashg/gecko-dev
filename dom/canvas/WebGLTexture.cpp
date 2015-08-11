@@ -70,19 +70,15 @@ void
 WebGLTexture::ImageInfo::AddAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
     const auto pair = mAttachPoints.insert(attachPoint);
-    const bool& didInsert = pair.second;
-
+    DebugOnly<const bool&> didInsert = pair.second;
     MOZ_ASSERT(didInsert);
-    mozilla::unused << didInsert;
 }
 
 void
 WebGLTexture::ImageInfo::RemoveAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
-    const auto numElemsErased = mAttachPoints.erase(attachPoint);
-
+    DebugOnly<const auto> numElemsErased = mAttachPoints.erase(attachPoint);
     MOZ_ASSERT_IF(IsDefined(), numElemsErased == 1);
-    mozilla::unused << numElemsErased;
 }
 
 void
@@ -486,7 +482,7 @@ WebGLTexture::ResolveFakeBlackStatus()
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
             const auto& cur = ImageInfoAtFace(face, level);
-            if (cur.mHasUninitData)
+            if (cur.HasUninitData())
                 hasUninitializedData = true;
             else
                 hasInitializedData = true;
@@ -635,7 +631,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     ImageInfo& imageInfo = ImageInfoAtFace(face, level);
     MOZ_ASSERT(imageInfo.IsDefined());
 
-    if (!imageInfo.mHasUninitData)
+    if (!imageInfo.HasUninitData())
         return true;
 
     mContext->MakeContextCurrent();
@@ -648,8 +644,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
                                        imageInfo.mFormat, imageInfo.mHeight,
                                        imageInfo.mWidth);
         if (cleared) {
-            imageInfo.mHasUninitData = false;
-            InvalidateFakeBlackCache();
+            imageInfo.SetHasUninitData(false, this);
             return true;
         }
     }
@@ -727,8 +722,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
         return false;
     }
 
-    imageInfo.mHasUninitData = false;
-    InvalidateFakeBlackCache();
+    imageInfo.SetHasUninitData(false, this);
     return true;
 }
 
@@ -767,7 +761,7 @@ WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
 
     for (uint32_t level = baseLevel; level <= maxLevel; level++) {
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
-                            baseImageInfo.mHasUninitData);
+                            baseImageInfo.HasUninitData());
 
         SetImageInfosAtLevel(level, cur);
 

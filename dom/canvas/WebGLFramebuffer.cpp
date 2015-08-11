@@ -147,13 +147,15 @@ WebGLFBAttachPoint::HasUninitializedImageData() const
     if (!HasImage())
         return false;
 
-    if (Renderbuffer())
-        return Renderbuffer()->HasUninitializedImageData();
+    if (mRenderbufferPtr
+        return mRenderbufferPtr)->HasUninitializedImageData();
 
-    MOZ_ASSERT(Texture());
+    MOZ_ASSERT(mTexturePtr);
 
-    MOZ_ASSERT(Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).IsDefined());
-    return Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).mHasUninitData;
+    auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+    MOZ_ASSERT(imageInfo.IsDefined());
+
+    return imageInfo.HasUninitData();
 }
 
 void
@@ -162,16 +164,18 @@ WebGLFBAttachPoint::SetImageDataStatus(WebGLImageDataStatus newStatus)
     if (!HasImage())
         return;
 
-    if (Renderbuffer()) {
-        Renderbuffer()->SetImageDataStatus(newStatus);
+    if (mRenderbufferPtr) {
+        mRenderbufferPtr->SetImageDataStatus(newStatus);
         return;
     }
 
-    MOZ_ASSERT(Texture());
+    MOZ_ASSERT(mTexturePtr);
 
-    MOZ_ASSERT(Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel).IsDefined());
-    auto& imageInfo = Texture()->ImageInfoAt(mTexImageTarget, mTexImageLevel);
-    imageInfo.mHasUninitData = (newStatus != WebGLImageDataStatus::InitializedImageData);
+    auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
+    MOZ_ASSERT(imageInfo.IsDefined());
+
+    const bool hasUninitData = (newStatus != WebGLImageDataStatus::InitializedImageData);
+    imageInfo.SetHasUninitData(hasUninitData, mTexturePtr);
 }
 
 bool

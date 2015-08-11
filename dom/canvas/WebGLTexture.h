@@ -120,8 +120,9 @@ public:
         const uint32_t mHeight;
         const uint32_t mDepth;
 
-        bool mHasUninitData;
     protected:
+        bool mHasUninitData;
+
         std::set<WebGLFBAttachPoint*> mAttachPoints;
 
     public:
@@ -182,6 +183,17 @@ public:
             }
 
             return true;
+        }
+
+        bool HasUninitData() const { return mHasUninitData; }
+
+        void SetHasUninitData(bool hasUninitData, WebGLTexture* tex) {
+            MOZ_ASSERT(tex);
+            MOZ_ASSERT(this >= &tex.mImageInfoArr[0]);
+            MOZ_ASSERT(this < &tex.mImageInfoArr[kMaxLevelCount * kMaxFaceCount]);
+
+            mHasUninitData = hasUninitData;
+            tex->InvalidateFakeBlackCache();
         }
     };
 
