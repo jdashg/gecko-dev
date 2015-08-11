@@ -687,11 +687,9 @@ PopulateCapFallbackQueue(const SurfaceCaps& baseCaps,
     }
 }
 
-static bool
-CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
-                const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl,
-                layers::LayersBackend layersBackend,
-                layers::ISurfaceAllocator* surfAllocator)
+static SurfaceCaps
+CreateBaseCaps(WebGLContext* webgl, const WebGLContextOptions& options,
+               const nsCOMPtr<nsIGfxInfo>& gfxInfo)
 {
     SurfaceCaps baseCaps;
 
@@ -706,25 +704,65 @@ CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
     if (!baseCaps.alpha)
         baseCaps.premultAlpha = true;
 
-    if (gl->IsANGLE() ||
-        (gl->GetContextType() == GLContextType::GLX &&
-         layersBackend == LayersBackend::LAYERS_OPENGL))
-    {
-        // We can't use no-alpha formats on ANGLE yet because of:
-        // https://code.google.com/p/angleproject/issues/detail?id=764
-        // GLX only supports GL_RGBA pixmaps as well. Since we can't blit from
-        // an RGB FB to GLX's RGBA FB, force RGBA when surface sharing.
-        baseCaps.alpha = true;
-    }
-
     // we should really have this behind a
     // |gfxPlatform::GetPlatform()->GetScreenDepth() == 16| check, but
     // for now it's just behind a pref for testing/evaluation.
     baseCaps.bpp16 = Preferences::GetBool("webgl.prefer-16bpp", false);
 
 #ifdef MOZ_WIDGET_GONK
+    layers::ISurfaceAllocator* surfAllocator = nullptr;
+
+    nsIWidget* docWidget = nsContentUtils::WidgetForDocument(mCanvasElement->OwnerDoc());
+    if (docWidget) {
+        layers::LayerManager* layerManager = docWidget->GetLayerManager();
+        if (layerManager) {
+            // XXX we really want "AsSurfaceAllocator" here for generality
+            layers::ShadowLayerForwarder* forwarder = layerManager->AsShadowForwarder();
+            if (forwarder)
+                surfAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
+        }
+    }
+
     baseCaps.surfaceAllocator = surfAllocator;
 #endif
+
+    // Done with baseCaps construction.
+
+    const bool forceAllowAA = Preferences::GetBool("webgl.msaa-force", false);
+    if (!forceAllowAA &&
+        IsFeatureInBlacklist(gfxInfo, nsIGfxInfo::FEATURE_WEBGL_MSAA))
+    {
+        webgl->GenerateWarning("Disallowing antialiased backbuffers due"
+                               " to blacklisting.");
+        baseCaps.antialias = false;
+    }
+
+    return baseCaps;
+}
+
+static bool
+CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
+                const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl)
+{
+    SurfaceCaps baseCaps;
+
+    baseCaps.color = true;
+    baseCaps.alpha = options.alpha;
+    baseCaps.antialias = options.antialias;
+    baseCaps.depth = options.depth;
+    baseCaps.premultAlpha = options.premultipliedAlpha;
+    baseCaps.preserve = options.preserveDrawingBuffer;
+    baseCaps.stencil = options.stencil;
+
+    if (!baseCaps.alpha)
+        baseCaps.premultAlpha = true;
+
+    if (gl->IsANGLE() || gl->GetContextType() == GLContextType::GLX) {
+        // We can't use no-alpha formats on ANGLE yet because of:
+        // https://code.google.com/p/angleproject/issues/detail?id=764
+        // GLX only supports GL_RGBA pixmaps as well.
+        baseCaps.alpha = true;
+    }
 
     // Done with baseCaps construction.
 
@@ -759,19 +797,7 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
 {
     nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
 
-    layers::ISurfaceAllocator* surfAllocator = nullptr;
-#ifdef MOZ_WIDGET_GONK
-    nsIWidget* docWidget = nsContentUtils::WidgetForDocument(mCanvasElement->OwnerDoc());
-    if (docWidget) {
-        layers::LayerManager* layerManager = docWidget->GetLayerManager();
-        if (layerManager) {
-            // XXX we really want "AsSurfaceAllocator" here for generality
-            layers::ShadowLayerForwarder* forwarder = layerManager->AsShadowForwarder();
-            if (forwarder)
-                surfAllocator = static_cast<layers::ISurfaceAllocator*>(forwarder);
-        }
-    }
-#endif
+    SurfaceCaps baseCaps = CreateBaseCaps(this, mOptions, gfxInfo);
 
     CreateContextFlags flags = forceEnabled ? CreateContextFlags::FORCE_ENABLE_HARDWARE :
                                               CreateContextFlags::NONE;
@@ -792,8 +818,7 @@ WebGLContext::CreateOffscreenGL(bool forceEnabled)
         if (!gl)
             break;
 
-        if (!CreateOffscreen(gl, mOptions, gfxInfo, this,
-                             GetCompositorBackendType(), surfAllocator))
+        if (!CreateOffscreen(gl, mOptions, gfxInfo, this))
             break;
 
         if (!InitAndValidateGL())
