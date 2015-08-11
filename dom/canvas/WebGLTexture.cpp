@@ -66,6 +66,14 @@ WebGLTexture::ImageInfo::operator =(const ImageInfo& a)
     return *this;
 }
 
+bool
+WebGLTexture::ImageInfo::IsPowerOfTwo() const
+{
+    return mozilla::IsPowerOfTwo(mWidth) &&
+           mozilla::IsPowerOfTwo(mHeight) &&
+           mozilla::IsPowerOfTwo(mDepth);
+}
+
 void
 WebGLTexture::ImageInfo::AddAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
@@ -735,12 +743,6 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
 
     imageInfo.SetIsDataInitialized(true, this);
     return true;
-}
-
-template<typename T>
-static T
-Clamp(T val, T min, T max) {
-    return std::max(min, std::min(val, max));
 }
 
 void

@@ -683,13 +683,6 @@ WebGLContext::ValidateTexImageType(GLenum type, WebGLTexImageFunc func,
     return false;
 }
 
-static inline bool
-IsPOTAssumingNonnegative(GLsizei x)
-{
-    MOZ_ASSERT(x >= 0);
-    return x && (x & (x-1)) == 0;
-}
-
 /**
  * Validate texture image sizing extra constraints for
  * CompressedTex(Sub)?Image.
@@ -800,8 +793,8 @@ WebGLContext::ValidateCompTexImageSize(GLint level, GLenum format,
     case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
     case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
     case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-        if (!IsPOTAssumingNonnegative(width) ||
-            !IsPOTAssumingNonnegative(height))
+        if (!IsPowerOfTwo(width) ||
+            !IsPowerOfTwo(height))
         {
             ErrorInvalidValue("%s: Width and height must be powers of two.",
                               InfoFrom(func, dims));
@@ -960,14 +953,14 @@ WebGLContext::ValidateTexImageSize(TexImageTarget texImageTarget, GLint level,
          * This restriction does not apply to GL ES Version 3.0+.
          */
         if (!IsWebGL2() && level > 0) {
-            if (!IsPOTAssumingNonnegative(width)) {
+            if (!IsPowerOfTwo(width)) {
                 ErrorInvalidValue("%s: For level > 0, width of %d must be a"
                                   " power of two.", InfoFrom(func, dims),
                                   width);
                 return false;
             }
 
-            if (!IsPOTAssumingNonnegative(height)) {
+            if (!IsPowerOfTwo(height)) {
                 ErrorInvalidValue("%s: For level > 0, height of %d must be a"
                                   " power of two.", InfoFrom(func, dims),
                                   height);
@@ -983,7 +976,7 @@ WebGLContext::ValidateTexImageSize(TexImageTarget texImageTarget, GLint level,
             return false;
         }
 
-        if (!IsWebGL2() && !IsPOTAssumingNonnegative(depth)) {
+        if (!IsWebGL2() && !IsPowerOfTwo(depth)) {
             ErrorInvalidValue("%s: Depth of %d must be a power of two.",
                               InfoFrom(func, dims), depth);
             return false;
@@ -1585,7 +1578,7 @@ WebGLContext::ValidateAttribPointer(bool integerMode, GLuint index, GLint size, 
         return false;
 
     // requiredAlignment should always be a power of two
-    MOZ_ASSERT(IsPOTAssumingNonnegative(requiredAlignment));
+    MOZ_ASSERT(IsPowerOfTwo(requiredAlignment));
     GLsizei requiredAlignmentMask = requiredAlignment - 1;
 
     if (size < 1 || size > 4) {
