@@ -125,27 +125,27 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
     *out_samples = 1; // TODO
 
     if (fb->ColorAttachment(0).IsDefined()) {
-        const auto& attachement = fb->ColorAttachment(0);
-        *out_colorFormat = attachement.Format().get();
+        const auto& attachment = fb->ColorAttachment(0);
+        *out_colorFormat = attachment.Format().get();
     } else {
         *out_colorFormat = 0;
     }
 
     if (fb->DepthStencilAttachment().IsDefined()) {
-        const auto& attachement = fb->DepthStencilAttachment();
-        *out_depthFormat = attachement.Format().get();
+        const auto& attachment = fb->DepthStencilAttachment();
+        *out_depthFormat = attachment.Format().get();
         *out_stencilFormat = *out_depthFormat;
     } else {
         if (fb->DepthAttachment().IsDefined()) {
-            const auto& attachement = fb->DepthAttachment();
-            *out_depthFormat = attachement.Format().get();
+            const auto& attachment = fb->DepthAttachment();
+            *out_depthFormat = attachment.Format().get();
         } else {
             *out_depthFormat = 0;
         }
 
         if (fb->StencilAttachment().IsDefined()) {
-            const auto& attachement = fb->StencilAttachment();
-            *out_stencilFormat = attachement.Format().get();
+            const auto& attachment = fb->StencilAttachment();
+            *out_stencilFormat = attachment.Format().get();
         } else {
             *out_stencilFormat = 0;
         }
