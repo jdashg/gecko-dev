@@ -57,7 +57,7 @@ WebGLTexture::ImageInfo::operator =(const ImageInfo& a)
     Mutable(mHeight) = a.mHeight;
     Mutable(mDepth) = a.mDepth;
 
-    mHasUninitData = a.mHasUninitData;
+    mIsDataInitialized = a.mIsDataInitialized;
 
     // But *don't* transfer mAttachPoints!
     MOZ_ASSERT(a.mAttachPoints.empty());
@@ -70,14 +70,14 @@ void
 WebGLTexture::ImageInfo::AddAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
     const auto pair = mAttachPoints.insert(attachPoint);
-    DebugOnly<const bool&> didInsert = pair.second;
+    DebugOnly<bool> didInsert = pair.second;
     MOZ_ASSERT(didInsert);
 }
 
 void
 WebGLTexture::ImageInfo::RemoveAttachPoint(WebGLFBAttachPoint* attachPoint)
 {
-    DebugOnly<const auto> numElemsErased = mAttachPoints.erase(attachPoint);
+    DebugOnly<size_t> numElemsErased = mAttachPoints.erase(attachPoint);
     MOZ_ASSERT_IF(IsDefined(), numElemsErased == 1);
 }
 
@@ -97,6 +97,17 @@ WebGLTexture::ImageInfo::MemoryUsage() const
 
     size_t bitsPerTexel = GetBitsPerTexel(mFormat);
     return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bitsPerTexel / 8;
+}
+
+void
+WebGLTexture::ImageInfo::SetIsDataInitialized(bool isDataInitialized, WebGLTexture* tex)
+{
+    MOZ_ASSERT(tex);
+    MOZ_ASSERT(this >= &tex->mImageInfoArr[0]);
+    MOZ_ASSERT(this < &tex->mImageInfoArr[kMaxLevelCount * kMaxFaceCount]);
+
+    mIsDataInitialized = isDataInitialized;
+    tex->InvalidateFakeBlackCache();
 }
 
 ////////////////////////////////////////
@@ -482,10 +493,10 @@ WebGLTexture::ResolveFakeBlackStatus()
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
             const auto& cur = ImageInfoAtFace(face, level);
-            if (cur.HasUninitData())
-                hasUninitializedData = true;
-            else
+            if (cur.IsDataInitialized())
                 hasInitializedData = true;
+            else
+                hasUninitializedData = true;
         }
     }
     MOZ_ASSERT(hasUninitializedData || hasInitializedData);
@@ -631,7 +642,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
     ImageInfo& imageInfo = ImageInfoAtFace(face, level);
     MOZ_ASSERT(imageInfo.IsDefined());
 
-    if (!imageInfo.HasUninitData())
+    if (imageInfo.IsDataInitialized())
         return true;
 
     mContext->MakeContextCurrent();
@@ -644,7 +655,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
                                        imageInfo.mFormat, imageInfo.mHeight,
                                        imageInfo.mWidth);
         if (cleared) {
-            imageInfo.SetHasUninitData(false, this);
+            imageInfo.SetIsDataInitialized(true, this);
             return true;
         }
     }
@@ -722,7 +733,7 @@ WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
         return false;
     }
 
-    imageInfo.SetHasUninitData(false, this);
+    imageInfo.SetIsDataInitialized(true, this);
     return true;
 }
 
@@ -761,7 +772,7 @@ WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
 
     for (uint32_t level = baseLevel; level <= maxLevel; level++) {
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
-                            baseImageInfo.HasUninitData());
+                            baseImageInfo.IsDataInitialized());
 
         SetImageInfosAtLevel(level, cur);
 

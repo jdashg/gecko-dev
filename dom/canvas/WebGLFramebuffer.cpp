@@ -147,15 +147,15 @@ WebGLFBAttachPoint::HasUninitializedImageData() const
     if (!HasImage())
         return false;
 
-    if (mRenderbufferPtr
-        return mRenderbufferPtr)->HasUninitializedImageData();
+    if (mRenderbufferPtr)
+        return mRenderbufferPtr->HasUninitializedImageData();
 
     MOZ_ASSERT(mTexturePtr);
 
     auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
     MOZ_ASSERT(imageInfo.IsDefined());
 
-    return imageInfo.HasUninitData();
+    return !imageInfo.IsDataInitialized();
 }
 
 void
@@ -174,8 +174,8 @@ WebGLFBAttachPoint::SetImageDataStatus(WebGLImageDataStatus newStatus)
     auto& imageInfo = mTexturePtr->ImageInfoAt(mTexImageTarget, mTexImageLevel);
     MOZ_ASSERT(imageInfo.IsDefined());
 
-    const bool hasUninitData = (newStatus != WebGLImageDataStatus::InitializedImageData);
-    imageInfo.SetHasUninitData(hasUninitData, mTexturePtr);
+    const bool isDataInitialized = (newStatus == WebGLImageDataStatus::InitializedImageData);
+    imageInfo.SetIsDataInitialized(isDataInitialized, mTexturePtr);
 }
 
 bool
