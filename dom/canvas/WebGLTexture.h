@@ -28,16 +28,6 @@ class Element;
 class ImageData;
 } // namespace dom
 
-// Zero is not an integer power of two.
-/*
-*/
-
-inline bool
-IsPowerOfTwo(uint32_t x)
-{
-    return x && (x & (x-1)) == 0;
-}
-
 bool
 DoesTargetMatchDimensions(WebGLContext* webgl, TexImageTarget target, uint8_t dims,
                           const char* funcName);
@@ -164,11 +154,7 @@ public:
             return FloorLog2Size(largest) + 1;
         }
 
-        bool IsPowerOfTwo() const {
-            return mozilla::IsPowerOfTwo(mWidth) &&
-                   mozilla::IsPowerOfTwo(mHeight) &&
-                   mozilla::IsPowerOfTwo(mDepth);
-        }
+        bool IsPowerOfTwo() const;
 
         void AddAttachPoint(WebGLFBAttachPoint* attachPoint);
         void RemoveAttachPoint(WebGLFBAttachPoint* attachPoint);
