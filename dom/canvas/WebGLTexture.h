@@ -110,7 +110,7 @@ public:
         // This is the "effective internal format" of the texture, an official
         // OpenGL spec concept, see OpenGL ES 3.0.3 spec, section 3.8.3, page
         // 126 and below.
-        const TexInternalFormat mFormat;
+        const webgl::FormatUsageInfo* const mFormat;
 
         const uint32_t mWidth;
         const uint32_t mHeight;
@@ -130,7 +130,7 @@ public:
             , mIsDataInitialized(false)
         { }
 
-        ImageInfo(TexInternalFormat format, uint32_t width, uint32_t height,
+        ImageInfo(const webgl::FormatUsageInfo* format, uint32_t width, uint32_t height,
                   uint32_t depth, bool isDataInitialized)
             : mFormat(format)
             , mWidth(width)
@@ -138,7 +138,7 @@ public:
             , mDepth(depth)
             , mIsDataInitialized(isDataInitialized)
         {
-            MOZ_ASSERT(mFormat != LOCAL_GL_NONE);
+            MOZ_ASSERT(mFormat);
             MOZ_ASSERT_IF(!IsCompressedTextureFormat(mFormat.get()),
                           mFormat != UnsizedInternalFormatFromInternalFormat(mFormat));
         }
