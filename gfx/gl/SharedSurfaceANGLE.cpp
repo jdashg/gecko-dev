@@ -19,14 +19,21 @@ static EGLSurface
 CreatePBufferSurface(GLLibraryEGL* egl,
                      EGLDisplay display,
                      EGLConfig config,
-                     const gfx::IntSize& size)
+                     const gfx::IntSize& size,
+                     bool hasAlpha)
 {
     auto width = size.width;
     auto height = size.height;
 
+    EGLint texFormat = hasAlpha ? LOCAL_EGL_TEXTURE_RGBA : LOCAL_EGL_TEXTURE_RGB;
+
     EGLint attribs[] = {
         LOCAL_EGL_WIDTH, width,
         LOCAL_EGL_HEIGHT, height,
+
+        LOCAL_EGL_TEXTURE_TARGET, LOCAL_EGL_TEXTURE_2D,
+        LOCAL_EGL_TEXTURE_FORMAT, texFormat,
+
         LOCAL_EGL_NONE
     };
 
@@ -54,11 +61,12 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
         return nullptr;
 
     EGLDisplay display = egl->Display();
-    EGLSurface pbuffer = CreatePBufferSurface(egl, display, config, size);
+    EGLSurface pbuffer = CreatePBufferSurface(egl, display, config, size, hasAlpha);
     if (!pbuffer)
         return nullptr;
 
-    // Declare everything before 'goto's.
+    // Extract the share handle.
+
     HANDLE shareHandle = nullptr;
     bool ok = egl->fQuerySurfacePointerANGLE(display,
                                              pbuffer,
@@ -75,6 +83,12 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
                                    &opaqueKeyedMutex);
     RefPtr<IDXGIKeyedMutex> keyedMutex = static_cast<IDXGIKeyedMutex*>(opaqueKeyedMutex);
 
+    // Bind it to a texture.
+    gl->MakeCurrent();
+
+    GLuint tex = 0;
+    gl->fGenTextures(1, &tex);
+
     GLuint fence = 0;
     if (gl->IsExtensionSupported(GLContext::NV_fence)) {
         gl->MakeCurrent();
@@ -83,7 +97,7 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
 
     typedef SharedSurface_ANGLEShareHandle ptrT;
     UniquePtr<ptrT> ret( new ptrT(gl, egl, size, hasAlpha, context,
-                                  pbuffer, shareHandle, keyedMutex, fence) );
+                                  pbuffer, shareHandle, keyedMutex, tex, fence) );
     return Move(ret);
 }
 
@@ -101,9 +115,10 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
                                                                EGLSurface pbuffer,
                                                                HANDLE shareHandle,
                                                                const RefPtr<IDXGIKeyedMutex>& keyedMutex,
+                                                               GLuint tex,
                                                                GLuint fence)
     : SharedSurface(SharedSurfaceType::EGLSurfaceANGLE,
-                    AttachmentType::Screen,
+                    AttachmentType::GLTexture,
                     gl,
                     size,
                     hasAlpha,
@@ -113,6 +128,7 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
     , mPBuffer(pbuffer)
     , mShareHandle(shareHandle)
     , mKeyedMutex(keyedMutex)
+    , mTex(tex)
     , mFence(fence)
 {
 }
@@ -122,8 +138,10 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 {
     mEGL->fDestroySurface(Display(), mPBuffer);
 
+    mGL->MakeCurrent();
+    mGL->fDeleteTextures(1, &mTex);
+
     if (mFence) {
-        mGL->MakeCurrent();
         mGL->fDeleteFences(1, &mFence);
     }
 }
@@ -131,12 +149,19 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 void
 SharedSurface_ANGLEShareHandle::LockProdImpl()
 {
-    GLContextEGL::Cast(mGL)->SetEGLSurfaceOverride(mPBuffer);
+    ScopedBindTexture scopedTex(mGL, mTex);
+
+    MOZ_ALWAYS_TRUE( mEGL->fBindTexImage(mEGL->Display(), mPBuffer,
+                                         LOCAL_EGL_BACK_BUFFER) );
 }
 
 void
 SharedSurface_ANGLEShareHandle::UnlockProdImpl()
 {
+    ScopedBindTexture scopedTex(mGL, mTex);
+
+    MOZ_ALWAYS_TRUE( mEGL->fReleaseTexImage(mEGL->Display(), mPBuffer,
+                                            LOCAL_EGL_BACK_BUFFER) );
 }
 
 void
@@ -298,6 +323,10 @@ FillPBufferAttribs_ByBits(nsTArray<EGLint>& aAttrs,
 
     A2(LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT);
     A2(LOCAL_EGL_SURFACE_TYPE, LOCAL_EGL_PBUFFER_BIT);
+
+    EGLint bindToTextureEnum = alphaBits ? LOCAL_EGL_BIND_TO_TEXTURE_RGBA
+                                         : LOCAL_EGL_BIND_TO_TEXTURE_RGB;
+    A2(bindToTextureEnum, LOCAL_EGL_TRUE);
 
     A2(LOCAL_EGL_RED_SIZE, redBits);
     A2(LOCAL_EGL_GREEN_SIZE, greenBits);

@@ -2259,7 +2259,7 @@ GLContext::AssertNotPassingStackBufferToTheGL(const void* ptr)
   // see that this assert is wrong and revert to the conservative and safe
   // approach of only asserting when address and someStackAddress are
   // on the same page.
-  bool isStackAddress = pageDistance <= 1;
+  bool isStackAddress = false;// pageDistance <= 1;
   MOZ_ASSERT(!isStackAddress,
              "Please don't pass stack arrays to the GL. "
              "Consider using HeapCopyOfStackArray. "

@@ -45,6 +45,7 @@ protected:
     RefPtr<IDXGIKeyedMutex> mConsumerKeyedMutex;
     RefPtr<ID3D11Texture2D> mConsumerTexture;
 
+    const GLuint mTex;
     const GLuint mFence;
 
     SharedSurface_ANGLEShareHandle(GLContext* gl,
@@ -55,6 +56,7 @@ protected:
                                    EGLSurface pbuffer,
                                    HANDLE shareHandle,
                                    const RefPtr<IDXGIKeyedMutex>& keyedMutex,
+                                   GLuint tex,
                                    GLuint fence);
 
     EGLDisplay Display();
@@ -64,6 +66,8 @@ public:
 
     virtual void LockProdImpl() override;
     virtual void UnlockProdImpl() override;
+
+    virtual GLuint ProdTexture() override { return mTex; }
 
     virtual void Fence() override;
     virtual void ProducerAcquireImpl() override;
