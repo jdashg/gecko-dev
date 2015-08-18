@@ -27,7 +27,7 @@ ThreadLocal<EGLContext> GLLibraryEGL::sCurrentContext;
 #endif
 
 // should match the order of EGLExtensions, and be null-terminated.
-static const char *sEGLExtensionNames[] = {
+static const char* sEGLExtensionNames[] = {
     "EGL_KHR_image_base",
     "EGL_KHR_image_pixmap",
     "EGL_KHR_gl_texture_2D_image",
@@ -38,8 +38,8 @@ static const char *sEGLExtensionNames[] = {
     "EGL_KHR_fence_sync",
     "EGL_ANDROID_native_fence_sync",
     "EGL_ANDROID_image_crop",
-    "ANGLE_platform_angle",
-    "ANGLE_platform_angle_d3d"
+    "EGL_ANGLE_platform_angle",
+    "EGL_ANGLE_platform_angle_d3d"
 };
 
 #if defined(ANDROID)

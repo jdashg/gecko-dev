@@ -362,7 +362,6 @@ GLScreenBuffer::AssureBlitted()
         MOZ_ASSERT(drawFB != 0);
         MOZ_ASSERT(drawFB != readFB);
         MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
-        MOZ_ASSERT(mDraw->mSize == mRead->Size());
 
         ScopedBindFramebuffer boundFB(mGL);
         ScopedGLState scissor(mGL, LOCAL_GL_SCISSOR_TEST, false);
@@ -370,13 +369,19 @@ GLScreenBuffer::AssureBlitted()
         BindReadFB_Internal(drawFB);
         BindDrawFB_Internal(readFB);
 
-        const gfx::IntSize&  srcSize = mDraw->mSize;
-        const gfx::IntSize& destSize = mRead->Size();
+        MOZ_ASSERT(mDraw->mSize == mRead->Size());
+        const gfx::IntSize& blitSize = mDraw->mSize;
 
-        mGL->raw_fBlitFramebuffer(0, 0,  srcSize.width,  srcSize.height,
-                                  0, 0, destSize.width, destSize.height,
+        mGL->raw_fBlitFramebuffer(0, 0, blitSize.width, blitSize.height,
+                                  0, 0, blitSize.width, blitSize.height,
                                   LOCAL_GL_COLOR_BUFFER_BIT,
                                   LOCAL_GL_NEAREST);
+
+        BindReadFB_Internal(readFB);
+        uint32_t pixel = 3;
+
+        mGL->raw_fReadPixels(blitSize.width / 2, blitSize.height / 2, 1, 1, LOCAL_GL_RGBA,
+                             LOCAL_GL_UNSIGNED_BYTE, &pixel);
         // Done!
     }
 

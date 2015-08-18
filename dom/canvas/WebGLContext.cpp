@@ -1517,9 +1517,21 @@ WebGLContext::PresentScreenBuffer()
     GLScreenBuffer* screen = gl->Screen();
     MOZ_ASSERT(screen);
 
+    {
+        gl::ScopedBindFramebuffer autoFB(gl, 0);
+        uint32_t pixel = 3;
+        gl->fReadPixels(mWidth / 2, mHeight / 2, 1, 1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, &pixel);
+    }
+
     if (!screen->PublishFrame(screen->Size())) {
         ForceLoseContext();
         return false;
+    }
+
+    {
+        gl::ScopedBindFramebuffer autoFB(gl, 0);
+        uint32_t pixel = 3;
+        gl->fReadPixels(mWidth / 2, mHeight / 2, 1, 1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, &pixel);
     }
 
     if (!mOptions.preserveDrawingBuffer) {
