@@ -89,6 +89,11 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
     GLuint tex = 0;
     gl->fGenTextures(1, &tex);
 
+    {
+        ScopedBindTexture scopedTex(gl, tex);
+        MOZ_ALWAYS_TRUE(egl->fBindTexImage(egl->Display(), pbuffer, LOCAL_EGL_BACK_BUFFER));
+    }
+
     GLuint fence = 0;
     if (gl->IsExtensionSupported(GLContext::NV_fence)) {
         gl->MakeCurrent();
@@ -136,32 +141,30 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
 
 SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 {
-    mEGL->fDestroySurface(Display(), mPBuffer);
-
     mGL->MakeCurrent();
+
+    {
+        ScopedBindTexture scopedTex(mGL, mTex);
+        MOZ_ALWAYS_TRUE(mEGL->fReleaseTexImage(mEGL->Display(), mPBuffer, LOCAL_EGL_BACK_BUFFER));
+    }
+
     mGL->fDeleteTextures(1, &mTex);
 
     if (mFence) {
         mGL->fDeleteFences(1, &mFence);
     }
+
+    mEGL->fDestroySurface(Display(), mPBuffer);
 }
 
 void
 SharedSurface_ANGLEShareHandle::LockProdImpl()
 {
-    ScopedBindTexture scopedTex(mGL, mTex);
-
-    MOZ_ALWAYS_TRUE( mEGL->fBindTexImage(mEGL->Display(), mPBuffer,
-                                         LOCAL_EGL_BACK_BUFFER) );
 }
 
 void
 SharedSurface_ANGLEShareHandle::UnlockProdImpl()
 {
-    ScopedBindTexture scopedTex(mGL, mTex);
-
-    MOZ_ALWAYS_TRUE( mEGL->fReleaseTexImage(mEGL->Display(), mPBuffer,
-                                            LOCAL_EGL_BACK_BUFFER) );
 }
 
 void
