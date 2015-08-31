@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=8 sts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set ts=4 sts=4 et sw=4 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -817,6 +817,10 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 !nsCocoaFeatures::IsAtLeastVersion(10,8,3))
             {
                 MarkUnsupported(GLFeature::depth_texture);
+            }
+
+            if (!nsCocoaFeatures::IsAtLeastVersion(10,9,0)) {
+                MarkUnsupported(GLFeature::framebuffer_multisample);
             }
 #endif
         }
@@ -1693,28 +1697,29 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         raw_fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
         raw_fGetIntegerv(LOCAL_GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
-#ifdef XP_MACOSX
         if (mWorkAroundDriverBugs) {
+#ifdef XP_MACOSX
             if (mVendor == GLVendor::Intel) {
-                // see bug 737182 for 2D textures, bug 684882 for cube map textures.
-                mMaxTextureSize        = std::min(mMaxTextureSize,        4096);
-                mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 512);
-                // for good measure, we align renderbuffers on what we do for 2D textures
-                mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize,   4096);
-                mNeedsTextureSizeChecks = true;
+                if (!nsCocoaFeatures::IsAtLeastVersion(10,9,0)) {
+                    // see bug 737182 for 2D textures, bug 684882 for cube map textures.
+                    mMaxTextureSize        = std::min(mMaxTextureSize,        4096);
+                    mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 512);
+                    // for good measure, we align renderbuffers on what we do for 2D textures
+                    mMaxRenderbufferSize   = std::min(mMaxRenderbufferSize,   4096);
+                    mNeedsTextureSizeChecks = true;
+                }
             } else if (mVendor == GLVendor::NVIDIA) {
-                if (nsCocoaFeatures::OnMountainLionOrLater()) {
+                if (!nsCocoaFeatures::IsAtLeastVersion(10,9,0)) {
                     // See bug 879656.  8192 fails, 8191 works.
                     mMaxTextureSize = std::min(mMaxTextureSize, 8191);
                     mMaxRenderbufferSize = std::min(mMaxRenderbufferSize, 8191);
-                } else {
+                    mNeedsTextureSizeChecks = true;
+                } else if (!nsCocoaFeatures::IsAtLeastVersion(10,8,0)) {
                     // See bug 877949.
                     mMaxTextureSize = std::min(mMaxTextureSize, 4096);
                     mMaxRenderbufferSize = std::min(mMaxRenderbufferSize, 4096);
+                    mNeedsTextureSizeChecks = true;
                 }
-
-                // Part of the bug 879656, but it also doesn't hurt the 877949
-                mNeedsTextureSizeChecks = true;
             }
         }
 #endif
