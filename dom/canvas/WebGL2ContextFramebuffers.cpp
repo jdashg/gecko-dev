@@ -378,7 +378,7 @@ WebGL2Context::FramebufferTextureLayer(GLenum target, GLenum attachment,
         if (level < 0)
             return ErrorInvalidValue("framebufferTextureLayer: layer must be >= 0.");
 
-        switch (texture->Target()) {
+        switch (texture->Target().get()) {
         case LOCAL_GL_TEXTURE_3D:
             if ((GLuint) layer >= mGLMax3DTextureSize) {
                 return ErrorInvalidValue("framebufferTextureLayer: layer must be < "

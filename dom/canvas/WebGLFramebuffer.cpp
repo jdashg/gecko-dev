@@ -591,7 +591,7 @@ WebGLFramebuffer::FramebufferTextureLayer(FBAttachment attachment, WebGLTexture*
     MOZ_ASSERT(tex);
 
     WebGLFBAttachPoint& attachPoint = GetAttachPoint(attachment);
-    TexImageTarget texImageTarget = tex->Target();
+    TexImageTarget texImageTarget = tex->Target().get();
     attachPoint.SetTexImageLayer(tex, texImageTarget, level, layer);
 
     InvalidateFramebufferStatus();
