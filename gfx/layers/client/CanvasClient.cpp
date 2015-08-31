@@ -197,7 +197,8 @@ public:
   already_AddRefed<BufferTextureClient> CreateR8G8B8AX8() {
     RefPtr<BufferTextureClient> ret;
 
-    bool areRGBAFormatsBroken = mLayersBackend == LayersBackend::LAYERS_BASIC;
+    bool areRGBAFormatsBroken = (mLayersBackend == LayersBackend::LAYERS_BASIC ||
+                                 mLayersBackend == LayersBackend::LAYERS_D3D9);
     if (!areRGBAFormatsBroken) {
       gfx::SurfaceFormat format = mHasAlpha ? gfx::SurfaceFormat::R8G8B8A8
                                             : gfx::SurfaceFormat::R8G8B8X8;
