@@ -38,8 +38,8 @@ static const char* sEGLExtensionNames[] = {
     "EGL_KHR_fence_sync",
     "EGL_ANDROID_native_fence_sync",
     "EGL_ANDROID_image_crop",
-    "EGL_ANGLE_platform_angle",
-    "EGL_ANGLE_platform_angle_d3d"
+    "ANGLE_platform_angle",
+    "ANGLE_platform_angle_d3d"
 };
 
 #if defined(ANDROID)
@@ -309,7 +309,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
     mEGLDisplay = EGL_NO_DISPLAY;
     // Check the ANGLE support the system has
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    mIsANGLE = IsExtensionSupported(ANGLE_platform_angle_d3d);
+    mIsANGLE = IsExtensionSupported(ANGLE_platform_angle);
 
     if (mIsANGLE) {
         bool accelAngleSupport = IsAccelAngleSupported(gfxInfo);

@@ -91,7 +91,8 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
 
     {
         ScopedBindTexture scopedTex(gl, tex);
-        MOZ_ALWAYS_TRUE(egl->fBindTexImage(egl->Display(), pbuffer, LOCAL_EGL_BACK_BUFFER));
+        MOZ_ALWAYS_TRUE(egl->fBindTexImage(egl->Display(), pbuffer,
+                                           LOCAL_EGL_BACK_BUFFER));
     }
 
     GLuint fence = 0;
@@ -145,7 +146,8 @@ SharedSurface_ANGLEShareHandle::~SharedSurface_ANGLEShareHandle()
 
     {
         ScopedBindTexture scopedTex(mGL, mTex);
-        MOZ_ALWAYS_TRUE(mEGL->fReleaseTexImage(mEGL->Display(), mPBuffer, LOCAL_EGL_BACK_BUFFER));
+        MOZ_ALWAYS_TRUE(mEGL->fReleaseTexImage(mEGL->Display(), mPBuffer,
+                                               LOCAL_EGL_BACK_BUFFER));
     }
 
     mGL->fDeleteTextures(1, &mTex);
