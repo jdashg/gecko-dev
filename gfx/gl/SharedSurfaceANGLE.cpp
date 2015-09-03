@@ -73,6 +73,7 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
                                    pbuffer,
                                    LOCAL_EGL_DXGI_KEYED_MUTEX_ANGLE,
                                    &opaqueKeyedMutex);
+    MOZ_ASSERT(opaqueKeyedMutex);
     RefPtr<IDXGIKeyedMutex> keyedMutex = static_cast<IDXGIKeyedMutex*>(opaqueKeyedMutex);
 
     GLuint fence = 0;
