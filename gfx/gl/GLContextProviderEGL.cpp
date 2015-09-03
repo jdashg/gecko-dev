@@ -351,7 +351,8 @@ GLContextEGL::SetEGLSurfaceOverride(EGLSurface surf) {
     }
 
     mSurfaceOverride = surf;
-    MakeCurrent(true);
+    DebugOnly<bool> ok = MakeCurrent(true);
+    MOZ_ASSERT(ok);
 }
 
 bool
