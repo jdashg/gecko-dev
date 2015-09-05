@@ -23,8 +23,8 @@ enum class GLContextType {
 };
 
 enum class OriginPos : uint8_t {
-  TopLeft,
-  BottomLeft
+    TopLeft,
+    BottomLeft
 };
 
 struct GLFormats
