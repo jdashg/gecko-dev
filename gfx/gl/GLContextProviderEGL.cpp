@@ -878,9 +878,9 @@ already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPBufferOffscreenContext(CreateContextFlags flags,
                                                const mozilla::gfx::IntSize& size)
 {
-    const bool alpha = (flags & CreateContextFlags::SUPPORT_ALPHA);
-    const bool depth = (flags & CreateContextFlags::SUPPORT_DEPTH);
-    const bool stencil = (flags & CreateContextFlags::SUPPORT_STENCIL);
+    const bool alpha = bool(flags & CreateContextFlags::SUPPORT_ALPHA);
+    const bool depth = bool(flags & CreateContextFlags::SUPPORT_DEPTH);
+    const bool stencil = bool(flags & CreateContextFlags::SUPPORT_STENCIL);
 
     nsTArray<EGLint> configAttribList;
     FillContextAttribs(alpha, depth, stencil, &configAttribList);
