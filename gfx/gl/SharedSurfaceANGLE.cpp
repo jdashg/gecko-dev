@@ -41,17 +41,14 @@ CreatePBufferSurface(GLLibraryEGL* egl,
 }
 
 /*static*/ UniquePtr<SharedSurface_ANGLEShareHandle>
-SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
-                                       EGLContext context, EGLConfig config,
+SharedSurface_ANGLEShareHandle::Create(GLContext* gl, EGLConfig config,
                                        const gfx::IntSize& size, bool hasAlpha)
 {
     GLLibraryEGL* egl = &sEGLLibrary;
     MOZ_ASSERT(egl);
     MOZ_ASSERT(egl->IsExtensionSupported(
                GLLibraryEGL::ANGLE_surface_d3d_texture_2d_share_handle));
-
-    if (!context || !config)
-        return nullptr;
+    MOZ_ASSERT(config);
 
     EGLDisplay display = egl->Display();
     EGLSurface pbuffer = CreatePBufferSurface(egl, display, config, size);
@@ -82,8 +79,8 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl,
     }
 
     typedef SharedSurface_ANGLEShareHandle ptrT;
-    UniquePtr<ptrT> ret( new ptrT(gl, egl, size, hasAlpha, context,
-                                  pbuffer, shareHandle, keyedMutex, fence) );
+    UniquePtr<ptrT> ret( new ptrT(gl, egl, size, hasAlpha, pbuffer, shareHandle,
+                                  keyedMutex, fence) );
     return Move(ret);
 }
 
@@ -97,7 +94,6 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
                                                                GLLibraryEGL* egl,
                                                                const gfx::IntSize& size,
                                                                bool hasAlpha,
-                                                               EGLContext context,
                                                                EGLSurface pbuffer,
                                                                HANDLE shareHandle,
                                                                const RefPtr<IDXGIKeyedMutex>& keyedMutex,
@@ -109,7 +105,6 @@ SharedSurface_ANGLEShareHandle::SharedSurface_ANGLEShareHandle(GLContext* gl,
                     hasAlpha,
                     true)
     , mEGL(egl)
-    , mContext(context)
     , mPBuffer(pbuffer)
     , mShareHandle(shareHandle)
     , mKeyedMutex(keyedMutex)
@@ -294,11 +289,10 @@ SurfaceFactory_ANGLEShareHandle::Create(GLContext* gl, const SurfaceCaps& caps,
     if (!egl->IsExtensionSupported(ext))
         return nullptr;
 
-    EGLContext context = GLContextEGL::Cast(gl)->mContext;
     EGLConfig config = GLContextEGL::Cast(gl)->mConfig;
 
     typedef SurfaceFactory_ANGLEShareHandle ptrT;
-    UniquePtr<ptrT> ret( new ptrT(gl, caps, allocator, flags, egl, context, config) );
+    UniquePtr<ptrT> ret( new ptrT(gl, caps, allocator, flags, egl, config) );
     return Move(ret);
 }
 
@@ -307,12 +301,10 @@ SurfaceFactory_ANGLEShareHandle::SurfaceFactory_ANGLEShareHandle(GLContext* gl,
                                                                  const RefPtr<layers::ISurfaceAllocator>& allocator,
                                                                  const layers::TextureFlags& flags,
                                                                  GLLibraryEGL* egl,
-                                                                 EGLContext context,
                                                                  EGLConfig config)
     : SurfaceFactory(SharedSurfaceType::EGLSurfaceANGLE, gl, caps, allocator, flags)
     , mProdGL(gl)
     , mEGL(egl)
-    , mContext(context)
     , mConfig(config)
 { }
 

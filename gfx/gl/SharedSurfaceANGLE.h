@@ -23,7 +23,6 @@ class SharedSurface_ANGLEShareHandle
 {
 public:
     static UniquePtr<SharedSurface_ANGLEShareHandle> Create(GLContext* gl,
-                                                            EGLContext context,
                                                             EGLConfig config,
                                                             const gfx::IntSize& size,
                                                             bool hasAlpha);
@@ -36,7 +35,6 @@ public:
 
 protected:
     GLLibraryEGL* const mEGL;
-    const EGLContext mContext;
     const EGLSurface mPBuffer;
 public:
     const HANDLE mShareHandle;
@@ -51,7 +49,6 @@ protected:
                                    GLLibraryEGL* egl,
                                    const gfx::IntSize& size,
                                    bool hasAlpha,
-                                   EGLContext context,
                                    EGLSurface pbuffer,
                                    HANDLE shareHandle,
                                    const RefPtr<IDXGIKeyedMutex>& keyedMutex,
@@ -94,7 +91,6 @@ class SurfaceFactory_ANGLEShareHandle
 protected:
     GLContext* const mProdGL;
     GLLibraryEGL* const mEGL;
-    const EGLContext mContext;
     const EGLConfig mConfig;
 
 public:
@@ -107,12 +103,11 @@ protected:
     SurfaceFactory_ANGLEShareHandle(GLContext* gl, const SurfaceCaps& caps,
                                     const RefPtr<layers::ISurfaceAllocator>& allocator,
                                     const layers::TextureFlags& flags, GLLibraryEGL* egl,
-                                    EGLContext context, EGLConfig config);
+                                    EGLConfig config);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {
         bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_ANGLEShareHandle::Create(mProdGL, mContext, mConfig, size,
-                                                      hasAlpha);
+        return SharedSurface_ANGLEShareHandle::Create(mProdGL, mConfig, size, hasAlpha);
     }
 };
 
