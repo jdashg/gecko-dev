@@ -896,7 +896,7 @@ DoesAttribPresenceMatch(GLLibraryEGL& egl, EGLConfig config, EGLint attrib,
 }
 
 static EGLConfig
-ChooseConfig(EGLLibraryEGL* egl, const SurfaceCaps& minCaps)
+ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps)
 {
     nsTArray<EGLint> configAttribList;
     FillContextAttribs(minCaps.alpha, minCaps.depth, minCaps.stencil, &configAttribList);
@@ -905,22 +905,20 @@ ChooseConfig(EGLLibraryEGL* egl, const SurfaceCaps& minCaps)
 
     // We're guaranteed to get at least minCaps, and the sorting dictated by the spec for
     // eglChooseConfig reasonably assures that a reasonable 'best' config is on top.
-    EGLConfig configs[1];
+    const EGLint kMaxConfigs = 1;
+    EGLConfig configs[kMaxConfigs];
     EGLint foundConfigs = 0;
-    if (!egl->fChooseConfig(egl->Display(), configAttribs, configs, numConfigs,
+    if (!egl->fChooseConfig(egl->Display(), configAttribs, configs, kMaxConfigs,
                             &foundConfigs)
         || foundConfigs == 0)
     {
         return EGL_NO_CONFIG;
     }
 
-    EGLConfig config = configs[0];
-    MOZ_ASSERT(config != EGL_NO_CONFIG);
-
-    return config;
+    return configs[0];
 }
 
-already_AddRefed<GLContextEGL>
+/*static*/ already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPBufferOffscreenContext(const mozilla::gfx::IntSize& size,
                                                const SurfaceCaps& minCaps)
 {
@@ -959,7 +957,7 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(const mozilla::gfx::IntSize& size
     return gl.forget();
 }
 
-already_AddRefed<GLContextEGL>
+/*static*/ already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPixmapOffscreenContext(const mozilla::gfx::IntSize& size)
 {
     gfxASurface *thebesSurface = nullptr;
@@ -1003,16 +1001,12 @@ already_AddRefed<GLContext>
 GLContextProviderEGL::CreateHeadless(CreateContextFlags flags)
 {
     bool forceEnableHardware = bool(flags & CreateContextFlags::FORCE_ENABLE_HARDWARE);
-    if (!sEGLLibrary.EnsureInitialized(forceEnableHardware)
+    if (!sEGLLibrary.EnsureInitialized(forceEnableHardware))
         return nullptr;
 
     mozilla::gfx::IntSize dummySize = mozilla::gfx::IntSize(16, 16);
-    nsRefPtr<GLContext> glContext;
-    glContext = GLContextEGL::CreateEGLPBufferOffscreenContext(dummySize);
-    if (!glContext)
-        return nullptr;
-
-    return glContext.forget();
+    SurfaceCaps dummyCaps = SurfaceCaps::Any();
+    return GLContextEGL::CreateEGLPBufferOffscreenContext(dummySize, dummyCaps);
 }
 
 // Under EGL, on Android, pbuffers are supported fine, though
@@ -1023,7 +1017,7 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
                                       CreateContextFlags flags)
 {
     bool forceEnableHardware = bool(flags & CreateContextFlags::FORCE_ENABLE_HARDWARE);
-    if (!sEGLLibrary.EnsureInitialized(forceEnableHardware)
+    if (!sEGLLibrary.EnsureInitialized(forceEnableHardware))
         return nullptr;
 
     SurfaceCaps minBackbufferCaps = minCaps;
@@ -1034,7 +1028,7 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
     }
 
     RefPtr<GLContext> gl;
-    gl = GLContextEGL::CreateEGLPBufferOffscreenContext(dummySize, minBackbufferCaps);
+    gl = GLContextEGL::CreateEGLPBufferOffscreenContext(size, minBackbufferCaps);
     if (!gl)
         return nullptr;
 

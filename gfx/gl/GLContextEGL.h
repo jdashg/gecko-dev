@@ -112,7 +112,8 @@ public:
     CreateEGLPixmapOffscreenContext(const gfx::IntSize& size);
 
     static already_AddRefed<GLContextEGL>
-    CreateEGLPBufferOffscreenContext(const gfx::IntSize& size);
+    CreateEGLPBufferOffscreenContext(const gfx::IntSize& size,
+                                     const SurfaceCaps& minCaps);
 
 protected:
     friend class GLContextProviderEGL;

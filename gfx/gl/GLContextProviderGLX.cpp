@@ -1267,8 +1267,7 @@ GLContextProviderGLX::CreateOffscreen(const IntSize& size,
         minBackbufferCaps.stencil = false;
     }
 
-    RefPtr<GLContext> gl;
-    gl = GLContextEGL::CreateOffscreenPixmapContext(size, minBackbufferCaps);
+    RefPtr<GLContext> gl = CreateOffscreenPixmapContext(size, minBackbufferCaps);
     if (!gl)
         return nullptr;
 

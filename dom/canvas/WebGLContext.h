@@ -8,6 +8,7 @@
 
 #include <stdarg.h>
 
+#include "GLContextTypes.h"
 #include "GLDefs.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedInt.h"
@@ -24,6 +25,7 @@
 #include "nsLayoutUtils.h"
 #include "nsTArray.h"
 #include "nsWrapperCache.h"
+#include "SurfaceTypes.h"
 
 #ifdef XP_MACOSX
 #include "ForceDiscreteGPUHelperCGL.h"
@@ -1153,11 +1155,19 @@ public:
 protected:
     bool InitWebGL2();
 
+    bool CreateAndInitGL(bool forceEnabled);
+    bool ResizeBackbuffer(uint32_t width, uint32_t height);
+
+    typedef already_AddRefed<gl::GLContext> FnCreateGL_T(const gl::SurfaceCaps& caps,
+                                                         gl::CreateContextFlags flags,
+                                                         WebGLContext* webgl);
+
+    bool CreateAndInitGLWith(FnCreateGL_T fnCreateGL, const gl::SurfaceCaps& baseCaps,
+                             gl::CreateContextFlags flags);
+
     // -------------------------------------------------------------------------
     // Validation functions (implemented in WebGLContextValidate.cpp)
-    bool CreateOffscreenGL(bool forceEnabled);
     bool InitAndValidateGL();
-    bool ResizeBackbuffer(uint32_t width, uint32_t height);
     bool ValidateBlendEquationEnum(GLenum cap, const char* info);
     bool ValidateBlendFuncDstEnum(GLenum mode, const char* info);
     bool ValidateBlendFuncSrcEnum(GLenum mode, const char* info);
