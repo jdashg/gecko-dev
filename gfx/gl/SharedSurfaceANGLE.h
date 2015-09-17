@@ -94,8 +94,8 @@ class SurfaceFactory_ANGLEShareHandle
 protected:
     GLContext* const mProdGL;
     GLLibraryEGL* const mEGL;
-    EGLContext mContext;
-    EGLConfig mConfig;
+    const EGLContext mContext;
+    const EGLConfig mConfig;
 
 public:
     static UniquePtr<SurfaceFactory_ANGLEShareHandle> Create(GLContext* gl,
@@ -107,13 +107,12 @@ protected:
     SurfaceFactory_ANGLEShareHandle(GLContext* gl, const SurfaceCaps& caps,
                                     const RefPtr<layers::ISurfaceAllocator>& allocator,
                                     const layers::TextureFlags& flags, GLLibraryEGL* egl,
-                                    bool* const out_success);
+                                    EGLContext context, EGLConfig config);
 
     virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {
         bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_ANGLEShareHandle::Create(mProdGL,
-                                                      mContext, mConfig,
-                                                      size, hasAlpha);
+        return SharedSurface_ANGLEShareHandle::Create(mProdGL, mContext, mConfig, size,
+                                                      hasAlpha);
     }
 };
 

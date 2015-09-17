@@ -92,16 +92,12 @@ public:
     // for the lifetime of this context.
     void HoldSurface(gfxASurface *aSurf);
 
-    EGLContext GetEGLContext() {
-        return mContext;
-    }
-
-    EGLSurface GetEGLSurface() {
+    EGLSurface GetEGLSurface() const {
         return mSurface;
     }
 
-    EGLDisplay GetEGLDisplay() {
-        return EGL_DISPLAY();
+    EGLDisplay GetEGLDisplay() const {
+        return sEGLLibrary.Display();
     }
 
     bool BindTex2DOffscreen(GLContext *aOffscreen);
@@ -118,10 +114,14 @@ public:
 protected:
     friend class GLContextProviderEGL;
 
-    EGLConfig  mConfig;
+public:
+    const EGLConfig  mConfig;
+protected:
     EGLSurface mSurface;
+public:
+    const EGLContext mContext;
+protected:
     EGLSurface mSurfaceOverride;
-    EGLContext mContext;
     nsRefPtr<gfxASurface> mThebesSurface;
     bool mBound;
 
