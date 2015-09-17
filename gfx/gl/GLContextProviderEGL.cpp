@@ -875,13 +875,23 @@ FillContextAttribs(bool alpha, bool depth, bool stencil, nsTArray<EGLint>* out)
 }
 
 static bool
-HasAttrib(GLLibraryEGL& egl, EGLConfig config, EGLint attrib)
+HasAttrib(GLLibraryEGL* egl, EGLConfig config, EGLint attrib)
 {
     EGLint bits = 0;
-    egl.fGetConfigAttrib(egl.Display(), config, attrib, &bits);
-    MOZ_ASSERT(egl.fGetError() == LOCAL_EGL_SUCCESS);
+    egl->fGetConfigAttrib(egl->Display(), config, attrib, &bits);
+    MOZ_ASSERT(egl->fGetError() == LOCAL_EGL_SUCCESS);
 
     return bool(bits);
+}
+
+static GLint
+GetAttrib(GLLibraryEGL* egl, EGLConfig config, EGLint attrib)
+{
+    EGLint bits = 0;
+    egl->fGetConfigAttrib(egl->Display(), config, attrib, &bits);
+    MOZ_ASSERT(egl->fGetError() == LOCAL_EGL_SUCCESS);
+
+    return bits;
 }
 
 static bool
@@ -896,7 +906,8 @@ DoesAttribPresenceMatch(GLLibraryEGL& egl, EGLConfig config, EGLint attrib,
 }
 
 static EGLConfig
-ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps)
+ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps,
+             SurfaceCaps* const out_configCaps)
 {
     nsTArray<EGLint> configAttribList;
     FillContextAttribs(minCaps.alpha, minCaps.depth, minCaps.stencil, &configAttribList);
@@ -915,14 +926,24 @@ ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps)
         return EGL_NO_CONFIG;
     }
 
-    return configs[0];
+    const EGLConfig config = configs[0];
+
+    *out_configCaps = minCaps; // Pick up any preserve, etc.
+    out_configCaps->color = true;
+    out_configCaps->alpha   = HasAttrib(egl, config, LOCAL_EGL_ALPHA_SIZE);
+    out_configCaps->depth   = HasAttrib(egl, config, LOCAL_EGL_DEPTH_SIZE);
+    out_configCaps->stencil = HasAttrib(egl, config, LOCAL_EGL_STENCIL_SIZE);
+    out_configCaps->bpp16 = (GetAttrib(egl, config, LOCAL_EGL_RED_SIZE) < 8);
+
+    return config;
 }
 
 /*static*/ already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPBufferOffscreenContext(const mozilla::gfx::IntSize& size,
                                                const SurfaceCaps& minCaps)
 {
-    EGLConfig config = ChooseConfig(&sEGLLibrary, minCaps);
+    SurfaceCaps configCaps;
+    EGLConfig config = ChooseConfig(&sEGLLibrary, minCaps, &configCaps);
     if (config == EGL_NO_CONFIG) {
         NS_WARNING("Failed to find a compatible config.");
         return nullptr;
@@ -940,7 +961,8 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(const mozilla::gfx::IntSize& size
         return nullptr;
     }
 
-    RefPtr<GLContextEGL> gl = GLContextEGL::CreateGLContext(minCaps, nullptr, true,
+
+    RefPtr<GLContextEGL> gl = GLContextEGL::CreateGLContext(configCaps, nullptr, true,
                                                             config, surface);
     if (!gl) {
         NS_WARNING("Failed to create GLContext from PBuffer");
@@ -1032,7 +1054,10 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
     if (!gl)
         return nullptr;
 
-    if (!gl->InitOffscreen(size, minCaps))
+    SurfaceCaps offscreenCaps = minCaps;
+    offscreenCaps.alpha = gl->Caps().alpha;
+
+    if (!gl->InitOffscreen(size, offscreenCaps))
         return nullptr;
 
     return gl.forget();
