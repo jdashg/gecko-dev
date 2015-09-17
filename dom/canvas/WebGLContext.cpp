@@ -939,6 +939,8 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     }
     MOZ_ASSERT(gl);
 
+    MOZ_ASSERT_IF(mOptions.alpha, gl->Caps().alpha);
+
     if (!ResizeBackbuffer(width, height)) {
         GenerateWarning("Initializing WebGL backbuffer failed.");
         return NS_ERROR_FAILURE;
