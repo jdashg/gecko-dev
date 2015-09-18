@@ -878,10 +878,6 @@ already_AddRefed<GLContextEGL>
 GLContextEGL::CreateEGLPBufferOffscreenContext(CreateContextFlags flags,
                                                const mozilla::gfx::IntSize& size)
 {
-    const bool alpha = bool(flags & CreateContextFlags::SUPPORT_ALPHA);
-    const bool depth = bool(flags & CreateContextFlags::SUPPORT_DEPTH);
-    const bool stencil = bool(flags & CreateContextFlags::SUPPORT_STENCIL);
-
     nsTArray<EGLint> configAttribList;
     FillContextAttribs(alpha, depth, stencil, &configAttribList);
 
@@ -899,18 +895,26 @@ GLContextEGL::CreateEGLPBufferOffscreenContext(CreateContextFlags flags,
     }
 
     EGLConfig config = EGL_NO_CONFIG;
-    for (EGLint i = 0; i < foundConfigs; i++) {
-        EGLConfig& cur = configs[i];
+    if (flags & CreateContextFlags::REQUIRE_BACKBUFFER_ATTRIBS) {
+        const bool alpha = bool(flags & CreateContextFlags::BACKBUFFER_ALPHA);
+        const bool depth = bool(flags & CreateContextFlags::BACKBUFFER_DEPTH);
+        const bool stencil = bool(flags & CreateContextFlags::BACKBUFFER_STENCIL);
 
-        bool doesMatch = true;
-        doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_ALPHA_SIZE, alpha);
-        doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_DEPTH_SIZE, depth);
-        doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_STENCIL_SIZE, stencil);
+        for (EGLint i = 0; i < foundConfigs; i++) {
+            EGLConfig& cur = configs[i];
 
-        if (doesMatch) {
-            config = cur;
-            break;
+            bool doesMatch = true;
+            doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_ALPHA_SIZE, alpha);
+            doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_DEPTH_SIZE, depth);
+            doesMatch &= DoesAttribPresenceMatch(sEGLLibrary, cur, LOCAL_EGL_STENCIL_SIZE, stencil);
+
+            if (doesMatch) {
+                config = cur;
+                break;
+            }
         }
+    } else {
+        config = configs[0];
     }
 
     if (config == EGL_NO_CONFIG) {

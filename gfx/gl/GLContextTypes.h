@@ -54,9 +54,10 @@ enum class CreateContextFlags : int8_t {
     ALLOW_OFFLINE_RENDERER = 1 << 2,
 
     // Ensure that later we'll be able to attach a backbuffer with these properties:
-    SUPPORT_ALPHA = 1 << 3,
-    SUPPORT_DEPTH = 1 << 4,
-    SUPPORT_STENCIL = 1 << 5,
+    REQUIRE_BACKBUFFER_ATTRIBS = 1 << 3,
+    BACKBUFFER_ALPHA = 1 << 4,
+    BACKBUFFER_DEPTH = 1 << 5,
+    BACKBUFFER_STENCIL = 1 << 6,
 };
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(CreateContextFlags)
 

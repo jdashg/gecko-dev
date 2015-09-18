@@ -1032,7 +1032,9 @@ protected:
     CheckedUint32 mGeneration;
 
     WebGLContextOptions mOptions;
-
+public:
+    const WebGLContextOptions& Options() const { return mOptions; }
+protected:
     bool mInvalidated;
     bool mResetLayer;
     bool mOptionsFrozen;

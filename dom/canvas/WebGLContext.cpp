@@ -553,11 +553,10 @@ CreateHeadlessNativeGL(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfx
     }
 
     nsRefPtr<GLContext> gl = gl::GLContextProvider::CreateHeadless(flags);
-    if (!gl) {
+    if (!gl || gl->IsANGLE()) {
         webgl->GenerateWarning("Error during native OpenGL init.");
         return nullptr;
     }
-    MOZ_ASSERT(!gl->IsANGLE());
 
     return gl.forget();
 }
@@ -572,30 +571,24 @@ CreateHeadlessANGLE(CreateContextFlags flags, const nsCOMPtr<nsIGfxInfo>& gfxInf
     nsRefPtr<GLContext> gl;
 
     // ANGLE doesn't really support non-alpha backbuffers.
-    flags |= CreateContextFlags::SUPPORT_ALPHA;
+    flags |= CreateContextFlags::REQUIRE_BACKBUFFER_ATTRIBS;
+    flags |= CreateContextFlags::BACKBUFFER_ALPHA;
 
-    // ANGLE also doesn't really support depth without stencil, and vice-versa.
-    // While we could fake that we don't have one or the other, instead, we *should* just
-    // fail to create a context without both. However, since the defaults are depth:true,
-    // stencil:false, many demos that rely on the implicit depth allocation will fail.
-    // Thus we must limp along for depth:true, stencil:false, but we shouldn't support
-    // depth:false, stencil:true.
+    const auto& options = webgl->Options();
 
-    // That is, if there's depth, give depth+stencil, else give neither.
-    if (flags & CreateContextFlags::SUPPORT_DEPTH) {
-        flags |= CreateContextFlags::SUPPORT_STENCIL;
-    } else {
-        flags &= ~CreateContextFlags::SUPPORT_DEPTH;
-        flags &= ~CreateContextFlags::SUPPORT_STENCIL;
+    if (!options.antialias) {
+        if (options.depth || options.stencil) {
+            flags |= CreateContextFlags::BACKBUFFER_DEPTH;
+            flags |= CreateContextFlags::BACKBUFFER_STENCIL;
+        }
     }
 
 #ifdef XP_WIN
     gl = gl::GLContextProviderEGL::CreateHeadless(flags);
-    if (!gl) {
+    if (!gl || !gl->IsANGLE()) {
         webgl->GenerateWarning("Error during ANGLE OpenGL init.");
         return nullptr;
     }
-    MOZ_ASSERT(gl->IsANGLE());
 #endif
 
     return gl.forget();
@@ -608,11 +601,10 @@ CreateHeadlessEGL(CreateContextFlags flags, WebGLContext* webgl)
 
 #ifdef ANDROID
     gl = gl::GLContextProviderEGL::CreateHeadless(flags);
-    if (!gl) {
+    if (!gl || gl->IsANGLE()) {
         webgl->GenerateWarning("Error during EGL OpenGL init.");
         return nullptr;
     }
-    MOZ_ASSERT(!gl->IsANGLE());
 #endif
 
     return gl.forget();
@@ -688,9 +680,10 @@ PopulateCapFallbackQueue(const SurfaceCaps& baseCaps,
 }
 
 static SurfaceCaps
-CreateBaseCaps(WebGLContext* webgl, const WebGLContextOptions& options,
-               const nsCOMPtr<nsIGfxInfo>& gfxInfo)
+CreateBaseCaps(WebGLContext* webgl, const nsCOMPtr<nsIGfxInfo>& gfxInfo)
 {
+    const auto& options = webgl->Options();
+
     SurfaceCaps baseCaps;
 
     baseCaps.color = true;
@@ -712,7 +705,8 @@ CreateBaseCaps(WebGLContext* webgl, const WebGLContextOptions& options,
 #ifdef MOZ_WIDGET_GONK
     layers::ISurfaceAllocator* surfAllocator = nullptr;
 
-    nsIWidget* docWidget = nsContentUtils::WidgetForDocument(mCanvasElement->OwnerDoc());
+    dom::HTMLCanvasElement* canvasElement = webgl->GetCanvas();
+    nsIWidget* docWidget = nsContentUtils::WidgetForDocument(canvasElement->OwnerDoc());
     if (docWidget) {
         layers::LayerManager* layerManager = docWidget->GetLayerManager();
         if (layerManager) {
@@ -741,8 +735,8 @@ CreateBaseCaps(WebGLContext* webgl, const WebGLContextOptions& options,
 }
 
 static bool
-CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
-                const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl)
+CreateOffscreenForHeadless(GLContext* gl, const WebGLContextOptions& options,
+                           const nsCOMPtr<nsIGfxInfo>& gfxInfo, WebGLContext* webgl)
 {
     SurfaceCaps baseCaps;
 
@@ -792,33 +786,65 @@ CreateOffscreen(GLContext* gl, const WebGLContextOptions& options,
     return created;
 }
 
+static
+already_AddRefed<GLContext>
+CreateGL(bool forceEnabled, WebGLContext* webgl)
+{
+
+}
+
 bool
-WebGLContext::CreateOffscreenGL(bool forceEnabled)
+WebGLContext::CreateAndInitGL(bool forceEnabled)
 {
     nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
 
-    SurfaceCaps baseCaps = CreateBaseCaps(this, mOptions, gfxInfo);
 
     CreateContextFlags flags = forceEnabled ? CreateContextFlags::FORCE_ENABLE_HARDWARE :
                                               CreateContextFlags::NONE;
 
-    if (mOptions.alpha)
-        flags |= CreateContextFlags::SUPPORT_ALPHA;
 
-    if (!mOptions.antialias) {
-        if (mOptions.depth)
-            flags |= CreateContextFlags::SUPPORT_DEPTH;
-        if (mOptions.stencil)
-            flags |= CreateContextFlags::SUPPORT_STENCIL;
-    }
 
-    gl = CreateHeadlessGL(flags, gfxInfo, this);
 
-    do {
-        if (!gl)
+
+
+
+
+    SurfaceCaps baseCaps = CreateBaseCaps(this, mOptions, gfxInfo);
+
+    std::queue<SurfaceCaps> fallbackCaps;
+    PopulateCapFallbackQueue(baseCaps, &fallbackCaps);
+
+    MOZ_ASSERT(!gl);
+
+    while (!fallbackCaps.empty()) {
+        SurfaceCaps& caps = fallbackCaps.front();
+
+        gl = CreateGL(forceEnabled, this);
+        if (gl)
             break;
 
-        if (!CreateOffscreen(gl, mOptions, gfxInfo, this))
+        fallbackCaps.pop();
+    }
+
+
+
+    return false;
+
+
+
+
+
+
+
+
+
+
+
+    MOZ_ASSERT(!gl);
+
+    do {
+        gl = CreateGL(flags, gfxInfo, this);
+        if (!gl)
             break;
 
         if (!InitAndValidateGL())
@@ -991,7 +1017,7 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     bool forceEnabled = Preferences::GetBool("webgl.force-enabled", false);
     ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
 
-    if (!CreateOffscreenGL(forceEnabled)) {
+    if (!CreateAndInitGL(forceEnabled)) {
         GenerateWarning("WebGL creation failed.");
         return NS_ERROR_FAILURE;
     }
