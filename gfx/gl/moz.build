@@ -71,7 +71,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'WGLLibrary.h',
     ]
     UNIFIED_SOURCES += [
-        'GLContextProviderEGL.cpp',
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
@@ -113,10 +112,6 @@ elif gl_provider == 'GLX':
     EXPORTS += [
         'SharedSurfaceGLX.h'
     ]
-else:
-    UNIFIED_SOURCES += [
-        'GLContextProvider%s.cpp' % gl_provider,
-    ]
 
 UNIFIED_SOURCES += [
     'AndroidNativeWindow.cpp',
@@ -127,6 +122,7 @@ UNIFIED_SOURCES += [
     'GLBlitHelper.cpp',
     'GLContext.cpp',
     'GLContextFeatures.cpp',
+    'GLContextProviderEGL.cpp',
     'GLContextTypes.cpp',
     'GLDebugUtils.cpp',
     'GLLibraryEGL.cpp',
