@@ -874,16 +874,6 @@ FillContextAttribs(bool alpha, bool depth, bool stencil, nsTArray<EGLint>* out)
     out->AppendElement(0);
 }
 
-static bool
-HasAttrib(GLLibraryEGL* egl, EGLConfig config, EGLint attrib)
-{
-    EGLint bits = 0;
-    egl->fGetConfigAttrib(egl->Display(), config, attrib, &bits);
-    MOZ_ASSERT(egl->fGetError() == LOCAL_EGL_SUCCESS);
-
-    return bool(bits);
-}
-
 static GLint
 GetAttrib(GLLibraryEGL* egl, EGLConfig config, EGLint attrib)
 {
@@ -892,17 +882,6 @@ GetAttrib(GLLibraryEGL* egl, EGLConfig config, EGLint attrib)
     MOZ_ASSERT(egl->fGetError() == LOCAL_EGL_SUCCESS);
 
     return bits;
-}
-
-static bool
-DoesAttribPresenceMatch(GLLibraryEGL& egl, EGLConfig config, EGLint attrib,
-                        bool shouldHaveBits)
-{
-    EGLint bits = 0;
-    egl.fGetConfigAttrib(egl.Display(), config, attrib, &bits);
-    MOZ_ASSERT(egl.fGetError() == LOCAL_EGL_SUCCESS);
-
-    return bool(bits) == shouldHaveBits;
 }
 
 static EGLConfig
@@ -930,9 +909,9 @@ ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps,
 
     *out_configCaps = minCaps; // Pick up any preserve, etc.
     out_configCaps->color = true;
-    out_configCaps->alpha   = HasAttrib(egl, config, LOCAL_EGL_ALPHA_SIZE);
-    out_configCaps->depth   = HasAttrib(egl, config, LOCAL_EGL_DEPTH_SIZE);
-    out_configCaps->stencil = HasAttrib(egl, config, LOCAL_EGL_STENCIL_SIZE);
+    out_configCaps->alpha   = bool(GetAttrib(egl, config, LOCAL_EGL_ALPHA_SIZE));
+    out_configCaps->depth   = bool(GetAttrib(egl, config, LOCAL_EGL_DEPTH_SIZE));
+    out_configCaps->stencil = bool(GetAttrib(egl, config, LOCAL_EGL_STENCIL_SIZE));
     out_configCaps->bpp16 = (GetAttrib(egl, config, LOCAL_EGL_RED_SIZE) < 8);
 
     return config;
