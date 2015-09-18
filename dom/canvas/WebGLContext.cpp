@@ -637,8 +637,10 @@ static already_AddRefed<gl::GLContext>
 CreateGLWithEGL(const gl::SurfaceCaps& caps, gl::CreateContextFlags flags,
                 WebGLContext* webgl)
 {
+    RefPtr<GLContext> gl;
+#ifndef XP_MACOSX // Mac doesn't have GLContextProviderEGL.
     gfx::IntSize dummySize(16, 16);
-    RefPtr<GLContext> gl = gl::GLContextProviderEGL::CreateOffscreen(dummySize, caps,
+    gl = gl::GLContextProviderEGL::CreateOffscreen(dummySize, caps,
                                                                      flags);
     if (!gl) {
         webgl->GenerateWarning("Error during EGL OpenGL init.");
@@ -647,7 +649,7 @@ CreateGLWithEGL(const gl::SurfaceCaps& caps, gl::CreateContextFlags flags,
 
     if (gl->IsANGLE())
         return nullptr;
-
+#endif // XP_MACOSX
     return gl.forget();
 }
 

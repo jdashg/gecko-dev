@@ -1211,9 +1211,12 @@ CreateOffscreenPixmapContext(const IntSize& size, const SurfaceCaps& minCaps)
 
     ScopedXErrorHandler xErrorHandler;
     bool error = false;
+    // Must be declared before goto:
+    Drawable drawable;
+    GLXPixmap pixmap;
 
     gfx::IntSize dummySize(16, 16);
-    RefPtr<gfxXlibSurface> surface = gfxXlibSurface::Create(screen, // DefaultScreenOfDisplay(display),
+    RefPtr<gfxXlibSurface> surface = gfxXlibSurface::Create(DefaultScreenOfDisplay(display),
                                                             visual,
                                                             dummySize);
     if (surface->CairoStatus() != 0) {
@@ -1224,8 +1227,7 @@ CreateOffscreenPixmapContext(const IntSize& size, const SurfaceCaps& minCaps)
     // Handle slightly different signature between glXCreatePixmap and
     // its pre-GLX-1.3 extension equivalent (though given the ABI, we
     // might not need to).
-    auto drawable = surface->XDrawable();
-    GLXPixmap pixmap;
+    drawable = surface->XDrawable();
     if (glx->GLXVersionCheck(1, 3)) {
         pixmap = glx->xCreatePixmap(display, config, drawable, nullptr);
     } else {
@@ -1267,7 +1269,8 @@ GLContextProviderGLX::CreateOffscreen(const IntSize& size,
         minBackbufferCaps.stencil = false;
     }
 
-    RefPtr<GLContext> gl = CreateOffscreenPixmapContext(size, minBackbufferCaps);
+    RefPtr<GLContext> gl;
+    gl = CreateOffscreenPixmapContext(size, minBackbufferCaps);
     if (!gl)
         return nullptr;
 
@@ -1298,10 +1301,12 @@ GLContextProviderGLX::GetGlobalContext()
         triedToCreateContext = true;
 
         IntSize dummySize = IntSize(16, 16);
+        SurfaceCaps dummyCaps = SurfaceCaps::Any();
         // StaticPtr doesn't support assignments from already_AddRefed,
         // so use a temporary nsRefPtr to make the reference counting
         // fall out correctly.
-        nsRefPtr<GLContext> holder = CreateOffscreenPixmapContext(dummySize);
+        RefPtr<GLContext> holder;
+        holder = CreateOffscreenPixmapContext(dummySize, dummyCaps);
         gGlobalContext = holder;
     }
 
