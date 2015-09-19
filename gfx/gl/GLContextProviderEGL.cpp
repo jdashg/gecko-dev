@@ -998,7 +998,7 @@ GLContextEGL::CreateEGLPixmapOffscreenContext(const mozilla::gfx::IntSize& size)
     return glContext.forget();
 }
 
-already_AddRefed<GLContext>
+/*static*/ already_AddRefed<GLContext>
 GLContextProviderEGL::CreateHeadless(CreateContextFlags flags)
 {
     bool forceEnableHardware = bool(flags & CreateContextFlags::FORCE_ENABLE_HARDWARE);
@@ -1012,7 +1012,7 @@ GLContextProviderEGL::CreateHeadless(CreateContextFlags flags)
 
 // Under EGL, on Android, pbuffers are supported fine, though
 // often without the ability to texture from them directly.
-already_AddRefed<GLContext>
+/*static*/ already_AddRefed<GLContext>
 GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
                                       const SurfaceCaps& minCaps,
                                       CreateContextFlags flags)
@@ -1045,13 +1045,13 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
 // Don't want a global context on Android as 1) share groups across 2 threads fail on many Tegra drivers (bug 759225)
 // and 2) some mobile devices have a very strict limit on global number of GL contexts (bug 754257)
 // and 3) each EGL context eats 750k on B2G (bug 813783)
-GLContext*
+/*static*/ GLContext*
 GLContextProviderEGL::GetGlobalContext()
 {
     return nullptr;
 }
 
-void
+/*static*/ void
 GLContextProviderEGL::Shutdown()
 {
 }

@@ -1249,7 +1249,7 @@ DONE_CREATING_PIXMAP:
                                          config, true, surface);
 }
 
-already_AddRefed<GLContext>
+/*static*/ already_AddRefed<GLContext>
 GLContextProviderGLX::CreateHeadless(CreateContextFlags)
 {
     IntSize dummySize = IntSize(16, 16);
@@ -1257,7 +1257,7 @@ GLContextProviderGLX::CreateHeadless(CreateContextFlags)
     return CreateOffscreenPixmapContext(dummySize, dummyCaps);
 }
 
-already_AddRefed<GLContext>
+/*static*/ already_AddRefed<GLContext>
 GLContextProviderGLX::CreateOffscreen(const IntSize& size,
                                       const SurfaceCaps& minCaps,
                                       CreateContextFlags flags)
@@ -1280,7 +1280,7 @@ GLContextProviderGLX::CreateOffscreen(const IntSize& size,
     return gl.forget();
 }
 
-GLContext*
+/*static*/ GLContext*
 GLContextProviderGLX::GetGlobalContext()
 {
     static bool checkedContextSharing = false;
@@ -1313,7 +1313,7 @@ GLContextProviderGLX::GetGlobalContext()
     return gGlobalContext;
 }
 
-void
+/*static*/ void
 GLContextProviderGLX::Shutdown()
 {
     gGlobalContext = nullptr;

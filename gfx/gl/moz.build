@@ -71,6 +71,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'WGLLibrary.h',
     ]
     UNIFIED_SOURCES += [
+        'GLContextProviderWGL.cpp',
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
