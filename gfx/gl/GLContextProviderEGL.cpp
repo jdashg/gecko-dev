@@ -840,7 +840,8 @@ GLContextProviderEGL::DestroyEGLSurface(EGLSurface surface)
 #endif // defined(ANDROID)
 
 static void
-FillContextAttribs(bool alpha, bool depth, bool stencil, nsTArray<EGLint>* out)
+FillContextAttribs(bool alpha, bool depth, bool stencil, bool bpp16,
+                   nsTArray<EGLint>* out)
 {
     out->AppendElement(LOCAL_EGL_SURFACE_TYPE);
     out->AppendElement(LOCAL_EGL_PBUFFER_BIT);
@@ -849,16 +850,32 @@ FillContextAttribs(bool alpha, bool depth, bool stencil, nsTArray<EGLint>* out)
     out->AppendElement(LOCAL_EGL_OPENGL_ES2_BIT);
 
     out->AppendElement(LOCAL_EGL_RED_SIZE);
-    out->AppendElement(8);
+    if (bpp16) {
+        out->AppendElement(alpha ? 4 : 5);
+    } else {
+        out->AppendElement(8);
+    }
 
     out->AppendElement(LOCAL_EGL_GREEN_SIZE);
-    out->AppendElement(8);
+    if (bpp16) {
+        out->AppendElement(alpha ? 4 : 6);
+    } else {
+        out->AppendElement(8);
+    }
 
     out->AppendElement(LOCAL_EGL_BLUE_SIZE);
-    out->AppendElement(8);
+    if (bpp16) {
+        out->AppendElement(alpha ? 4 : 5);
+    } else {
+        out->AppendElement(8);
+    }
 
     out->AppendElement(LOCAL_EGL_ALPHA_SIZE);
-    out->AppendElement(alpha ? 8 : 0);
+    if (alpha) {
+        out->AppendElement(bpp16 ? 4 : 8);
+    } else {
+        out->AppendElement(0);
+    }
 
     out->AppendElement(LOCAL_EGL_DEPTH_SIZE);
     out->AppendElement(depth ? 16 : 0);
@@ -889,7 +906,8 @@ ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps,
              SurfaceCaps* const out_configCaps)
 {
     nsTArray<EGLint> configAttribList;
-    FillContextAttribs(minCaps.alpha, minCaps.depth, minCaps.stencil, &configAttribList);
+    FillContextAttribs(minCaps.alpha, minCaps.depth, minCaps.stencil, minCaps.bpp16,
+                       &configAttribList);
 
     const EGLint* configAttribs = configAttribList.Elements();
 
@@ -905,7 +923,7 @@ ChooseConfig(GLLibraryEGL* egl, const SurfaceCaps& minCaps,
         return EGL_NO_CONFIG;
     }
 
-    const EGLConfig config = configs[0];
+    EGLConfig config = configs[0];
 
     *out_configCaps = minCaps; // Pick up any preserve, etc.
     out_configCaps->color = true;
