@@ -814,6 +814,7 @@ private:
     realGLboolean mDitherEnabled;
     realGLboolean mRasterizerDiscardEnabled;
     realGLboolean mScissorTestEnabled;
+    realGLboolean mDepthTestEnabled;
     realGLboolean mStencilTestEnabled;
 
     bool ValidateCapabilityEnum(GLenum cap, const char* info);
@@ -1453,11 +1454,13 @@ protected:
     uint64_t mLastUseIndex;
 
     bool mNeedsFakeNoAlpha;
+    bool mNeedsFakeNoDepth;
     bool mNeedsFakeNoStencil;
 
     struct ScopedMaskWorkaround {
         WebGLContext& mWebGL;
         const bool mFakeNoAlpha;
+        const bool mFakeNoDepth;
         const bool mFakeNoStencil;
 
         static bool ShouldFakeNoAlpha(WebGLContext& webgl) {
@@ -1466,6 +1469,13 @@ protected:
             return !webgl.mBoundDrawFramebuffer &&
                    webgl.mNeedsFakeNoAlpha &&
                    webgl.mColorWriteMask[3] != false;
+        }
+
+        static bool ShouldFakeNoDepth(WebGLContext& webgl) {
+            // We should only be doing this if we're about to draw to the backbuffer.
+            return !webgl.mBoundDrawFramebuffer &&
+                   webgl.mNeedsFakeNoDepth &&
+                   webgl.mDepthTestEnabled;
         }
 
         static bool ShouldFakeNoStencil(WebGLContext& webgl) {

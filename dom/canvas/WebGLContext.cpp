@@ -217,6 +217,7 @@ WebGLContext::WebGLContext()
     , mBypassShaderValidation(false)
     , mGLMaxSamples(1)
     , mNeedsFakeNoAlpha(false)
+    , mNeedsFakeNoDepth(false)
     , mNeedsFakeNoStencil(false)
 {
     mGeneration = 0;
@@ -253,6 +254,7 @@ WebGLContext::WebGLContext()
     mDitherEnabled = 1;
     mRasterizerDiscardEnabled = 0; // OpenGL ES 3.0 spec p244
     mScissorTestEnabled = 0;
+    mDepthTestEnabled = 0;
     mStencilTestEnabled = 0;
 
     // initialize some GL values: we're going to get them from the GL and use them as the sizes of arrays,
@@ -961,14 +963,20 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
         if (!mOptions.alpha && gl->Caps().alpha)
             mNeedsFakeNoAlpha = true;
 
-        // ANGLE doesn't quite handle this properly.
-        if (gl->Caps().depth && !gl->Caps().stencil && gl->IsANGLE())
+        if (!mOptions.depth && gl->Caps().depth)
+            mNeedsFakeNoDepth = true;
+
+        if (!mOptions.stencil && gl->Caps().stencil)
             mNeedsFakeNoStencil = true;
     }
 
     // Update mOptions.
-    mOptions.depth = gl->Caps().depth;
-    mOptions.stencil = gl->Caps().stencil;
+    if (!gl->Caps().depth)
+        mOptions.depth = false;
+
+    if (!gl->Caps().stencil)
+        mOptions.stencil = false;
+
     mOptions.antialias = gl->Caps().antialias;
 
     MakeContextCurrent();
@@ -994,10 +1002,16 @@ WebGLContext::SetDimensions(int32_t signedWidth, int32_t signedHeight)
     mShouldPresent = true;
 
     MOZ_ASSERT(gl->Caps().color);
+
     MOZ_ASSERT_IF(!mNeedsFakeNoAlpha, gl->Caps().alpha == mOptions.alpha);
     MOZ_ASSERT_IF(mNeedsFakeNoAlpha, !mOptions.alpha && gl->Caps().alpha);
-    MOZ_ASSERT(gl->Caps().depth == mOptions.depth);
-    MOZ_ASSERT(gl->Caps().stencil == mOptions.stencil);
+
+    MOZ_ASSERT_IF(!mNeedsFakeNoDepth, gl->Caps().depth == mOptions.depth);
+    MOZ_ASSERT_IF(mNeedsFakeNoDepth, !mOptions.depth && gl->Caps().depth);
+
+    MOZ_ASSERT_IF(!mNeedsFakeNoStencil, gl->Caps().stencil == mOptions.stencil);
+    MOZ_ASSERT_IF(mNeedsFakeNoStencil, !mOptions.stencil && gl->Caps().stencil);
+
     MOZ_ASSERT(gl->Caps().antialias == mOptions.antialias);
     MOZ_ASSERT(gl->Caps().preserve == mOptions.preserveDrawingBuffer);
 
@@ -1872,6 +1886,7 @@ RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
     : mWebGL(webgl)
     , mFakeNoAlpha(ShouldFakeNoAlpha(webgl))
+    , mFakeNoDepth(ShouldFakeNoDepth(webgl))
     , mFakeNoStencil(ShouldFakeNoStencil(webgl))
 {
     if (mFakeNoAlpha) {
@@ -1879,6 +1894,9 @@ WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
                               mWebGL.mColorWriteMask[1],
                               mWebGL.mColorWriteMask[2],
                               false);
+    }
+    if (mFakeNoDepth) {
+        mWebGL.gl->fDisable(LOCAL_GL_DEPTH_TEST);
     }
     if (mFakeNoStencil) {
         mWebGL.gl->fDisable(LOCAL_GL_STENCIL_TEST);
@@ -1892,6 +1910,9 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
                               mWebGL.mColorWriteMask[1],
                               mWebGL.mColorWriteMask[2],
                               mWebGL.mColorWriteMask[3]);
+    }
+    if (mFakeNoDepth) {
+        mWebGL.gl->fEnable(LOCAL_GL_DEPTH_TEST);
     }
     if (mFakeNoStencil) {
         mWebGL.gl->fEnable(LOCAL_GL_STENCIL_TEST);

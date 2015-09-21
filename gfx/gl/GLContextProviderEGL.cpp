@@ -1064,7 +1064,11 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
         if (!gl)
             return nullptr;
 
-        offscreenCaps.alpha = gl->Caps().alpha;
+        offscreenCaps = gl->Caps();
+        if (minCaps.antialias) {
+            offscreenCaps.depth = minCaps.depth;
+            offscreenCaps.stencil = minCaps.stencil;
+        }
     }
 
     if (!gl->InitOffscreen(size, offscreenCaps))

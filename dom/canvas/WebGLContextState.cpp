@@ -622,6 +622,8 @@ realGLboolean*
 WebGLContext::GetStateTrackingSlot(GLenum cap)
 {
     switch (cap) {
+        case LOCAL_GL_DEPTH_TEST:
+            return &mDepthTestEnabled;
         case LOCAL_GL_DITHER:
             return &mDitherEnabled;
         case LOCAL_GL_RASTERIZER_DISCARD:
