@@ -1039,20 +1039,33 @@ GLContextProviderEGL::CreateOffscreen(const mozilla::gfx::IntSize& size,
     if (!sEGLLibrary.EnsureInitialized(forceEnableHardware))
         return nullptr;
 
-    SurfaceCaps minBackbufferCaps = minCaps;
-    if (minCaps.antialias) {
-        minBackbufferCaps.antialias = false;
-        minBackbufferCaps.depth = false;
-        minBackbufferCaps.stencil = false;
+    bool canOffscreenUseHeadless = true;
+    if (sEGLLibrary.IsANGLE()) {
+        // ANGLE needs to use PBuffers.
+        canOffscreenUseHeadless = false;
     }
 
     RefPtr<GLContext> gl;
-    gl = GLContextEGL::CreateEGLPBufferOffscreenContext(size, minBackbufferCaps);
-    if (!gl)
-        return nullptr;
-
     SurfaceCaps offscreenCaps = minCaps;
-    offscreenCaps.alpha = gl->Caps().alpha;
+
+    if (canOffscreenUseHeadless) {
+        gl = CreateHeadless(flags);
+        if (!gl)
+            return nullptr;
+    } else {
+        SurfaceCaps minBackbufferCaps = minCaps;
+        if (minCaps.antialias) {
+            minBackbufferCaps.antialias = false;
+            minBackbufferCaps.depth = false;
+            minBackbufferCaps.stencil = false;
+        }
+
+        gl = GLContextEGL::CreateEGLPBufferOffscreenContext(size, minBackbufferCaps);
+        if (!gl)
+            return nullptr;
+
+        offscreenCaps.alpha = gl->Caps().alpha;
+    }
 
     if (!gl->InitOffscreen(size, offscreenCaps))
         return nullptr;
