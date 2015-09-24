@@ -688,6 +688,9 @@ struct GLContextSymbols
     // get_string_indexed
     typedef const GLubyte* (GLAPIENTRY * PFNGLGETSTRINGIPROC)(GLenum name, GLuint index);
     PFNGLGETSTRINGIPROC fGetStringi;
+
+    // APPLE_framebuffer_multisample
+    void GLAPIENTRY (*fResolveMultisampleFramebufferAPPLE)();
 };
 
 } // namespace gl

@@ -83,7 +83,7 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
     GLuint drawFB = DrawFB();
     GLuint readFB = ReadFB();
 
-    if (!gl->IsSupported(GLFeature::framebuffer_blit)) {
+    if (!gl->IsSupported(GLFeature::split_framebuffer)) {
         MOZ_ASSERT(drawFB == readFB);
         gl->raw_fBindFramebuffer(target, readFB);
         return;
@@ -96,16 +96,10 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
         break;
 
     case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-        if (!gl->IsSupported(GLFeature::framebuffer_blit))
-            NS_WARNING("DRAW_FRAMEBUFFER requested but unavailable.");
-
         gl->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, drawFB);
         break;
 
     case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-        if (!gl->IsSupported(GLFeature::framebuffer_blit))
-            NS_WARNING("READ_FRAMEBUFFER requested but unavailable.");
-
         gl->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, readFB);
         break;
 
@@ -128,7 +122,7 @@ GLScreenBuffer::BindFB(GLuint fb)
     if (mInternalDrawFB == mInternalReadFB) {
         mGL->raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mInternalDrawFB);
     } else {
-        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+        MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
         mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
         mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
     }
@@ -142,7 +136,7 @@ GLScreenBuffer::BindFB(GLuint fb)
 void
 GLScreenBuffer::BindDrawFB(GLuint fb)
 {
-    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
 
     GLuint drawFB = DrawFB();
     mUserDrawFB = fb;
@@ -158,7 +152,7 @@ GLScreenBuffer::BindDrawFB(GLuint fb)
 void
 GLScreenBuffer::BindReadFB(GLuint fb)
 {
-    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
 
     GLuint readFB = ReadFB();
     mUserReadFB = fb;
@@ -187,7 +181,7 @@ GLScreenBuffer::BindFB_Internal(GLuint fb)
 void
 GLScreenBuffer::BindDrawFB_Internal(GLuint fb)
 {
-    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
 
     mInternalDrawFB = mUserDrawFB = fb;
     mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
@@ -200,7 +194,7 @@ GLScreenBuffer::BindDrawFB_Internal(GLuint fb)
 void
 GLScreenBuffer::BindReadFB_Internal(GLuint fb)
 {
-    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
 
     mInternalReadFB = mUserReadFB = fb;
     mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
@@ -246,7 +240,7 @@ GLScreenBuffer::GetReadFB() const
     // We use raw_ here because this is debug code and we need to see what
     // the driver thinks.
     GLuint actual = 0;
-    if (mGL->IsSupported(GLFeature::framebuffer_blit))
+    if (mGL->IsSupported(GLFeature::split_framebuffer))
         mGL->raw_fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, (GLint*)&actual);
     else
         mGL->raw_fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&actual);
@@ -361,7 +355,7 @@ GLScreenBuffer::AssureBlitted()
 
         MOZ_ASSERT(drawFB != 0);
         MOZ_ASSERT(drawFB != readFB);
-        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+        MOZ_ASSERT(mGL->IsSupported(GLFeature::split_framebuffer));
         MOZ_ASSERT(mDraw->mSize == mRead->Size());
 
         ScopedBindFramebuffer boundFB(mGL);
@@ -370,13 +364,19 @@ GLScreenBuffer::AssureBlitted()
         BindReadFB_Internal(drawFB);
         BindDrawFB_Internal(readFB);
 
-        const gfx::IntSize&  srcSize = mDraw->mSize;
-        const gfx::IntSize& destSize = mRead->Size();
+        if (mGL->IsSupported(GLFeature::blit_framebuffer)) {
+            const gfx::IntSize&  srcSize = mDraw->mSize;
+            const gfx::IntSize& destSize = mRead->Size();
 
-        mGL->raw_fBlitFramebuffer(0, 0,  srcSize.width,  srcSize.height,
-                                  0, 0, destSize.width, destSize.height,
-                                  LOCAL_GL_COLOR_BUFFER_BIT,
-                                  LOCAL_GL_NEAREST);
+            mGL->raw_fBlitFramebuffer(0, 0,  srcSize.width,  srcSize.height,
+                                      0, 0, destSize.width, destSize.height,
+                                      LOCAL_GL_COLOR_BUFFER_BIT,
+                                      LOCAL_GL_NEAREST);
+        } else if (mGL->IsExtensionSupported(APPLE_framebuffer_multisample)) {
+            mGL->fResolveMultisampleFramebufferAPPLE();
+        } else {
+            MOZ_CRASH("No available blit methods.");
+        }
         // Done!
     }
 
