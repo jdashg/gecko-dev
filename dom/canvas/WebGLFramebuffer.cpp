@@ -166,7 +166,7 @@ WebGLFBAttachPoint::SetImageDataStatus(WebGLImageDataStatus newStatus)
         return;
 
     if (mRenderbufferPtr) {
-        mRenderbufferPtr)->mImageDataStatus = newStatus;
+        mRenderbufferPtr->mImageDataStatus = newStatus;
         return;
     }
 

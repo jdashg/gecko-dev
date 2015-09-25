@@ -139,8 +139,6 @@ public:
             , mIsDataInitialized(isDataInitialized)
         {
             MOZ_ASSERT(mFormat);
-            MOZ_ASSERT_IF(!IsCompressedTextureFormat(mFormat.get()),
-                          mFormat != UnsizedInternalFormatFromInternalFormat(mFormat));
         }
 
         void Clear();

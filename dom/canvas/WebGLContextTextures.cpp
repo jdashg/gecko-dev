@@ -311,6 +311,77 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
                     out_rv);
 }
 
+
+
+
+
+
+
+// dom::ArrayBufferView
+
+static bool
+DoesJSTypeMatchUnpackType(js::Scalar::Type jsType, GLenum unpackType)
+{
+    switch (unpackType) {
+    case LOCAL_GL_BYTE:
+        return jsType == js::Scalar::Type::Int8;
+
+    case LOCAL_GL_UNSIGNED_BYTE:
+        return jsType == js::Scalar::Type::Uint8 ||
+               jsType == js::Scalar::Type::Uint8Clamped;
+
+    case LOCAL_GL_SHORT:
+        return jsType == js::Scalar::Type::Int16;
+
+    case LOCAL_GL_UNSIGNED_SHORT:
+    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+        return jsType == js::Scalar::Type::Uint16;
+
+    case LOCAL_GL_INT:
+        return jsType == js::Scalar::Type::Int32;
+
+    case LOCAL_GL_UNSIGNED_INT:
+    case LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV:
+    case LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV:
+    case LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV:
+    case LOCAL_GL_UNSIGNED_INT_24_8:
+        return jsType == js::Scalar::Type::Uint32;
+
+    case LOCAL_GL_FLOAT:
+        return jsType == js::Scalar::Type::Float32;
+
+    default:
+        return false;
+    }
+}
+
+static UniquePtr<TexUnpackBuffer>
+ToUnpackBuffer(GLsizei width, GLsizei height, GLenum unpackType,
+               dom::ArrayBufferView* view, WebGLContext* webgl, const char* funcName)
+{
+    if (!DoesJSTypeMatchUnpackType(view->Type(), unpackType)) {
+        webgl->ErrorInvalidOperation("%s: Invalid unpack `type` for given array.",
+                                     funcName);
+        return nullptr;
+    }
+
+    view->ComputeLengthAndData();
+
+    void* data = view->Data();
+    uint32_t length = view->Length();
+    return MakeUnique<TexUnpackBuffer>(webgl, width, height, border,
+}
+
+
+
+
+
+
+
 void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
@@ -320,6 +391,21 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
+
+    void* data;
+    uint32_t length;
+    js::Scalar::Type jsArrayType;
+    if (maybeView.IsNull()) {
+        data = nullptr;
+        length = 0;
+    } else {
+        const dom::ArrayBufferView& view = maybeView.Value();
+        view.ComputeLengthAndData();
+
+        data = view.Data();
+        length = view.Length();
+        jsArrayType = view.Type();
+    }
 
     TexImageTarget texImageTarget;
     WebGLTexture* tex;
