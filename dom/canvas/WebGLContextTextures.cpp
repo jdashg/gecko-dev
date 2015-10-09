@@ -291,10 +291,74 @@ WebGLContext::TexParameter_base(GLenum rawTexTarget, GLenum pname, GLint* maybeI
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexImage
 
+static bool
+IsElemValidForCORS(dom::HTMLMediaElement* elem, WebGLContext* webgl)
+{
+    if (elem->GetCORSMode() == CORS_NONE) {
+        nsIPrincipal* srcPrincipal = elem->GetCurrentPrincipal();
+        if (!principal)
+            return false;
+
+        nsIPrincipal* dstPrincipal = webgl->GetCanvas()->NodePrincipal();
+
+        bool subsumes;
+        nsresult rv = dstPrincipal->Subsumes(srcPrincipal, &subsumes);
+        if (NS_FAILED(rv) || !subsumes) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool
+ValidateCORSForElem(dom::HTMLMediaElement* elem, WebGLContext* webgl,
+                    const char* funcName)
+{
+    if (!IsElemValidForCORS(elem, webgl)) {
+        ErrorInvalidOperation("%s: Bad CORS for DOM element.", funcName);
+        return false;
+    }
+
+    return true;
+}
+
+static UniquePtr<TexUnpackBlob>
+UnpackBlobFromElement();
+
+struct PrepareForUnpack
+{
+    gfx::DataSourceSurface::ScopedMap scopedMap;
+    nsTArray<uint8_t> scratchBuffer;
+
+    PrepareForUnpack(const RefPtr<gfx::DataSourceSurface>& src, GLenum unpackFormat,
+                     GLenum unpackType,
+                     const void** const out_data, size_t* const out_size,
+                     uint8_t* const out_alignment)
+        : scopedMap(src, gfx::DataSourceSurface::MapType::READ)
+    {
+        *out_data = nullptr;
+
+        if (!scopedMap.IsMapped())
+            return;
+
+
+
+        switch (src->GetFormat()) {
+        case gfx::SurfaceFormat::B8G8R8A8:
+
+
+
+    }
+
+};
+
+
+
 void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
-                         GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
-                         ErrorResult* const out_rv)
+                         GLenum unpackFormat, GLenum unpackType,
+                         dom::HTMLMediaElement* elem, ErrorResult* const out_rv)
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
@@ -307,8 +371,8 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
         return;
     }
 
-    tex->TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, elem,
-                    out_rv);
+    tex->TexImage(funcName, funcDims, texImageTarget, level, internalFormat, unpackFormat,
+                  unpackType, elem, out_rv);
 }
 
 
@@ -392,21 +456,6 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
 
-    void* data;
-    uint32_t length;
-    js::Scalar::Type jsArrayType;
-    if (maybeView.IsNull()) {
-        data = nullptr;
-        length = 0;
-    } else {
-        const dom::ArrayBufferView& view = maybeView.Value();
-        view.ComputeLengthAndData();
-
-        data = view.Data();
-        length = view.Length();
-        jsArrayType = view.Type();
-    }
-
     TexImageTarget texImageTarget;
     WebGLTexture* tex;
     if (!ValidateTexImageTarget(this, funcName, funcDims, rawTexImageTarget,
@@ -415,8 +464,28 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
         return;
     }
 
-    tex->TexImage2D(texImageTarget, level, internalFormat, width, height, border,
-                    unpackFormat, unpackType, maybeView, &out_rv);
+    size_t dataSize;
+    void* data;
+    if (maybeView.IsNull()) {
+        dataSize = 0;
+        data = nullptr;
+    } else {
+        const dom::ArrayBufferView& view = maybeView.Value();
+
+        if (!ValidateTexInputData(unpackType, view.Type(), funcName, funcDims))
+            return;
+
+        view.ComputeLengthAndData();
+
+        dataSize = view.Length();
+        data = view.Data();
+    }
+
+    const GLsizei depth = 1;
+
+    tex->TexImage(funcName, funcDims, texImageTarget, level, internalFormat, width,
+                  height, depth, border, unpackFormat, unpackType, dataSize, data,
+                  out_rv);
 }
 
 void
@@ -435,8 +504,28 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
         return;
     }
 
-    tex->TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType,
-                    imageData, &out_rv);
+    if (!imageData) {
+        // Spec says to generate an INVALID_VALUE error
+        mContext->ErrorInvalidValue("%s: null ImageData", funcName);
+        return;
+    }
+
+    dom::Uint8ClampedArray arr;
+    DebugOnly<bool> inited = arr.Init(imageData->GetDataObject());
+    MOZ_ASSERT(inited);
+
+    GLsizei width = imageData->Width();
+    GLsizei height = imageData->Height();
+    GLsizei depth = 1;
+    GLint border = 0;
+
+    arr.ComputeLengthAndData();
+    size_t dataSize = arr.Length();
+    void* data = arr.Data();
+
+    tex->TexImage(funcName, funcDims, texImageTarget, level, internalFormat, width,
+                  height, depth, border, unpackFormat, unpackType, dataSize, data,
+                  out_rv);
 }
 
 

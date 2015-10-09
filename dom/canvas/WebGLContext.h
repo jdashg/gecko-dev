@@ -891,7 +891,7 @@ public:
                     GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
                     ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                    GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
                     ErrorResult* const out_rv);
 
 
@@ -904,7 +904,7 @@ public:
                        GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
                        ErrorResult& out_rv);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                       GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
                        ErrorResult* const out_rv);
 
     // Allow whatever element unpackTypes the bindings are willing to pass

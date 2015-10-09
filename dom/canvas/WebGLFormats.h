@@ -213,12 +213,17 @@ struct UnpackTuple {
 
     bool operator <(const UnpackTuple& x) const
     {
-        if (format == x.format) {
-            return type < x.type;
-        }
+        if (format != x.format)
+            return format < x.format;
 
-        return format < x.format;
+        return type < x.type;
     }
+};
+
+struct FormatTuple {
+    const GLenum internalFormat;
+    const GLenum unpackFormat;
+    const GLenum unpackType;
 };
 
 struct FormatUsageInfo {
@@ -227,9 +232,10 @@ struct FormatUsageInfo {
     bool isRenderable;
     bool asTexture;
     bool isFilterable;
-    std::set<UnpackTuple> validUnpacks;
+    std::map<UnpackTuple, FormatTuple> validUnpacks;
 
-    bool CanUnpackWith(GLenum unpackFormat, GLenum unpackType) const;
+    bool GetFormatTupleForUnpack(const UnpackTuple& key,
+                                 const FormatTuple** const out_value) const;
 };
 
 class FormatUsageAuthority
