@@ -533,36 +533,35 @@ ClearByMask(WebGLContext* webgl, GLbitfield mask)
 
 // `mask` from glClear.
 static bool
-ClearWithTempFB(WebGLContext* webgl, GLuint tex,
-                TexImageTarget texImageTarget, GLint level,
-                const webgl::FormatUsageInfo* formatUsage,
-                GLsizei width, GLsizei height)
+ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget target, GLint level,
+                const ImageInfo& imageInfo)
 {
-    MOZ_ASSERT(texImageTarget == LOCAL_GL_TEXTURE_2D);
+    if (mTarget == LOCAL_GL_TEXTURE_2D)
+        return false;
 
-    gl::GLContext* gl = webgl->GL();
+    gl::GLContext* gl = webgl->gl;
     MOZ_ASSERT(gl->IsCurrent());
 
     gl::ScopedFramebuffer fb(gl);
     gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
+
+    auto formatInfo = target->mFormat->formatInfo;
     GLbitfield mask = 0;
 
-    auto format = formatUsage->formatInfo;
-
-    if (format->isColorFormat) {
-        mask = LOCAL_GL_COLOR_BUFFER_BIT;
+    if (formatInfo->isColorFormat) {
+        mask |= LOCAL_GL_COLOR_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                  texImageTarget.get(), tex, level);
+                                  GLenum(target), tex, level);
     } else {
-        if (format->hasDepth) {
+        if (formatInfo->hasDepth) {
             mask |= LOCAL_GL_DEPTH_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                      texImageTarget.get(), tex, level);
+                                      GLenum(target), tex, level);
         }
-        if (format->hasStencil) {
+        if (formatInfo->hasStencil) {
             mask |= LOCAL_GL_STENCIL_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
-                                      texImageTarget.get(), tex, level);
+                                      GLenum(target), tex, level);
         }
     }
 
@@ -574,7 +573,6 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
 
     // Failed to simply build an FB from the tex, but maybe it needs a
     // color buffer to be complete.
-
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
         // Nope, it already had one.
         return false;
@@ -582,9 +580,10 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex,
 
     gl::ScopedRenderbuffer rb(gl);
     {
+        gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
+
         // Only GLES guarantees RGBA4.
         GLenum format = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
-        gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
         gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, format, width, height);
     }
 
@@ -606,55 +605,67 @@ TexImageTargetFromFace(TexTarget target, uint8_t face)
 }
 
 bool
-WebGLTexture::EnsureInitializedImageData(uint8_t face, uint32_t level)
+WebGLTexture::EnsureImageDataInitialized(uint8_t face, uint32_t level)
 {
-    ImageInfo& imageInfo = ImageInfoAtFace(face, level);
-    MOZ_ASSERT(imageInfo.IsDefined());
-
-    if (imageInfo.IsDataInitialized())
-        return true;
-
-    mContext->MakeContextCurrent();
-
-    const TexImageTarget texImageTarget = TexImageTargetFromFace(mTarget, face);
-
-    // Try to clear with glClear.
-    if (mTarget == LOCAL_GL_TEXTURE_2D) {
-        bool cleared = ClearWithTempFB(mContext, mGLName, texImageTarget, level,
-                                       imageInfo.mFormat, imageInfo.mHeight,
-                                       imageInfo.mWidth);
+}
         if (cleared) {
             imageInfo.SetIsDataInitialized(true, this);
             return true;
         }
-    }
+            // Failed to allocate memory. Lose the context. Return OOM error.
+            mContext->ForceLoseContext(true);
+            mContext->ErrorOutOfMemory("EnsureInitializedImageData: Failed to alloc %u "
+                                       "bytes to clear image target `%s` level `%d`.",
+                                       byteCount, mContext->EnumName(texImageTarget.get()),
+                                       level);
+             return false;
+        }
 
-    // That didn't work. Try uploading zeros then.
-    auto formatUsage = imageInfo.mFormat;
-    auto format = formatUsage->formatInfo;
 
-    const auto unpackAlignment = mContext->mPixelStore_UnpackAlignment;
-    CheckedUint32 checked_byteLength = WebGLContext::GetImageSize(imageInfo.mHeight,
-                                                                  imageInfo.mWidth,
-                                                                  imageInfo.mDepth,
-                                                                  format->bytesPerPixel,
-                                                                  unpackAlignment);
-    MOZ_ASSERT(checked_byteLength.isValid()); // Should have been checked earlier.
 
-    size_t byteCount = checked_byteLength.value();
-
-    UniquePtr<uint8_t> zeros((uint8_t*)calloc(1, byteCount));
-    if (zeros == nullptr) {
-        // Failed to allocate memory. Lose the context. Return OOM error.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureInitializedImageData: Failed to alloc %u "
-                                   "bytes to clear image target `%s` level `%d`.",
-                                   byteCount, mContext->EnumName(texImageTarget.get()),
-                                   level);
-         return false;
-    }
+GLenum
+WebGLTexture::ClearTexImage(TexImageTarget target, uint32_t level)
+{
+    ImageInfo& imageInfo = ImageInfoAt(target, level);
+    MOZ_ASSERT(imageInfo.IsDefined());
 
     gl::GLContext* gl = mContext->gl;
+    gl->MakeCurrent();
+
+    // Try to clear with glClear.
+    if (ClearWithTempFB(mContext, mGLName, target, level, imageInfo))
+        return 0;
+    // That didn't work. Try uploading zeros then.
+
+    auto format = imageInfo.mFormat;
+    auto texImageInfo = format->GetAnyUnpack();
+    const GLsizei& width = imageInfo.mWidth;
+    const GLsizei& height = imageInfo.mHeight;
+    const GLsizei& depth = imageInfo.mDepth;
+
+    ScopedUnpackReset scopedReset(mContext, 0);
+    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
+
+    CheckedUint32 checkedByteCount = texImageInfo->bytesPerPixel;
+    checkedByteCount *= width;
+    checkedByteCount *= height;
+    checkedByteCount *= depth;
+
+    if (!checkedByteCount.isValid())
+        return LOCAL_GL_OUT_OF_MEMORY;
+
+    size_t byteCount = checkedByteCount.value();
+
+    UniqueBuffer zeros = calloc(1, byteCount);
+    if (!zeros)
+        return LOCAL_GL_OUT_OF_MEMORY;
+
+    return TexImage(gl, target, level, texImageInfo, width, height, depth, zeros.get());
+}
+
+
+
+
     gl::ScopedBindTexture autoBindTex(gl, mGLName, mTarget.get());
 
     GLenum driverInternalFormat = LOCAL_GL_NONE;
@@ -1076,6 +1087,46 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         mContext->gl->fTexParameteri(texTarget.get(), pname, intParam);
     else
         mContext->gl->fTexParameterf(texTarget.get(), pname, floatParam);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+GLenum
+TexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
+         const webgl::TexImageInfo* texImageInfo, GLsizei width, GLsizei height,
+         GLsizei depth, const void* data)
+{
+    const GLenum& internalFormat = texImageInfo->internalFormat;
+    const GLint border = 0;
+    const GLenum& unpackFormat = texImageInfo->unpackFormat;
+    const GLenum& unpackType = texImageInfo->unpackType;
+
+    gl::GLContext::LocalErrorScope errorScope(*gl);
+
+    switch (GLenum(target)) {
+    case LOCAL_GL_TEXTURE_2D:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
+    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
+        MOZ_ASSERT(depth == 1);
+        gl->fTexImage2D(GLenum(target), level, internalFormat, width, height, border,
+                        unpackFormat, unpackType, data);
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+    case LOCAL_GL_TEXTURE_2D_ARRAY:
+        gl->fTexImage3D(GLenum(target), level, internalFormat, width, height, depth,
+                        border, unpackFormat, unpackType, data);
+        break;
+
+    default:
+        MOZ_CRASH('bad `target`');
+    }
+
+    return errorScope.GetError();
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLTexture)

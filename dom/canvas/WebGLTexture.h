@@ -502,6 +502,11 @@ TexImageTargetForTargetAndFace(TexTarget target, uint8_t face)
     }
 }
 
+GLenum
+TexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
+         const webgl::TexImageInfo* texImageInfo, GLsizei width, GLsizei height,
+         GLsizei depth, const void* data);
+
 } // namespace mozilla
 
 #endif // WEBGL_TEXTURE_H_

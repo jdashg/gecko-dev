@@ -199,11 +199,30 @@ struct FormatInfo {
     const CompressedFormatInfo* const compression;
 };
 
+struct PackingInfo {
+    const GLenum format;
+    const GLenum type;
+    const uint8_t bytesPerPixel;
+
+    bool operator <(const PackingInfo& x) const
+    {
+        if (format != x.format)
+            return format < x.format;
+
+        return type < x.type;
+    }
+};
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 const FormatInfo* GetFormatInfo(EffectiveFormat format);
 const FormatInfo* GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType);
 const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
+const PackingInfo* GetPackingInfo(GLenum format, GLenum type);
+
+GLint GetComponentSize(EffectiveFormat format, GLenum component);
+GLenum GetComponentType(EffectiveFormat format);
+GLenum GetColorEncoding(EffectiveFormat format);
 
 ////////////////////////////////////////
 
@@ -220,22 +239,29 @@ struct UnpackTuple {
     }
 };
 
-struct FormatTuple {
+struct TexImageInfo {
     const GLenum internalFormat;
     const GLenum unpackFormat;
     const GLenum unpackType;
+    const uint8_t bytesPerPixel;
 };
 
 struct FormatUsageInfo {
-    const FormatInfo* const formatInfo;
+    const FormatInfo* const format;
     bool asRenderbuffer;
     bool isRenderable;
     bool asTexture;
     bool isFilterable;
-    std::map<UnpackTuple, FormatTuple> validUnpacks;
+    std::map<const PackingInfo*, TexImageInfo> validUnpacks;
+    const GLint* textureSwizzleRGBA;
 
-    bool GetFormatTupleForUnpack(const UnpackTuple& key,
-                                 const FormatTuple** const out_value) const;
+    //// We don't always do the expected for the format.
+    //const EffectiveFormat formatForDriver;
+
+    bool IsUnpackValid(const PackingInfo* key,
+                       const TexImageInfo** const out_value) const;
+
+    const TexImageInfo* GetAnyUnpack() const;
 };
 
 class FormatUsageAuthority
@@ -265,12 +291,6 @@ public:
         return GetUsage(format->effectiveFormat);
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-GLint GetComponentSize(EffectiveFormat format, GLenum component);
-GLenum GetComponentType(EffectiveFormat format);
-GLenum GetColorEncoding(EffectiveFormat format);
 
 } // namespace webgl
 } // namespace mozilla

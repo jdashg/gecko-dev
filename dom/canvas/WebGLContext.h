@@ -1657,7 +1657,14 @@ WebGLContext::ValidateObject(const char* info, ObjectType* object)
     return ValidateObjectAssumeNonNull(info, object);
 }
 
-size_t RoundUpToMultipleOf(size_t value, size_t multiple);
+// Returns `value` rounded to the next highest multiple of `multiple`.
+// AKA PadToAlignment, StrideForAlignment.
+template<typename V, typename M>
+V
+RoundUpToMultipleOf(const V& value, const M& multiple)
+{
+    return ((value + multiple - 1) / multiple) * multiple;
+}
 
 bool
 ValidateTexTarget(WebGLContext* webgl, const char* funcName, GLenum rawTexTarget,
@@ -1667,8 +1674,65 @@ ValidateTexImageTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDi
                        GLenum rawTexImageTarget, TexImageTarget* const out_texImageTarget,
                        WebGLTexture** const out_tex);
 
-// Returns x rounded to the next highest multiple of y.
-CheckedUint32 RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y);
+
+bool
+GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
+                         size_t* const out_alignment);
+
+class UniqueBuffer
+{
+    void* mBuffer;
+
+public:
+    explicit UniqueBuffer(void* buffer = nullptr)
+        : mBuffer(buffer)
+    { }
+
+    explicit UniqueBuffer(UniqueBuffer&& other) {
+        this->mBuffer = other.mBuffer;
+        other.mBuffer = nullptr;
+    }
+
+    UniqueBuffer& operator =(UniqueBuffer&& other) {
+        free(this->mBuffer);
+        this->mBuffer = other.mBuffer;
+        other.mBuffer = nullptr;
+    }
+
+    UniqueBuffer& operator =(void* newBuffer) {
+        free(this->mBuffer);
+        this->mBuffer = newBuffer;
+    }
+
+    explicit operator bool() const { return bool(mBuffer); }
+
+    void* get() const { return mBuffer; }
+
+    UniquePtr(const UniqueBuffer& other) = delete; // construct using Move()!
+    void operator =(const UniqueBuffer& other) = delete; // assign using Move()!
+};
+
+struct ScopedUnpackReset
+    : public gl::ScopedGLWrapper<ScopedUnpackReset>
+{
+    friend struct gl::ScopedGLWrapper<ScopedUnpackReset>;
+
+protected:
+    GLint mAlignment;
+    GLint mRowLength;
+    GLint mImageHeight;
+    GLint mSkipPixels;
+    GLint mSkipRows;
+    GLint mSkipImages;
+    GLuint mPixelUnpackBuffer;
+    bool mChangedPixelUnpackBuffer;
+
+public:
+    ScopedUnpackReset(WebGLContext* webgl, GLuint tempPixelUnpackBuffer);
+
+protected:
+    void UnwrapImpl();
+};
 
 void
 ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,

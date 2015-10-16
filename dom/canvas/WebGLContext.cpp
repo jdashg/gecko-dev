@@ -1809,14 +1809,13 @@ WebGLContext::DidRefresh()
 size_t
 RoundUpToMultipleOf(size_t value, size_t multiple)
 {
-    size_t overshoot = value + multiple - 1;
-    return overshoot - (overshoot % multiple);
+    return ((value + multiple - 1) / multiple) * multiple;
 }
 
 CheckedUint32
-RoundedToNextMultipleOf(CheckedUint32 x, CheckedUint32 y)
+RoundedToNextMultipleOf(CheckedUint32 value, CheckedUint32 multiple)
 {
-    return ((x + y - 1) / y) * y;
+    return ((value + multiple - 1) / multiple) * multiple;
 }
 
 bool
@@ -1881,6 +1880,66 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
     if (mFakeNoStencil) {
         mWebGL.gl->fEnable(LOCAL_GL_STENCIL_TEST);
     }
+}
+
+////////////////////
+
+ScopedUnpackReset::ScopedUnpackReset(WebGLContext* webgl, GLuint tempPixelUnpackBuffer)
+    : ScopedGLWrapper<ScopedUnpackReset>(webgl->gl)
+    , mChangedPixelUnpackBuffer(false)
+{
+    gl::GLContext* gl = webgl->gl;
+
+    if (webgl->mPixelStore_UnpackAlignment   != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , 4);
+    if (webgl->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
+    if (webgl->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
+    if (webgl->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
+    if (webgl->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
+    if (webgl->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
+
+    mPixelUnpackBuffer = 0;
+    if (mBoundPixelUnpackBuffer)
+        mPixelUnpackBuffer = mBoundPixelUnpackBuffer->mGLName;
+
+    if (mPixelUnpackBuffer != tempPixelUnpackBuffer) {
+        gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, tempPixelUnpackBuffer);
+        mChangedPixelUnpackBuffer = true;
+    }
+}
+
+void
+ScopedUnpackReset::UnwrapImpl() {
+    // Check that we're not falling out of scope after the current context changed.
+    MOZ_ASSERT(mGL->IsCurrent());
+
+    if (webgl->mPixelStore_UnpackAlignment   != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , mAlignment  );
+    if (webgl->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , mRowLength  );
+    if (webgl->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, mImageHeight);
+    if (webgl->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , mSkipPixels );
+    if (webgl->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , mSkipRows   );
+    if (webgl->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , mSkipImages );
+
+    if (mChangedPixelUnpackBuffer) {
+        gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelUnpackBuffer);
+    }
+}
+
+////////////////////////////////////////
+
+bool
+GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
+                         size_t* const out_alignment)
+{
+    size_t alignmentGuess = maxAlignment;
+    while (alignmentGuess) {
+        size_t guessStride = PadValueToAlignment(width, alignmentGuess);
+        if (guessStride == stride) {
+            *out_alignment = alignmentGuess;
+            return true;
+        }
+        alignmentGuess /= 2;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
