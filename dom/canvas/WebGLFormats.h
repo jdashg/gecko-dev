@@ -239,7 +239,7 @@ struct UnpackTuple {
     }
 };
 
-struct TexImageInfo {
+struct UnpackInfo {
     const GLenum internalFormat;
     const GLenum unpackFormat;
     const GLenum unpackType;
@@ -259,7 +259,7 @@ struct FormatUsageInfo {
     //const EffectiveFormat formatForDriver;
 
     bool IsUnpackValid(const PackingInfo* key,
-                       const TexImageInfo** const out_value) const;
+                       const UnpackInfo** const out_value) const;
 
     const TexImageInfo* GetAnyUnpack() const;
 };

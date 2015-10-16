@@ -38,17 +38,14 @@ namespace webgl {
 class TexUnpackBlob
 {
 public:
-    WebGLContext* const mWebGL;
     const GLsizei mWidth;
     const GLsizei mHeight;
     const GLsizei mDepth;
     const bool mHasData;
 
 protected:
-    TexUnpackBlob(WebGLContext* webgl, GLsizei width, GLsizei height, GLsizei depth,
-                  bool hasData)
-        : mWebGL(webgl)
-        , mWidth(width)
+    TexUnpackBlob(GLsizei width, GLsizei height, GLsizei depth, bool hasData)
+        : mWidth(width)
         , mHeight(height)
         , mDepth(depth)
         , mHasData(hasData)
@@ -71,9 +68,9 @@ public:
     const size_t mDataSize;
     const void* const mData;
 
-    TexUnpackBuffer(WebGLContext* webgl, GLsizei width, GLsizei height, GLsizei depth,
-                    size_t dataSize, const void* data)
-        : TexUnpackBlob(webgl, width, height, depth, bool(data))
+    TexUnpackBuffer(GLsizei width, GLsizei height, GLsizei depth, size_t dataSize,
+                    const void* data)
+        : TexUnpackBlob(width, height, depth, bool(data))
         , mDataSize(dataSize)
         , mData(data)
     { }
@@ -92,7 +89,7 @@ public:
     const RefPtr<mozilla::layers::Image> mImage;
     dom::HTMLMediaElement* const mElem;
 
-    TexUnpackImage(WebGLContext* webgl, const RefPtr<mozilla::layers::Image>& image,
+    TexUnpackImage(const RefPtr<mozilla::layers::Image>& image,
                    dom::HTMLMediaElement* elem);
 
     virtual bool ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
@@ -111,8 +108,7 @@ class TexUnpackSrcSurface : public TexUnpackBlob
 public:
     const RefPtr<gfx::DataSourceSurface> mSurf;
 
-    TexUnpackSourceSurface(WebGLContext* webgl,
-                           const RefPtr<gfx::DataSourceSurface>& surf);
+    TexUnpackSourceSurface(const RefPtr<gfx::DataSourceSurface>& surf);
 
     virtual bool ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
                                 const webgl::PackingInfo* packingInfo) override

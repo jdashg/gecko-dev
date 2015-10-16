@@ -169,18 +169,18 @@ WebGLTexture::MemoryUsage() const
 }
 
 void
-WebGLTexture::SetImageInfoAtFace(uint8_t face, uint32_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfo(ImageInfo* target, const ImageInfo& newInfo)
 {
-    ImageInfoAtFace(face, level) = val;
+    *target = newInfo;
 
     InvalidateFakeBlackCache();
 }
 
 void
-WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& val)
+WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& newInfo)
 {
     for (uint8_t i = 0; i < mFaceCount; i++) {
-        ImageInfoAtFace(i, level) = val;
+        ImageInfoAtFace(i, level) = newInfo;
     }
 
     InvalidateFakeBlackCache();

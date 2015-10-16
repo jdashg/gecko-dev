@@ -168,10 +168,9 @@ TexUnpackBuffer::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget ta
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexUnpackImage
 
-TexUnpackImage::TexUnpackImage(WebGLContext* webgl,
-                               const RefPtr<mozilla::layers::Image>& image,
+TexUnpackImage::TexUnpackImage(const RefPtr<mozilla::layers::Image>& image,
                                dom::HTMLMediaElement* elem)
-    : TexUnpackBlob(webgl, image->GetSize().width, image->GetSize().height, 1, true)
+    : TexUnpackBlob(image->GetSize().width, image->GetSize().height, 1, true)
     , mImage(image)
     , mElem(elem)
 { }
@@ -596,9 +595,8 @@ ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
 
 ////////////////////
 
-TexUnpackSourceSurface::TexUnpackSourceSurface(WebGLContext* webgl,
-                                               const RefPtr<gfx::DataSourceSurface>& surf)
-    : TexUnpackBlob(webgl, surf->GetSize().width, surf->GetSize().height, 1, true)
+TexUnpackSourceSurface::TexUnpackSourceSurface(const RefPtr<gfx::DataSourceSurface>& surf)
+    : TexUnpackBlob(surf->GetSize().width, surf->GetSize().height, 1, true)
     , mSurf(surf)
 { }
 

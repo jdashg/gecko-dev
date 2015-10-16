@@ -91,18 +91,18 @@ public:
     // And in turn, it needs these forwards:
 protected:
     // We need to forward these.
-    void SetImageInfoAtFace(uint8_t face, uint32_t level, const ImageInfo& val);
-    void SetImageInfosAtLevel(uint32_t level, const ImageInfo& val);
+    void SetImageInfo(ImageInfo* target, const ImageInfo& newInfo);
+    void SetImageInfosAtLevel(uint32_t level, const ImageInfo& newInfo);
 
 public:
     // We store information about the various images that are part of this
     // texture. (cubemap faces, mipmap levels)
     class ImageInfo
     {
-        friend void WebGLTexture::SetImageInfoAtFace(uint8_t face, uint32_t level,
-                                                     const ImageInfo& val);
+        friend void WebGLTexture::SetImageInfo(ImageInfo* target,
+                                               const ImageInfo& newInfo);
         friend void WebGLTexture::SetImageInfosAtLevel(uint32_t level,
-                                                       const ImageInfo& val);
+                                                       const ImageInfo& newInfo);
 
     public:
         static const ImageInfo kUndefined;
