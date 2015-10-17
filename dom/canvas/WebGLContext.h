@@ -885,11 +885,9 @@ public:
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                    ErrorResult& out_rv);
+                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                    ErrorResult& out_rv);
+                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
                     ErrorResult* const out_rv);
@@ -898,29 +896,29 @@ public:
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLsizei width, GLsizei height, GLenum unpackFormat,
                        GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                       ErrorResult& out_rv);
+                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                       ErrorResult& out_rv);
+                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
-                       ErrorResult* const out_rv);
+                       GLenum unpackFormat, GLenum unpackType,
+                       dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
 
     // Allow whatever element unpackTypes the bindings are willing to pass
     // us in Tex(Sub)Image2D
     template<typename ElementT>
-    void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                    ErrorResult& out_rv)
+    inline void
+    TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
+               GLenum unpackFormat, GLenum unpackType, ElementT& elem,
+               ErrorResult& out_rv)
     {
         TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, &elem,
                    &out_rv);
     }
     template<typename ElementT>
-    void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                       ErrorResult& out_rv)
+    inline void
+    TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                  GLenum unpackFormat, GLenum unpackType, ElementT& elem,
+                  ErrorResult& out_rv)
     {
         TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
                       &elem, &out_rv);
