@@ -295,8 +295,7 @@ void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                          GLenum unpackType,
-                         const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                         ErrorResult& out_rv)
+                         const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView)
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
@@ -312,13 +311,13 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
     const GLsizei depth = 1;
 
     tex->TexImage(funcName, funcDims, target, level, internalFormat, width, height, depth,
-                  border, unpackFormat, unpackType, maybeView, &out_rv);
+                  border, unpackFormat, unpackType, maybeView);
 }
 
 void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLenum unpackFormat, GLenum unpackType,
-                         dom::ImageData* imageData, ErrorResult& out_rv)
+                         dom::ImageData* imageData)
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
@@ -332,7 +331,7 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
     }
 
     tex->TexImage(funcName, funcDims, target, level, internalFormat, unpackFormat,
-                  unpackType, imageData, &out_rv);
+                  unpackType, imageData);
 }
 
 void
@@ -362,8 +361,7 @@ void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLsizei width, GLsizei height,
                             GLenum unpackFormat, GLenum unpackType,
-                            const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                            ErrorResult& out_rv)
+                            const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView)
 {
     const char funcName[] = "texSubImage2D";
     const uint8_t funcDims = 2;
@@ -380,13 +378,13 @@ WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset
     const GLsizei depth = 1;
 
     tex->TexSubImage(funcName, funcDims, target, level, xOffset, yOffset, zOffset,
-                     width, height, depth, unpackFormat, unpackType, maybeView, &out_rv);
+                     width, height, depth, unpackFormat, unpackType, maybeView);
 }
 
 void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLenum unpackFormat, GLenum unpackType,
-                            dom::ImageData* imageData, ErrorResult& out_rv)
+                            dom::ImageData* imageData)
 {
     const char funcName[] = "texSubImage2D";
     const uint8_t funcDims = 2;
@@ -402,7 +400,7 @@ WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset
     const GLint zOffset = 0;
 
     tex->TexSubImage(funcName, funcDims, target, level, xOffset, yOffset, zOffset,
-                     unpackFormat, unpackType, imageData, &out_rv);
+                     unpackFormat, unpackType, imageData);
 }
 
 void

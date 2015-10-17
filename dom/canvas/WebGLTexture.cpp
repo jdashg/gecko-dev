@@ -604,63 +604,82 @@ TexImageTargetFromFace(TexTarget target, uint8_t face)
     return LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
 }
 
-bool
-WebGLTexture::EnsureImageDataInitialized(uint8_t face, uint32_t level)
+static CheckedUint32
+NumWholeBlocksForLength(CheckedUint32 length, uint8_t blockLength)
 {
+    return (length + blockLength - 1) / blockLength;
 }
-        if (cleared) {
-            imageInfo.SetIsDataInitialized(true, this);
-            return true;
-        }
-            // Failed to allocate memory. Lose the context. Return OOM error.
-            mContext->ForceLoseContext(true);
-            mContext->ErrorOutOfMemory("EnsureInitializedImageData: Failed to alloc %u "
-                                       "bytes to clear image target `%s` level `%d`.",
-                                       byteCount, mContext->EnumName(texImageTarget.get()),
-                                       level);
-             return false;
-        }
 
-
-
-GLenum
-WebGLTexture::ClearTexImage(TexImageTarget target, uint32_t level)
+bool
+WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 {
     ImageInfo& imageInfo = ImageInfoAt(target, level);
     MOZ_ASSERT(imageInfo.IsDefined());
+    MOZ_ASSERT(!imageInfo.IsDataInitialized());
 
     gl::GLContext* gl = mContext->gl;
     gl->MakeCurrent();
 
     // Try to clear with glClear.
-    if (ClearWithTempFB(mContext, mGLName, target, level, imageInfo))
-        return 0;
+    if (ClearWithTempFB(mContext, mGLName, target, level, imageInfo)) {
+        SetIsDataInitialized(true, this);
+        return true;
+    }
     // That didn't work. Try uploading zeros then.
 
-    auto format = imageInfo.mFormat;
-    auto texImageInfo = format->GetAnyUnpack();
-    const GLsizei& width = imageInfo.mWidth;
-    const GLsizei& height = imageInfo.mHeight;
-    const GLsizei& depth = imageInfo.mDepth;
+    const webgl::FormatUsageInfo* format = imageInfo.mFormat;
+    auto& width = imageInfo.mWidth;
+    auto& height = imageInfo.mHeight;
+    auto& depth = imageInfo.mDepth;
 
     ScopedUnpackReset scopedReset(mContext, 0);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
-    CheckedUint32 checkedByteCount = texImageInfo->bytesPerPixel;
-    checkedByteCount *= width;
-    checkedByteCount *= height;
-    checkedByteCount *= depth;
+    auto compression = format->formatInfo->compression;
+    if (compression) {
+        CheckedUint32 checkedByteCount = compression->bytesPerBlock;
+        checkedByteCount *= NumWholeBlocksForLength(width, compression->blockWidth);
+        checkedByteCount *= NumWholeBlocksForLength(height, compression->blockHeight);
+        checkedByteCount *= depth;
 
-    if (!checkedByteCount.isValid())
-        return LOCAL_GL_OUT_OF_MEMORY;
+        if (!checkedByteCount.isValid())
+            return false;
 
-    size_t byteCount = checkedByteCount.value();
+        size_t byteCount = checkedByteCount.value();
 
-    UniqueBuffer zeros = calloc(1, byteCount);
-    if (!zeros)
-        return LOCAL_GL_OUT_OF_MEMORY;
+        UniqueBuffer zeros = calloc(1, byteCount);
+        if (!zeros)
+            return false;
 
-    return TexImage(gl, target, level, texImageInfo, width, height, depth, zeros.get());
+        GLenum error = CompressedTexSubImage(gl, target, level, 0, 0, 0, width, height,
+                                             depth, format, zeros.get());
+        if (error)
+            return false;
+    } else {
+        auto texImageInfo = format->GetAnyUnpack();
+
+        CheckedUint32 checkedByteCount = texImageInfo->bytesPerPixel;
+        checkedByteCount *= width;
+        checkedByteCount *= height;
+        checkedByteCount *= depth;
+
+        if (!checkedByteCount.isValid())
+            return false;
+
+        size_t byteCount = checkedByteCount.value();
+
+        UniqueBuffer zeros = calloc(1, byteCount);
+        if (!zeros)
+            return false;
+
+        GLenum error = TexSubImage(gl, target, level, 0, 0, 0, width, height, depth,
+                                   texImageInfo, zeros.get());
+        if (error)
+            return false;
+    }
+
+    SetIsDataInitialized(true, this);
+    return true;
 }
 
 

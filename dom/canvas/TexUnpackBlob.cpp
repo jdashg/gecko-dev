@@ -140,7 +140,7 @@ TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
         return false;
     }
 
-    if (bytesNeeded > mDataSize) {
+    if (mData && bytesNeeded > mDataSize) {
         mContext->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u,"
                                         " has %u)",
                                         funcName, bytesNeeded, mDataSize);
