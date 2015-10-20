@@ -217,166 +217,82 @@ public:
     ////////////////////////////////////
     // WebGLTextureUpload.cpp
 
-    void CompressedTexImage2D(TexImageTarget texImageTarget, GLint level,
-                              GLenum internalFormat, GLsizei width, GLsizei height,
-                              GLint border, const dom::ArrayBufferViewOrSharedArrayBufferView& view);
+    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                  GLint level, GLenum internalFormat, GLsizei width, GLsizei height,
+                  GLsizei depth, GLint border, GLenum unpackFormat, GLenum unpackType,
+                  const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
+    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                     GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
+                     GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
+                     GLenum unpackType,
+                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
 
-    void CompressedTexImage3D(TexImageTarget texImageTarget, GLint level,
-                              GLenum internalFormat, GLsizei width, GLsizei height,
-                              GLsizei depth, GLint border, GLsizei imageSize,
-                              const dom::ArrayBufferViewOrSharedArrayBufferView& view);
+    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                  GLint level, GLenum internalFormat, GLenum unpackFormat,
+                  GLenum unpackType, dom::ImageData* imageData);
+    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                     GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
+                     GLenum unpackFormat, GLenum unpackType,
+                     dom::ImageData* imageData);
 
-
-    void CompressedTexSubImage2D(TexImageTarget texImageTarget, GLint level,
-                                 GLint xOffset, GLint yOffset, GLsizei width,
-                                 GLsizei height, GLenum unpackFormat,
-                                 const dom::ArrayBufferViewOrSharedArrayBufferView& view);
-
-    void CompressedTexSubImage3D(TexImageTarget texImageTarget, GLint level,
-                                 GLint xOffset, GLint yOffset, GLint zOffset,
-                                 GLsizei width, GLsizei height, GLsizei depth,
-                                 GLenum unpackFormat, GLsizei imageSize,
-                                 const dom::ArrayBufferViewOrSharedArrayBufferView& view);
-
-
-    void CopyTexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
-                        GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
-
-
-    void CopyTexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                           GLint yOffset, GLint x, GLint y, GLsizei width,
-                           GLsizei height);
-
-    void CopyTexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                           GLint yOffset, GLint zOffset, GLint x, GLint y, GLsizei width,
-                           GLsizei height);
-
-
-    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
-                    GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
-                    GLenum unpackType,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                    ErrorResult* const out_rv);
-    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                    ErrorResult* const out_rv);
-    void TexImage2D(TexImageTarget texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
-                    ErrorResult* const out_rv);
-
-    void TexImage3D(TexImageTarget target, GLint level, GLenum internalFormat,
-                    GLsizei width, GLsizei height, GLsizei depth, GLint border,
-                    GLenum unpackFormat, GLenum unpackType,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                    ErrorResult* const out_rv);
-
-
-    void TexStorage2D(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
-                      GLsizei width, GLsizei height);
-    void TexStorage3D(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
-                      GLsizei width, GLsizei height, GLsizei depth);
-
-
-    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLsizei width, GLsizei height, GLenum unpackFormat,
-                       GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                       ErrorResult* const out_rv);
-    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLenum unpackFormat, GLenum unpackType,
-                       dom::ImageData* imageData, ErrorResult* const out_rv);
-    void TexSubImage2D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLenum unpackFormat, GLenum unpackType,
-                       dom::Element* elem, ErrorResult* const out_rv);
-
-    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
-                       GLsizei depth, GLenum unpackFormat, GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                       ErrorResult* const out_rv);
-    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLint zOffset, GLenum unpackFormat,
-                       GLenum unpackType, dom::ImageData* imageData,
-                       ErrorResult* const out_rv);
-    void TexSubImage3D(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                       GLint yOffset, GLint zOffset, GLenum unpackFormat,
-                       GLenum unpackType, dom::Element* elem, ErrorResult* const out_rv);
+    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                  GLint level, GLenum internalFormat, GLenum unpackFormat,
+                  GLenum unpackType, dom::HTMLMediaElement* elem,
+                  ErrorResult* const out_rv);
+    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                     GLint level, GLenum internalFormat, GLint xOffset,
+                     GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                     GLenum unpackType, dom::HTMLMediaElement* elem,
+                     ErrorResult* const out_rv);
 
 protected:
-    // WebGLTextureUpload.cpp
-    bool ValidateTexImageSpecification(const char* funcName,
-                                       TexImageTarget target, GLint level,
-                                       GLsizei width, GLsizei height, GLsizei depth,
-                                       GLint border,
+    bool ValidateTexImageSpecification(const char* funcName, TexImageTarget target,
+                                       GLint level, GLsizei width, GLsizei height,
+                                       GLsizei depth, GLint border,
                                        WebGLTexture::ImageInfo** const out_imageInfo);
-
     bool ValidateTexImageSelection(const char* funcName, TexImageTarget target,
-                                   GLint level, GLint xOffset,
-                                   GLint yOffset, GLint zOffset, GLsizei width,
-                                   GLsizei height, GLsizei depth,
+                                   GLint level, GLint xOffset, GLint yOffset,
+                                   GLint zOffset, GLsizei width, GLsizei height,
+                                   GLsizei depth,
                                    WebGLTexture::ImageInfo** const out_imageInfo);
 
-    bool ValidateTexUnpack(const char* funcName, size_t funcDims, GLsizei width,
-                           GLsizei height, GLsizei depth, GLenum unpackFormat,
-                           GLenum unpackType, size_t dataSize,
-                           webgl::ElementTexSource* texSource,
-                           const webgl::FormatInfo** const out_format);
-
-
-
-    ////////////////
-    // Old stuff below
-
-
-    /** Like glTexImage2D, but if the call may change the texture size, checks
-     * any GL error generated by this glTexImage2D call and returns it.
-     */
-    GLenum CheckedTexImage2D(TexImageTarget texImageTarget, GLint level,
-                             TexInternalFormat internalFormat, GLsizei width,
-                             GLsizei height, GLint border, TexFormat format,
-                             TexType type, const GLvoid* data);
-
-    bool ValidateTexStorage(TexImageTarget texImageTarget, GLsizei levels, GLenum internalFormat,
-                            GLsizei width, GLsizei height, GLsizei depth,
-                            const char* funcName);
-    void SpecifyTexStorage(GLsizei levels, TexInternalFormat internalFormat,
-                           GLsizei width, GLsizei height, GLsizei depth);
-
-    void CopyTexSubImage2D_base(TexImageTarget texImageTarget,
-                                GLint level, GLenum rawInternalFormat,
-                                GLint xoffset, GLint yoffset, GLint x, GLint y,
-                                GLsizei width, GLsizei height, GLint border, bool isSub);
-
-    bool TexImageFromVideoElement(TexImageTarget texImageTarget, GLint level,
-                                  GLenum internalFormat, GLenum unpackFormat,
-                                  GLenum unpackType, dom::Element* elem);
-
-    // If jsArrayType is MaxTypedArrayViewType, it means no array.
-    void TexImage2D_base(TexImageTarget texImageTarget, GLint level,
-                         GLenum internalFormat, GLsizei width, GLsizei height,
-                         GLsizei srcStrideOrZero, GLint border, GLenum unpackFormat,
-                         GLenum unpackType, void* data, uint32_t byteLength,
-                         js::Scalar::Type jsArrayType, WebGLTexelFormat srcFormat,
-                         bool srcPremultiplied);
-    void TexSubImage2D_base(TexImageTarget texImageTarget, GLint level, GLint xOffset,
-                            GLint yOffset, GLsizei width, GLsizei height,
-                            GLsizei srcStrideOrZero, GLenum unpackFormat,
-                            GLenum unpackType, void* pixels, uint32_t byteLength,
-                            js::Scalar::Type jsArrayType, WebGLTexelFormat srcFormat,
-                            bool srcPremultiplied);
-
-    bool ValidateTexStorage(TexTarget texTarget, GLsizei levels, GLenum internalFormat,
-                                      GLsizei width, GLsizei height, GLsizei depth,
-                                      const char* info);
-    bool ValidateSizedInternalFormat(GLenum internalFormat, const char* info);
-
-    void ClampLevelBaseAndMax();
-
-    void PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel);
+public:
+    void TexStorage(const char* funcName, uint8_t funcDims, TexTarget target,
+                    GLsizei levels, GLenum sizedFormat, GLsizei width,
+                    GLsizei height, GLsizei depth);
+    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
+                  GLint level, GLenum internalFormat, GLenum unpackFormat,
+                  GLenum unpackType, TexUnpackBlob* unpackBlob,
+                  bool* const out_tryAgain);
+    void TexSubImage(const char* funcName, uint8_t funcDims,
+                     TexImageTarget target, GLint level, GLint xOffset,
+                     GLint yOffset, GLint zOffset, GLenum unpackFormat,
+                     GLenum unpackType, TexUnpackBlob* unpackBlob);
+    void CompressedTexImage(const char* funcName, uint8_t funcDims,
+                            TexImageTarget target, GLint level,
+                            GLenum internalFormat, GLsizei width, GLsizei height,
+                            GLsizei depth, GLint border, void* data, size_t dataSize);
+    void CompressedTexSubImage(const char* funcName, uint8_t funcDims,
+                               GLenum texImageTarget, GLint level,
+                               GLint xOffset, GLint yOffset, GLint zOffset,
+                               GLsizei width, GLsizei height, GLsizei depth,
+                               GLenum sizedUnpackFormat, size_t dataSize,
+                               const void* data);
+    void CopyTexImage2D(TexImageTarget target, GLint level, GLenum internalFormat,
+                        GLint x, GLint y, GLsizei width, GLsizei height,
+                        GLint border);
+    void CopyTexSubImage(const char* funcName, uint8_t funcDims,
+                         TexImageTarget target, GLint level, GLint xOffset,
+                         GLint yOffset, GLint zOffset, GLint x, GLint y,
+                         GLsizei width, GLsizei height);
 
     ////////////////////////////////////
 
 protected:
+    void ClampLevelBaseAndMax();
+
+    void PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel);
+
     uint32_t MaxEffectiveMipmapLevel() const;
 
     static uint8_t FaceForTarget(TexImageTarget texImageTarget) {

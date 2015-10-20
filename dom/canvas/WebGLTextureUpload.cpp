@@ -966,19 +966,11 @@ WebGLTexture::TexStorage(const char* funcName, uint8_t funcDims, TexTarget targe
     // Update our specification data.
 
     const bool isDataInitialized = false;
+    const WebGLTexture::ImageInfo newInfo(format, width, height, depth,
+                                          isDataInitialized);
+    SetImageInfosAtLevel(0, newInfo);
 
-    for (GLsizei level = 0; level < levels; level++) {
-        const WebGLTexture::ImageInfo newInfo(format, width, height, depth,
-                                              isDataInitialized);
-        SetImageInfosAtLevel(level, newInfo);
-
-        width >>= 1;
-        height >>= 1;
-
-        if (target == LOCAL_GL_TEXTURE_3D) {
-            depth >>= 1;
-        }
-    }
+    PopulateMipChain(0, levels-1);
 }
 
 ////////////////////////////////////////
@@ -1069,7 +1061,7 @@ WebGLTexture::TexImage(const char* funcName, uint8_t funcDims, TexImageTarget ta
         } else if (glError) {
             ErrorInvalidOperation("%s: Unexpected error during upload: 0x04x", funcName,
                                   glError);
-            MOZ_RELEASE_ASSERT(false, "Unexpected GL error.");
+            MOZ_ASSERT(false, "Unexpected GL error.");
         } else {
             ErrorInvalidOperation("%s: Internal error during upload.", funcName);
         }
@@ -1079,8 +1071,8 @@ WebGLTexture::TexImage(const char* funcName, uint8_t funcDims, TexImageTarget ta
     ////////////////////////////////////
     // Update our specification data.
 
-    *imageInfo = ImageInfo(dstFormatUsage, unpackBlob->Width(), unpackBlob->Height(),
-                           unpackBlob->Depth(), unpackBlob->HasData());
+    *imageInfo = ImageInfo(dstFormatUsage, unpackBlob->mWidth, unpackBlob->mHeight,
+                           unpackBlob->mDepth, unpackBlob->HasData());
 }
 
 
@@ -1492,16 +1484,12 @@ WebGLTexture::CopyTexSubImage(const char* funcName, uint8_t funcDims,
     ////////////////////////////////////
     // Get dest info
 
-    TexImageTarget target;
-    WebGLTexture* texture;
     WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImageSelection(funcName, funcDims, texImageTarget, level, xOffset,
-                                   yOffset, zOffset, width, height, depth, &target,
-                                   &texture, &imageInfo))
+    if (!ValidateTexImageSelection(funcName, target, level, xOffset, yOffset, zOffset,
+                                   width, height, depth, &imageInfo))
     {
         return;
     }
-    MOZ_ASSERT(texture);
     MOZ_ASSERT(imageInfo);
 
     const webgl::FormatUsageInfo* dstFormatUsage = imageInfo->Format();

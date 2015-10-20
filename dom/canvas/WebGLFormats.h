@@ -252,16 +252,15 @@ struct FormatUsageInfo {
     bool isRenderable;
     bool asTexture;
     bool isFilterable;
-    std::map<const PackingInfo*, TexImageInfo> validUnpacks;
-    const GLint* textureSwizzleRGBA;
+    std::map<const PackingInfo*, UnpackInfo> validUnpacks;
+    //const GLint* textureSwizzleRGBA;
+    UnpackInfo* idealUnpack;
 
     //// We don't always do the expected for the format.
     //const EffectiveFormat formatForDriver;
 
     bool IsUnpackValid(const PackingInfo* key,
                        const UnpackInfo** const out_value) const;
-
-    const TexImageInfo* GetAnyUnpack() const;
 };
 
 class FormatUsageAuthority

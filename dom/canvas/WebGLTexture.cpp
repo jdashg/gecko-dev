@@ -750,9 +750,9 @@ WebGLTexture::ClampLevelBaseAndMax()
 }
 
 void
-WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
+WebGLTexture::PopulateMipChain(uint32_t firstLevel, uint32_t lastLevel)
 {
-    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, baseLevel);
+    const ImageInfo& baseImageInfo = ImageInfoAtFace(0, firstLevel);
     MOZ_ASSERT(baseImageInfo.IsDefined());
 
     uint32_t refWidth = baseImageInfo.mWidth;
@@ -760,23 +760,27 @@ WebGLTexture::PopulateMipChain(uint32_t baseLevel, uint32_t maxLevel)
     uint32_t refDepth = baseImageInfo.mDepth;
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
-    for (uint32_t level = baseLevel; level <= maxLevel; level++) {
+    for (uint32_t level = firstLevel; level <= lastLevel; level++) {
         const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
                             baseImageInfo.IsDataInitialized());
 
         SetImageInfosAtLevel(level, cur);
 
-        // Higher levels are unaffected.
-        if (refWidth == 1 &&
-            refHeight == 1 &&
-            refDepth == 1)
-        {
-            break;
+        bool isMinimal = (refWidth == 1 &&
+                          refHeight == 1);
+        if (mTarget == LOCAL_GL_TEXTURE_3D) {
+            isMinimal &= (refDepth == 1);
         }
 
-        refWidth  = std::max(uint32_t(1), refWidth  / 2);
+        // Higher levels are unaffected.
+        if (isMinimal)
+            break;
+
+        refWidth = std::max(uint32_t(1), refWidth / 2);
         refHeight = std::max(uint32_t(1), refHeight / 2);
-        refDepth  = std::max(uint32_t(1), refDepth  / 2);
+        if (mTarget == LOCAL_GL_TEXTURE_3D) { // But not TEXTURE_2D_ARRAY!
+            refDepth = std::max(uint32_t(1), refDepth / 2);
+        }
     }
 }
 
