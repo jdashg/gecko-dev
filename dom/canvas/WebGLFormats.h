@@ -202,7 +202,6 @@ struct FormatInfo {
 struct PackingInfo {
     const GLenum format;
     const GLenum type;
-    const uint8_t bytesPerPixel;
 
     bool operator <(const PackingInfo& x) const
     {
@@ -218,7 +217,6 @@ struct PackingInfo {
 const FormatInfo* GetFormatInfo(EffectiveFormat format);
 const FormatInfo* GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType);
 const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
-const PackingInfo* GetPackingInfo(GLenum format, GLenum type);
 
 GLint GetComponentSize(EffectiveFormat format, GLenum component);
 GLenum GetComponentType(EffectiveFormat format);
@@ -226,24 +224,10 @@ GLenum GetColorEncoding(EffectiveFormat format);
 
 ////////////////////////////////////////
 
-struct UnpackTuple {
-    const GLenum format;
-    const GLenum type;
-
-    bool operator <(const UnpackTuple& x) const
-    {
-        if (format != x.format)
-            return format < x.format;
-
-        return type < x.type;
-    }
-};
-
-struct UnpackInfo {
+struct DriverUnpackInfo {
     const GLenum internalFormat;
     const GLenum unpackFormat;
     const GLenum unpackType;
-    const uint8_t bytesPerPixel;
 };
 
 struct FormatUsageInfo {
@@ -252,15 +236,22 @@ struct FormatUsageInfo {
     bool isRenderable;
     bool asTexture;
     bool isFilterable;
-    std::map<const PackingInfo*, UnpackInfo> validUnpacks;
+    std::map<const PackingInfo, DriverUnpackInfo> validUnpacks;
+    DriverUnpackInfo* idealUnpack;
     //const GLint* textureSwizzleRGBA;
-    UnpackInfo* idealUnpack;
 
-    //// We don't always do the expected for the format.
-    //const EffectiveFormat formatForDriver;
+    FormatUsageInfo(const FormatInfo* _format)
+        : format(_format)
+        , asRenderbuffer(false)
+        , isRenderable(false)
+        , asTexture(false)
+        , isFilterable(false)
+        , idealUnpack(nullptr)
+    { }
 
-    bool IsUnpackValid(const PackingInfo* key,
-                       const UnpackInfo** const out_value) const;
+    void AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value);
+    bool IsUnpackValid(const PackingInfo& key,
+                       const DriverUnpackInfo** const out_value) const;
 };
 
 class FormatUsageAuthority
@@ -268,21 +259,18 @@ class FormatUsageAuthority
     std::map<EffectiveFormat, FormatUsageInfo> mInfoMap;
 
 public:
-    static UniquePtr<FormatUsageAuthority> CreateForWebGL1();
-    static UniquePtr<FormatUsageAuthority> CreateForWebGL2();
+    static UniquePtr<FormatUsageAuthority> CreateForWebGL1(gl::GLContext* gl);
+    static UniquePtr<FormatUsageAuthority> CreateForWebGL2(gl::GLContext* gl);
 
 private:
     FormatUsageAuthority() { }
 
 public:
-    void AddFormat(EffectiveFormat format, bool asRenderbuffer, bool isRenderable,
-                   bool asTexture, bool isFilterable);
+    FormatUsageInfo* EditUsage(EffectiveFormat format);
 
-    void AddUnpackOption(GLenum unpackFormat, GLenum unpackType,
-                         EffectiveFormat effectiveFormat);
+    const FormatUsageInfo* GetUsage(EffectiveFormat format) const;
 
-    FormatUsageInfo* GetUsage(EffectiveFormat format);
-    FormatUsageInfo* GetUsage(const FormatInfo* format)
+    const FormatUsageInfo* GetUsage(const FormatInfo* format) const
     {
         if (!format)
             return nullptr;

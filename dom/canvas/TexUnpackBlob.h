@@ -58,7 +58,7 @@ public:
     // Returns false on internal failure OR GL error. If !*out_glError, then it was an
     // internal error.
     virtual bool TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::TexImageInfo* texImageInfo,
+                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                           GLenum* const out_glError) = 0;
 };
 
@@ -79,7 +79,7 @@ public:
                                 const webgl::PackingInfo* packingInfo) override;
 
     virtual bool TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::TexImageInfo* texImageInfo,
+                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                           GLenum* const out_glError) override;
 };
 
@@ -99,7 +99,7 @@ public:
     }
 
     virtual bool TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::TexImageInfo* texImageInfo,
+                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                           GLenum* const out_glError) override;
 };
 
@@ -117,7 +117,7 @@ public:
     }
 
     virtual bool TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::TexImageInfo* texImageInfo,
+                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                           GLenum* const out_glError) override;
 };
 

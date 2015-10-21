@@ -1114,44 +1114,6 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
 
 ////////////////////////////////////////////////////////////////////////////////
 
-GLenum
-TexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
-         const webgl::TexImageInfo* texImageInfo, GLsizei width, GLsizei height,
-         GLsizei depth, const void* data)
-{
-    const GLenum& internalFormat = texImageInfo->internalFormat;
-    const GLint border = 0;
-    const GLenum& unpackFormat = texImageInfo->unpackFormat;
-    const GLenum& unpackType = texImageInfo->unpackType;
-
-    gl::GLContext::LocalErrorScope errorScope(*gl);
-
-    switch (GLenum(target)) {
-    case LOCAL_GL_TEXTURE_2D:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-        MOZ_ASSERT(depth == 1);
-        gl->fTexImage2D(GLenum(target), level, internalFormat, width, height, border,
-                        unpackFormat, unpackType, data);
-        break;
-
-    case LOCAL_GL_TEXTURE_3D:
-    case LOCAL_GL_TEXTURE_2D_ARRAY:
-        gl->fTexImage3D(GLenum(target), level, internalFormat, width, height, depth,
-                        border, unpackFormat, unpackType, data);
-        break;
-
-    default:
-        MOZ_CRASH('bad `target`');
-    }
-
-    return errorScope.GetError();
-}
-
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLTexture)
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WebGLTexture, AddRef)

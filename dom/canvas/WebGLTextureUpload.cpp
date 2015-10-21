@@ -1038,8 +1038,8 @@ WebGLTexture::TexImage(const char* funcName, uint8_t funcDims, TexImageTarget ta
     ////////////////////////////////////
     // Check that source and dest info are compatible
 
-    const webgl::UnpackInfo* unpackInfo;
-    if (!dstFormatUsage->IsUnpackValid(srcPacking, &unpackInfo)) {
+    const webgl::DriverUnpackInfo* driverUnpackInfo;
+    if (!dstFormatUsage->IsUnpackValid(srcPacking, &driverUnpackInfo)) {
         ErrorInvalidOperation("%s: Mismatched internalFormat and format/type: 0x%04x and"
                               " 0x%04x/0x%04x",
                               funcName, internalFormat, unpackFormat, unpackType);
@@ -1053,7 +1053,9 @@ WebGLTexture::TexImage(const char* funcName, uint8_t funcDims, TexImageTarget ta
     // slower.
 
     GLenum glError;
-    if (!unpackBlob->TexImage(this, funcDims, target, level, unpackInfo, &glError)) {
+    if (!unpackBlob->TexImage(this, funcDims, target, level, driverUnpackInfo,
+                              &glError))
+    {
         if (out_tryAgain) {
             *out_tryAgain = true;
         } else if (glError == LOCAL_GL_OUT_OF_MEMORY) {
@@ -1121,8 +1123,8 @@ WebGLTexture::TexSubImage(const char* funcName, uint8_t funcDims,
         return;
     }
 
-    const webgl::UnpackInfo* unpackInfo;
-    if (!dstFormatUsage->IsUnpackValid(srcPacking, &unpackInfo)) {
+    const webgl::DriverUnpackInfo* driverUnpackInfo;
+    if (!dstFormatUsage->IsUnpackValid(srcPacking, &driverUnpackInfo)) {
         ErrorInvalidOperation("%s: Mismatched internalFormat and format/type: 0x%04x and"
                               " 0x%04x/0x%04x",
                               funcName, internalFormat, unpackFormat, unpackType);
@@ -1140,7 +1142,7 @@ WebGLTexture::TexSubImage(const char* funcName, uint8_t funcDims,
         return;
     }
 
-    if (!unpackBlob->TexSubImage(this, funcDims, target, level, unpackInfo, xOffset,
+    if (!unpackBlob->TexSubImage(this, funcDims, target, level, driverUnpackInfo, xOffset,
                                  yOffset, zOffset))
     {
         return;

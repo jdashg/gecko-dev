@@ -20,13 +20,13 @@ namespace webgl {
 
 static GLenum
 TexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
-         const webgl::TexImageInfo* texImageInfo, GLsizei width, GLsizei height,
+         const webgl::DriverUnpackInfo* driverUnpackInfo, GLsizei width, GLsizei height,
          GLsizei depth, const void* data)
 {
-    const GLenum& internalFormat = texImageInfo->internalFormat;
+    const GLenum& internalFormat = driverUnpackInfo->internalFormat;
     const GLint border = 0;
-    const GLenum& unpackFormat = texImageInfo->unpackFormat;
-    const GLenum& unpackType = texImageInfo->unpackType;
+    const GLenum& unpackFormat = driverUnpackInfo->unpackFormat;
+    const GLenum& unpackType = driverUnpackInfo->unpackType;
 
     gl::GLContext::LocalErrorScope errorScope(*gl);
 
@@ -152,14 +152,14 @@ TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
 
 bool
 TexUnpackBuffer::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::TexImageInfo* texImageInfo,
+                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                           GLenum* const out_glError) override
 {
     WebGLContext* webgl = tex->mContext;
     gl::GLContext* gl = webgl->gl;
 
-    GLenum error = TexImage(gl, funcDims, target, level, texImageInfo, mWidth, mHeight,
-                            mDepth, mData);
+    GLenum error = TexImage(gl, funcDims, target, level, driverUnpackInfo, mWidth,
+                            mHeight, mDepth, mData);
 
     *out_glError = error;
     return !error;
@@ -177,7 +177,7 @@ TexUnpackImage::TexUnpackImage(const RefPtr<mozilla::layers::Image>& image,
 
 bool
 TexUnpackImage::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                         GLint level, const webgl::TexImageInfo* texImageInfo,
+                         GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                          GLenum* const out_glError) override
 {
     *out_glError = 0;
@@ -197,7 +197,7 @@ TexUnpackImage::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget tar
     switch (formatInfo->effectiveFormat) {
     case webgl::EffectiveFormat::RGB8:
     case webgl::EffectiveFormat::RGBA8:
-        if (texImageInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+        if (driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
             break;
 
         return false;
@@ -208,7 +208,7 @@ TexUnpackImage::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget tar
 
     // Looks good so far. We need to allocate the texture to blit into.
 
-    GLenum error = TexImage(gl, target, level, texImageInfo, mWidth, mHeight, mDepth,
+    GLenum error = TexImage(gl, target, level, driverUnpackInfo, mWidth, mHeight, mDepth,
                             nullptr);
     if (error)
         return false;
@@ -255,7 +255,7 @@ SupportsBGRA(gl::GLContext* gl)
 
 static bool
 UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
-                  GLint level, const webgl::TexImageInfo* texImageInfo,
+                  GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
                   GLsizei width, GLsizei height, gfx::DataSourceSurface* surf,
                   GLenum* const out_glError)
 {
@@ -275,20 +275,20 @@ UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
     // Uploading RGBX as RGBA and blitting to RGB is faster than repacking RGBX into
     // RGB on the CPU. However, this is optimization is out-of-scope for now.
 
-    static const webgl::TexImageInfo kInfoBGRA = {
+    static const webgl::UnpackInfo kInfoBGRA = {
         LOCAL_GL_BGRA,
         LOCAL_GL_BGRA,
         LOCAL_GL_UNSIGNED_BYTE,
         4,
     };
 
-    const webgl::TexImageInfo* chosenInfo = nullptr;
+    const webgl::UnpackInfo* chosenInfo = nullptr;
 
     switch (surf->GetFormat()) {
     case gfx::SurfaceFormat::B8G8R8A8:
-        if (texImageInfo->internalFormat == LOCAL_GL_RGBA &&
-            texImageInfo->unpackFormat == LOCAL_GL_RGBA &&
-            texImageInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+        if (driverUnpackInfo->internalFormat == LOCAL_GL_RGBA &&
+            driverUnpackInfo->unpackFormat == LOCAL_GL_RGBA &&
+            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
         {
             if (gl->IsANGLE()) {
                 chosenInfo = &kInfoBGRA;
@@ -297,18 +297,18 @@ UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
         break;
 
     case gfx::SurfaceFormat::R8G8B8A8:
-        if (texImageInfo->unpackFormat == LOCAL_GL_RGBA &&
-            texImageInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+        if (driverUnpackInfo->unpackFormat == LOCAL_GL_RGBA &&
+            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
         {
-            chosenInfo = texImageInfo;
+            chosenInfo = driverUnpackInfo;
         }
         break;
 
     case gfx::SurfaceFormat::R5G6B5:
-        if (texImageInfo->unpackFormat == LOCAL_GL_RGB &&
-            texImageInfo->unpackType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
+        if (driverUnpackInfo->unpackFormat == LOCAL_GL_RGB &&
+            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
         {
-            chosenInfo = texImageInfo;
+            chosenInfo = driverUnpackInfo;
         }
         break;
     }
@@ -516,7 +516,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
 
 static bool
 ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
-               const webgl::TexImageInfo* dstInfo,
+               const webgl::UnpackInfo* dstInfo,
                UniqueBuffer* const out_convertedBuffer,
                uint8_t* const out_convertedAlignment,
                bool* const out_outOfMemory)
@@ -601,16 +601,17 @@ TexUnpackSourceSurface::TexUnpackSourceSurface(const RefPtr<gfx::DataSourceSurfa
 { }
 
 bool
-TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                         GLint level, const webgl::TexImageInfo* texImageInfo,
-                         GLenum* const out_glError) override
+TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims,
+                                 TexImageTarget target, GLint level,
+                                 const webgl::DriverUnpackInfo* driverUnpackInfo,
+                                 GLenum* const out_glError) override
 {
     *out_glError = 0;
 
     WebGLContext* webgl = tex->mContext;
 
     GLenum error;
-    if (UploadDataSurface(webgl, funcDims, GLenum(target), level, texImageInfo, mSurf,
+    if (UploadDataSurface(webgl, funcDims, GLenum(target), level, driverUnpackInfo, mSurf,
                           &error))
     {
         return true;
@@ -626,8 +627,8 @@ TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTa
     uint8_t convertedAlignment;
     bool outOfMemory;
 
-    if (!ConvertSurface(webgl, mSurf, texImageInfo, &convertedBuffer, &convertedAlignment,
-                        &outOfMemory))
+    if (!ConvertSurface(webgl, mSurf, driverUnpackInfo, &convertedBuffer,
+                        &convertedAlignment, &outOfMemory))
     {
         if (outOfMemory) {
             *out_glError = LOCAL_GL_OUT_OF_MEMORY;
@@ -639,7 +640,7 @@ TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTa
     ScopedUnpackReset scopedReset(webgl, pixelUnpackBuffer);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, convertedAlignment);
 
-    GLenum error = TexImage(gl, target, level, texImageInfo, mWidth, mHeight, mDepth,
+    GLenum error = TexImage(gl, target, level, driverUnpackInfo, mWidth, mHeight, mDepth,
                             convertedBuffer.get());
     if (error) {
         *out_glError = error;
