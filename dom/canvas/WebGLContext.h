@@ -26,6 +26,7 @@
 #include "nsTArray.h"
 #include "nsWrapperCache.h"
 #include "SurfaceTypes.h"
+#include "ScopedGLHelpers.h"
 
 #ifdef XP_MACOSX
 #include "ForceDiscreteGPUHelperCGL.h"
@@ -885,9 +886,11 @@ public:
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType,
-                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
+                    const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                    ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData);
+                    GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                    ErrorResult& out_rv);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
                     ErrorResult* const out_rv);
@@ -896,9 +899,11 @@ public:
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLsizei width, GLsizei height, GLenum unpackFormat,
                        GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
+                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                       ErrorResult& out_rv);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData);
+                       GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
+                       ErrorResult& out_rv);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLenum unpackFormat, GLenum unpackType,
                        dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
@@ -1706,7 +1711,7 @@ public:
 
     void* get() const { return mBuffer; }
 
-    UniquePtr(const UniqueBuffer& other) = delete; // construct using Move()!
+    UniqueBuffer(const UniqueBuffer& other) = delete; // construct using Move()!
     void operator =(const UniqueBuffer& other) = delete; // assign using Move()!
 };
 

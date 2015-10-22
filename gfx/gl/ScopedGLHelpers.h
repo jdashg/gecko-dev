@@ -375,27 +375,6 @@ protected:
     void UnwrapImpl();
 };
 
-struct ScopedUnpackReset
-    : public ScopedGLWrapper<ScopedUnpackReset>
-{
-    friend struct ScopedGLWrapper<ScopedUnpackReset>;
-
-protected:
-    GLint mAlignment;
-    GLint mRowLength;
-    GLint mImageHeight;
-    GLint mSkipPixels;
-    GLint mSkipRows;
-    GLint mSkipImages;
-    GLuint mPixelUnpackBuffer;
-    bool mChangedPixelUnpackBuffer;
-
-public:
-    explicit ScopedUnpackReset(GLContext* gl);
-
-protected:
-    void UnwrapImpl();
-};
 } /* namespace gl */
 } /* namespace mozilla */
 

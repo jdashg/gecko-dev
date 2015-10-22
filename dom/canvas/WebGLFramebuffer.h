@@ -198,7 +198,7 @@ public:
     void DetachRenderbuffer(const WebGLRenderbuffer* rb);
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
     void FinalizeAttachments() const;

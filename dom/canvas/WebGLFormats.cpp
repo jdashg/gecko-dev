@@ -493,6 +493,77 @@ GetInfoBySizedFormat(GLenum sizedFormat)
     return itr->second;
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
+uint8_t
+BytesPerPixel(const PackingInfo& pi)
+{
+    uint8_t bytesPerChannel;
+    switch (pi.unpackType) {
+    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+        return 2;
+
+    case LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV:
+    case LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV:
+    case LOCAL_GL_UNSIGNED_INT_24_8:
+    case LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV:
+        return 4;
+
+    case LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
+        return 8;
+
+    // Alright, that's all the fixed-size unpackTypes.
+
+    case LOCAL_GL_BYTE:
+    case LOCAL_GL_UNSIGNED_BYTE:
+        bytesPerChannel = 1;
+        break;
+
+    case LOCAL_GL_SHORT:
+    case LOCAL_GL_UNSIGNED_SHORT:
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+        bytesPerChannel = 2;
+        break;
+
+    case LOCAL_GL_INT:
+    case LOCAL_GL_UNSIGNED_INT:
+    case LOCAL_GL_FLOAT:
+        bytesPerChannel = 4;
+        break;
+
+    default:
+        MOZ_CRASH("invalid PackingInfo");
+    }
+
+    uint8_t channels;
+    switch (pi.unpackFormat) {
+    case LOCAL_GL_RG:
+    case LOCAL_GL_RG_INTEGER:
+    case LOCAL_GL_LUMINANCE_ALPHA:
+        channels = 2;
+        break;
+
+    case LOCAL_GL_RGB:
+    case LOCAL_GL_RGB_INTEGER:
+        channels = 3;
+        break;
+
+    case LOCAL_GL_RGBA:
+    case LOCAL_GL_RGBA_INTEGER:
+        channels = 4;
+        break;
+
+    default:
+        channels = 1;
+        break;
+    }
+
+    return bytesPerChannel * channels;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////

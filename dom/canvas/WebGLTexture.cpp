@@ -627,7 +627,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     }
     // That didn't work. Try uploading zeros then.
 
-    const webgl::FormatUsageInfo* format = imageInfo.mFormat;
+    auto format = imageInfo.mFormat;
     auto& width = imageInfo.mWidth;
     auto& height = imageInfo.mHeight;
     auto& depth = imageInfo.mDepth;
@@ -656,9 +656,11 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
         if (error)
             return false;
     } else {
-        auto texImageInfo = format->GetAnyUnpack();
+        auto driverUnpackInfo = format->idealUnpack;
+        auto bytesPerPixel = BytesPerPixel({driverUnpackInfo->unpackFormat,
+                                            driverUnpackInfo->unpackType});
 
-        CheckedUint32 checkedByteCount = texImageInfo->bytesPerPixel;
+        CheckedUint32 checkedByteCount = bytesPerPixel;
         checkedByteCount *= width;
         checkedByteCount *= height;
         checkedByteCount *= depth;
@@ -673,7 +675,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
             return false;
 
         GLenum error = TexSubImage(gl, target, level, 0, 0, 0, width, height, depth,
-                                   texImageInfo, zeros.get());
+                                   driverUnpackInfo, zeros.get());
         if (error)
             return false;
     }

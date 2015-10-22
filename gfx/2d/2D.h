@@ -427,7 +427,7 @@ public:
       return mMap.mStride;
     }
 
-    MappedSurface* GetMappedSurface() const
+    const MappedSurface* GetMappedSurface() const
     {
       MOZ_ASSERT(mIsMapped);
       return &mMap;

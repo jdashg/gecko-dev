@@ -25,12 +25,13 @@ class WebGLContext;
 
 namespace dom {
 class Element;
+class HTMLMediaElement;
 class ImageData;
 class ArrayBufferViewOrSharedArrayBufferView;
 } // namespace dom
 
 namespace webgl {
-class ElementTexSource;
+class TexUnpackBlob;
 } // namespace webgl
 
 
@@ -195,7 +196,7 @@ public:
     TexTarget Target() const { return mTarget; }
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
     virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto) override;
@@ -262,12 +263,12 @@ public:
                     GLsizei height, GLsizei depth);
     void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
                   GLint level, GLenum internalFormat, GLenum unpackFormat,
-                  GLenum unpackType, TexUnpackBlob* unpackBlob,
+                  GLenum unpackType, webgl::TexUnpackBlob* unpackBlob,
                   bool* const out_tryAgain);
     void TexSubImage(const char* funcName, uint8_t funcDims,
                      TexImageTarget target, GLint level, GLint xOffset,
                      GLint yOffset, GLint zOffset, GLenum unpackFormat,
-                     GLenum unpackType, TexUnpackBlob* unpackBlob);
+                     GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
     void CompressedTexImage(const char* funcName, uint8_t funcDims,
                             TexImageTarget target, GLint level,
                             GLenum internalFormat, GLsizei width, GLsizei height,
@@ -336,7 +337,8 @@ public:
                         const ImageInfo& val)
     {
         auto face = FaceForTarget(texImageTarget);
-        return SetImageInfoAtFace(face, level, val);
+        ImageInfo* target = &ImageInfoAt(texImageTarget, level);
+        SetImageInfo(target, val);
     }
 
     const ImageInfo& BaseImageInfo() const {

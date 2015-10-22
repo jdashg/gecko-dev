@@ -348,10 +348,12 @@ interface WebGL2RenderingContext : WebGLRenderingContext
     void texImage3D(GLenum target, GLint level, GLenum internalformat, GLsizei width,
                     GLsizei height, GLsizei depth, GLint border, GLenum format,
                     GLenum type, (ArrayBufferView or SharedArrayBufferView)? pixels);
+    [Throws] // Can't actually throw.
     void texSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                        GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
                        GLenum format, GLenum type,
                        (ArrayBufferView or SharedArrayBufferView)? pixels);
+    [Throws] // Can't actually throw.
     void texSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                        GLint zoffset, GLenum format, GLenum type, ImageData? data);
     [Throws]

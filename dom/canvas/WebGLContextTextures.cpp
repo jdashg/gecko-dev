@@ -295,7 +295,8 @@ void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                          GLenum unpackType,
-                         const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView)
+                         const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                         ErrorResult& /*out_rv*/)
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
@@ -317,7 +318,7 @@ WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalF
 void
 WebGLContext::TexImage2D(GLenum rawTexImageTarget, GLint level, GLenum internalFormat,
                          GLenum unpackFormat, GLenum unpackType,
-                         dom::ImageData* imageData)
+                         dom::ImageData* imageData, ErrorResult& /*out_rv*/)
 {
     const char funcName[] = "texImage2D";
     const uint8_t funcDims = 2;
@@ -361,7 +362,8 @@ void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLsizei width, GLsizei height,
                             GLenum unpackFormat, GLenum unpackType,
-                            const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView)
+                            const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
+                            ErrorResult& /*out_rv*/)
 {
     const char funcName[] = "texSubImage2D";
     const uint8_t funcDims = 2;
@@ -384,7 +386,7 @@ WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset
 void
 WebGLContext::TexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                             GLint yOffset, GLenum unpackFormat, GLenum unpackType,
-                            dom::ImageData* imageData)
+                            dom::ImageData* imageData, ErrorResult& /*out_rv*/)
 {
     const char funcName[] = "texSubImage2D";
     const uint8_t funcDims = 2;

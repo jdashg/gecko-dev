@@ -38,7 +38,7 @@ public:
     explicit WebGLExtensionBase(WebGLContext* webgl);
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
     void MarkLost();

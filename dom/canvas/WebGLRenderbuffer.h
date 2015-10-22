@@ -52,7 +52,7 @@ public:
     int64_t MemoryUsage() const;
 
     WebGLContext* GetParentObject() const {
-        return Context();
+        return mContext;
     }
 
     void BindRenderbuffer() const;

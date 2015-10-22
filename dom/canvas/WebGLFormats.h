@@ -217,6 +217,7 @@ struct PackingInfo {
 const FormatInfo* GetFormatInfo(EffectiveFormat format);
 const FormatInfo* GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType);
 const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
+uint8_t BytesPerPixel(const PackingInfo& pi);
 
 GLint GetComponentSize(EffectiveFormat format, GLenum component);
 GLenum GetComponentType(EffectiveFormat format);
