@@ -12,48 +12,59 @@ namespace mozilla {
 
 using mozilla::webgl::EffectiveFormat;
 
-void
-WebGLExtensionTextureHalfFloat::InitWebGLFormats(webgl::FormatUsageAuthority* authority)
-{
-    MOZ_ASSERT(authority);
-
-    auto addFormatIfMissing = [authority](EffectiveFormat effectiveFormat)
-        {
-            if (!authority->GetUsage(effectiveFormat)) {
-                authority->AddFormat(effectiveFormat, false, false, false, false);
-            }
-        };
-
-    // Populate authority with any missing effective formats.
-    addFormatIfMissing(EffectiveFormat::RGBA16F);
-    addFormatIfMissing(EffectiveFormat::RGB16F);
-    addFormatIfMissing(EffectiveFormat::Luminance16FAlpha16F);
-    addFormatIfMissing(EffectiveFormat::Luminance16F);
-    addFormatIfMissing(EffectiveFormat::Alpha16F);
-}
-
 WebGLExtensionTextureHalfFloat::WebGLExtensionTextureHalfFloat(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
+    auto& authority = webgl->mFormatUsage;
 
-    auto updateUsage = [authority](EffectiveFormat effectiveFormat,
-                                   GLenum unpackFormat, GLenum unpackType)
-        {
-            webgl::FormatUsageInfo* usage = authority->GetUsage(effectiveFormat);
-            MOZ_ASSERT(usage);
-            usage->asTexture = true;
-            authority->AddUnpackOption(unpackFormat, unpackType, effectiveFormat);
-        };
+    authority->EditUsage(EffectiveFormat::RGBA16F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::RGB16F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Luminance16FAlpha16F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Luminance16F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Alpha16F)->asTexture = true;
 
-    InitWebGLFormats(authority);
+    GLenum driverUnpackFormat = LOCAL_GL_HALF_FLOAT;
+    if (!webgl->gl->IsSupported(gl::GLFeature::texture_half_float)) {
+        MOZ_ASSERT(webgl->gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float));
+        driverUnpackFormat = LOCAL_GL_HALF_FLOAT_OES;
+    }
 
-    // Update usage to allow asTexture and add unpack
-    updateUsage(EffectiveFormat::RGBA16F             , LOCAL_GL_RGBA           , LOCAL_GL_HALF_FLOAT_OES);
-    updateUsage(EffectiveFormat::RGB16F              , LOCAL_GL_RGB            , LOCAL_GL_HALF_FLOAT_OES);
-    updateUsage(EffectiveFormat::Luminance16FAlpha16F, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT_OES);
-    updateUsage(EffectiveFormat::Luminance16F        , LOCAL_GL_LUMINANCE      , LOCAL_GL_HALF_FLOAT_OES);
-    updateUsage(EffectiveFormat::Alpha16F            , LOCAL_GL_ALPHA          , LOCAL_GL_HALF_FLOAT_OES);
+    PackingInfo pi;
+    DriverUnpackInfo dui;
+
+    pi = {LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES};
+    dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, driverUnpackFormat};
+    authority->EditUsage(EffectiveFormat::RGBA16F)->AddUnpack(pi, dui);
+
+    pi = {LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT_OES};
+    dui = {LOCAL_GL_RGB, LOCAL_GL_RGB, driverUnpackFormat};
+    authority->EditUsage(EffectiveFormat::RGB16F)->AddUnpack(pi, dui);
+
+    if (webgl->gl->IsCoreProfile()) {
+        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_HALF_FLOAT_OES};
+        dui = {LOCAL_GL_R16F, LOCAL_GL_RED, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Luminance16F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_ALPHA, LOCAL_GL_HALF_FLOAT_OES};
+        dui = {LOCAL_GL_R16F, LOCAL_GL_RED, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Alpha16F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT_OES};
+        dui = {LOCAL_GL_RG16F, LOCAL_GL_RG, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Luminance16FAlpha16F)->AddUnpack(pi, dui);
+    } else {
+        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_HALF_FLOAT_OES};
+        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Luminance16F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_ALPHA, LOCAL_GL_HALF_FLOAT_OES};
+        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Alpha16F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT};
+        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, driverUnpackFormat};
+        authority->EditUsage(EffectiveFormat::Luminance16FAlpha16F)->AddUnpack(pi, dui);
+    }
 }
 
 WebGLExtensionTextureHalfFloat::~WebGLExtensionTextureHalfFloat()

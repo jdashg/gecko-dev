@@ -18,23 +18,19 @@ WebGLExtensionColorBufferFloat::WebGLExtensionColorBufferFloat(WebGLContext* web
 {
     MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
 
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
+    auto& authority = webgl->mFormatUsage;
 
-    auto updateUsage = [authority](EffectiveFormat effectiveFormat) {
-        webgl::FormatUsageInfo* usage = authority->GetUsage(effectiveFormat);
-        MOZ_ASSERT(usage);
-        usage->asRenderbuffer = usage->isRenderable = true;
+    auto fnUpdateUsage = [authority](EffectiveFormat effFormat) {
+        auto usage = authority->EditUsage(effFormat);
+        usage->asRenderbuffer = true;
+        usage->isRenderable = true;
     };
 
-    // Ensure require formats are initialized.
-    WebGLExtensionTextureFloat::InitWebGLFormats(authority);
-
-    // Update usage to allow asRenderbuffer and isRenderable
-    updateUsage(EffectiveFormat::RGBA32F);
-    updateUsage(EffectiveFormat::RGB32F);
-    updateUsage(EffectiveFormat::Luminance32FAlpha32F);
-    updateUsage(EffectiveFormat::Luminance32F);
-    updateUsage(EffectiveFormat::Alpha32F);
+    fnUpdateUsage(EffectiveFormat::RGBA32F);
+    fnUpdateUsage(EffectiveFormat::RGB32F);
+    fnUpdateUsage(EffectiveFormat::Luminance32FAlpha32F);
+    fnUpdateUsage(EffectiveFormat::Luminance32F);
+    fnUpdateUsage(EffectiveFormat::Alpha32F);
 }
 
 WebGLExtensionColorBufferFloat::~WebGLExtensionColorBufferFloat()

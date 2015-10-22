@@ -13,6 +13,28 @@ namespace mozilla {
 WebGLExtensionDepthTexture::WebGLExtensionDepthTexture(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
+    auto& authority = webgl->mFormatUsage;
+
+    PackingInfo pi;
+    DriverUnpackInfo dui;
+
+    auto usage = authority->EditUsage(EffectiveFormat::DEPTH_COMPONENT16);
+    usage->asTexture = true;
+    pi = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT};
+    dui = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT};
+    usage->AddFormat(pi, dui);
+
+    usage = authority->EditUsage(EffectiveFormat::DEPTH_COMPONENT24);
+    usage->asTexture = true;
+    pi = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT};
+    dui = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT};
+    usage->AddFormat(pi, dui);
+
+    usage = authority->EditUsage(EffectiveFormat::DEPTH24_STENCIL8);
+    usage->asTexture = true;
+    pi = {LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8};
+    dui = {LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8};
+    usage->AddFormat(pi, dui);
 }
 
 WebGLExtensionDepthTexture::~WebGLExtensionDepthTexture()

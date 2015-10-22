@@ -12,10 +12,12 @@ namespace mozilla {
 WebGLExtensionCompressedTexturePVRTC::WebGLExtensionCompressedTexturePVRTC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1);
+    auto& authority = webgl->mFormatUsage;
+
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_PVRTC_4BPPV1)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_PVRTC_2BPPV1)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_PVRTC_4BPPV1)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_PVRTC_2BPPV1)->asTexture = true;
 }
 
 WebGLExtensionCompressedTexturePVRTC::~WebGLExtensionCompressedTexturePVRTC()

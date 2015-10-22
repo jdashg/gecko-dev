@@ -28,20 +28,30 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
         gl->fEnable(LOCAL_GL_FRAMEBUFFER_SRGB_EXT);
     }
 
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
+    auto& authority = webgl->mFormatUsage;
 
-    auto addFormatIfMissing = [authority](EffectiveFormat effectiveFormat,
-                                          GLenum unpackFormat, GLenum unpackType,
-                                          bool asRenderbuffer)
-        {
-            if (!authority->GetUsage(effectiveFormat)) {
-                authority->AddFormat(effectiveFormat, asRenderbuffer, asRenderbuffer, true, true);
-                authority->AddUnpackOption(unpackFormat, unpackType, effectiveFormat);
-            }
-        };
+    PackingInfo pi;
+    DriverUnpackInfo dui;
 
-    addFormatIfMissing(EffectiveFormat::SRGB8       , LOCAL_GL_SRGB      , LOCAL_GL_UNSIGNED_BYTE, false);
-    addFormatIfMissing(EffectiveFormat::SRGB8_ALPHA8, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE, true);
+    auto usage = authority->EditUsage(EffectiveFormat::SRGB8);
+    usage->asRenderbuffer = false;
+    usage->isRenderable = false;
+    usage->asTexture = true;
+    usage->isFilterable = true;
+
+    pi = {LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
+    dui = {LOCAL_GL_SRGB, LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
+    usage->AddUnpack(pi, dui);
+
+    usage = authority->EditUsage(EffectiveFormat::SRGB8_ALPHA8);
+    usage->asRenderbuffer = true;
+    usage->isRenderable = true;
+    usage->asTexture = true;
+    usage->isFilterable = true;
+
+    pi = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    dui = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    usage->AddUnpack(pi, dui);
 }
 
 WebGLExtensionSRGB::~WebGLExtensionSRGB()

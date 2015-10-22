@@ -12,7 +12,9 @@ namespace mozilla {
 WebGLExtensionCompressedTextureETC1::WebGLExtensionCompressedTextureETC1(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_ETC1_RGB8_OES);
+    auto& authority = webgl->mFormatUsage;
+
+    authority->EditUsage(EffectiveFormat::ETC1_RGB8)->asTexture = true;
 }
 
 WebGLExtensionCompressedTextureETC1::~WebGLExtensionCompressedTextureETC1()

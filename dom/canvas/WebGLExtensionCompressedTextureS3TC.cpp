@@ -12,10 +12,12 @@ namespace mozilla {
 WebGLExtensionCompressedTextureS3TC::WebGLExtensionCompressedTextureS3TC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGB_S3TC_DXT1_EXT);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT);
+    auto& authority = webgl->mFormatUsage;
+
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_S3TC_DXT1)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT1)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT3)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT5)->asTexture = true;
 }
 
 WebGLExtensionCompressedTextureS3TC::~WebGLExtensionCompressedTextureS3TC()

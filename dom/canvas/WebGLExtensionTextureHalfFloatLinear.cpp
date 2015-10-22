@@ -15,27 +15,13 @@ using mozilla::webgl::EffectiveFormat;
 WebGLExtensionTextureHalfFloatLinear::WebGLExtensionTextureHalfFloatLinear(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    // This update requires that the authority already be populated by
-    // WebGLExtensionTextureHalfFloat.  Enabling extensions to control
-    // features is a mess in WebGL
+    auto& authority = webgl->mFormatUsage;
 
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
-
-    auto updateUsage = [authority](EffectiveFormat effectiveFormat) {
-        webgl::FormatUsageInfo* usage = authority->GetUsage(effectiveFormat);
-        MOZ_ASSERT(usage);
-        usage->isFilterable = true;
-    };
-
-    // Ensure require formats are initialized.
-    WebGLExtensionTextureHalfFloat::InitWebGLFormats(authority);
-
-    // Update usage to allow isFilterable
-    updateUsage(EffectiveFormat::RGBA16F);
-    updateUsage(EffectiveFormat::RGB16F);
-    updateUsage(EffectiveFormat::Luminance16FAlpha16F);
-    updateUsage(EffectiveFormat::Luminance16F);
-    updateUsage(EffectiveFormat::Alpha16F);
+    authority->EditUsage(EffectiveFormat::RGBA16F)->isFilterable = true;
+    authority->EditUsage(EffectiveFormat::RGB16F)->isFilterable = true;
+    authority->EditUsage(EffectiveFormat::Luminance16FAlpha16F)->isFilterable = true;
+    authority->EditUsage(EffectiveFormat::Luminance16F)->isFilterable = true;
+    authority->EditUsage(EffectiveFormat::Alpha16F)->isFilterable = true;
 }
 
 WebGLExtensionTextureHalfFloatLinear::~WebGLExtensionTextureHalfFloatLinear()

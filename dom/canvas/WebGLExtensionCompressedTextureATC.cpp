@@ -12,9 +12,11 @@ namespace mozilla {
 WebGLExtensionCompressedTextureATC::WebGLExtensionCompressedTextureATC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_ATC_RGB);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_ATC_RGBA_EXPLICIT_ALPHA);
-    webgl->mCompressedTextureFormats.AppendElement(LOCAL_GL_ATC_RGBA_INTERPOLATED_ALPHA);
+    auto& authority = webgl->mFormatUsage;
+
+    authority->EditUsage(EffectiveFormat::ATC_RGB_AMD)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::ATC_RGBA_EXPLICIT_ALPHA_AMD)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::ATC_RGBA_INTERPOLATED_ALPHA_AMD)->asTexture = true;
 }
 
 WebGLExtensionCompressedTextureATC::~WebGLExtensionCompressedTextureATC()

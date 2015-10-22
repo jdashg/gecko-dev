@@ -10,51 +10,55 @@
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;
-
-void
-WebGLExtensionTextureFloat::InitWebGLFormats(webgl::FormatUsageAuthority* authority)
-{
-    MOZ_ASSERT(authority);
-
-    auto addFormatIfMissing = [authority](EffectiveFormat effectiveFormat)
-        {
-            if (!authority->GetUsage(effectiveFormat)) {
-                authority->AddFormat(effectiveFormat, false, false, false, false);
-            }
-        };
-
-    // Populate authority with any missing effective formats.
-    addFormatIfMissing(EffectiveFormat::RGBA32F);
-    addFormatIfMissing(EffectiveFormat::RGB32F);
-    addFormatIfMissing(EffectiveFormat::Luminance32FAlpha32F);
-    addFormatIfMissing(EffectiveFormat::Luminance32F);
-    addFormatIfMissing(EffectiveFormat::Alpha32F);
-}
+using mozilla::webgl::EffectiveFormat;a
 
 WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    webgl::FormatUsageAuthority* authority = webgl->mFormatUsage.get();
+    auto& authority = webgl->mFormatUsage;
 
-    auto updateUsage = [authority](EffectiveFormat effectiveFormat,
-                                   GLenum unpackFormat, GLenum unpackType)
-        {
-            webgl::FormatUsageInfo* usage = authority->GetUsage(effectiveFormat);
-            MOZ_ASSERT(usage);
-            usage->asTexture = true;
-            authority->AddUnpackOption(unpackFormat, unpackType, effectiveFormat);
-        };
+    authority->EditUsage(EffectiveFormat::RGBA32F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::RGB32F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Luminance32F)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::Alpha32F)->asTexture = true;
 
-    // Ensure require formats are initialized.
-    InitWebGLFormats(authority);
+    PackingInfo pi;
+    DriverUnpackInfo dui;
 
-    // Update usage to allow asTexture and add unpack
-    updateUsage(EffectiveFormat::RGBA32F             , LOCAL_GL_RGBA           , LOCAL_GL_FLOAT);
-    updateUsage(EffectiveFormat::RGB32F              , LOCAL_GL_RGB            , LOCAL_GL_FLOAT);
-    updateUsage(EffectiveFormat::Luminance32FAlpha32F, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT);
-    updateUsage(EffectiveFormat::Luminance32F        , LOCAL_GL_LUMINANCE      , LOCAL_GL_FLOAT);
-    updateUsage(EffectiveFormat::Alpha32F            , LOCAL_GL_ALPHA          , LOCAL_GL_FLOAT);
+    pi = {LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    authority->EditUsage(EffectiveFormat::RGBA32F)->AddUnpack(pi, dui);
+
+    pi = {LOCAL_GL_RGB, LOCAL_GL_FLOAT};
+    dui = {LOCAL_GL_RGB, LOCAL_GL_RGB, LOCAL_GL_FLOAT};
+    authority->EditUsage(EffectiveFormat::RGB32F)->AddUnpack(pi, dui);
+
+    if (webgl->gl->IsCoreProfile()) {
+        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Luminance32F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Alpha32F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_RG32F, LOCAL_GL_RG, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->AddUnpack(pi, dui);
+    } else {
+        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Luminance32F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Alpha32F)->AddUnpack(pi, dui);
+
+        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
+        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
+        authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->AddUnpack(pi, dui);
+    }
 }
 
 WebGLExtensionTextureFloat::~WebGLExtensionTextureFloat()
