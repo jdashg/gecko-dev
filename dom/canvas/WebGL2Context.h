@@ -107,10 +107,11 @@ public:
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLsizei width, GLsizei height, GLsizei depth,
                        GLenum unpackFormat, GLenum unpackType,
-                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels);
+                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
+                       ErrorResult& out_rv);
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
-                       dom::ImageData* data);
+                       dom::ImageData* data, ErrorResult& out_rv);
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
                        dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
