@@ -1687,7 +1687,11 @@ class UniqueBuffer
     void* mBuffer;
 
 public:
-    explicit UniqueBuffer(void* buffer = nullptr)
+    UniqueBuffer()
+        : mBuffer(nullptr)
+    { }
+
+    explicit UniqueBuffer(void* buffer)
         : mBuffer(buffer)
     { }
 

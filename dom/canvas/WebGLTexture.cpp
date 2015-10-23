@@ -103,7 +103,7 @@ WebGLTexture::ImageInfo::MemoryUsage() const
     if (!IsDefined())
         return 0;
 
-    const auto bytesPerTexel = mFormat->formatInfo->bytesPerPixel;
+    const auto bytesPerTexel = mFormat->format->bytesPerPixel;
     return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bytesPerTexel;
 }
 
@@ -335,7 +335,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
     const bool isFilteringNearestOnly = (isMinFilteringNearest && isMagFilteringNearest);
     if (!isFilteringNearestOnly) {
         auto formatUsage = baseImageInfo.mFormat;
-        auto format = formatUsage->formatInfo;
+        auto format = formatUsage->format;
 
         // "* The effective internal format specified for the texture arrays is a sized
         //    internal color format that is not texture-filterable, and either the
@@ -501,9 +501,14 @@ WebGLTexture::ResolveFakeBlackStatus()
                               " the implementation to (slowly) initialize the"
                               " uninitialized TexImages.");
 
+    GLenum baseTexImageTarget = GLenum(mTarget);
+    if (baseTexImageTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
+        baseTexImageTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
-            if (!EnsureInitializedImageData(face, level))
+            TexImageTarget target = baseTexImageTarget + face;
+            if (!EnsureImageDataInitialized(target, level))
                 return false; // The world just exploded.
         }
     }
@@ -534,31 +539,31 @@ ClearByMask(WebGLContext* webgl, GLbitfield mask)
 // `mask` from glClear.
 static bool
 ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget target, GLint level,
-                const ImageInfo& imageInfo)
+                const WebGLTexture::ImageInfo& imageInfo)
 {
-    if (mTarget == LOCAL_GL_TEXTURE_2D)
+    if (target == LOCAL_GL_TEXTURE_2D)
         return false;
 
-    gl::GLContext* gl = webgl->gl;
+    gl::GLContext* gl = webgl->GL();
     MOZ_ASSERT(gl->IsCurrent());
 
     gl::ScopedFramebuffer fb(gl);
     gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
 
-    auto formatInfo = target->mFormat->formatInfo;
+    auto format = imageInfo.mFormat->format;
     GLbitfield mask = 0;
 
-    if (formatInfo->isColorFormat) {
+    if (format->isColorFormat) {
         mask |= LOCAL_GL_COLOR_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
                                   GLenum(target), tex, level);
     } else {
-        if (formatInfo->hasDepth) {
+        if (format->hasDepth) {
             mask |= LOCAL_GL_DEPTH_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
                                       GLenum(target), tex, level);
         }
-        if (formatInfo->hasStencil) {
+        if (format->hasStencil) {
             mask |= LOCAL_GL_STENCIL_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
                                       GLenum(target), tex, level);
@@ -583,8 +588,10 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget target, GLint le
         gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
 
         // Only GLES guarantees RGBA4.
-        GLenum format = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
-        gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, format, width, height);
+        const GLenum sizedFormat = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
+        const GLsizei width = imageInfo.mWidth;
+        const GLsizei height = imageInfo.mHeight;
+        gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, sizedFormat, width, height);
     }
 
     gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
@@ -611,9 +618,19 @@ NumWholeBlocksForLength(CheckedUint32 length, uint8_t blockLength)
 }
 
 bool
+WebGLTexture::EnsureImageDataInitialized(TexImageTarget target, uint32_t level)
+{
+    auto& imageInfo = ImageInfoAt(target, level);
+    if (imageInfo.IsDataInitialized())
+        return true;
+
+    return InitializeImageData(target, level);
+}
+
+bool
 WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 {
-    ImageInfo& imageInfo = ImageInfoAt(target, level);
+    auto& imageInfo = ImageInfoAt(target, level);
     MOZ_ASSERT(imageInfo.IsDefined());
     MOZ_ASSERT(!imageInfo.IsDataInitialized());
 
@@ -622,7 +639,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 
     // Try to clear with glClear.
     if (ClearWithTempFB(mContext, mGLName, target, level, imageInfo)) {
-        SetIsDataInitialized(true, this);
+        imageInfo.SetIsDataInitialized(true, this);
         return true;
     }
     // That didn't work. Try uploading zeros then.
@@ -635,7 +652,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     ScopedUnpackReset scopedReset(mContext, 0);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
-    auto compression = format->formatInfo->compression;
+    auto compression = format->format->compression;
     if (compression) {
         CheckedUint32 checkedByteCount = compression->bytesPerBlock;
         checkedByteCount *= NumWholeBlocksForLength(width, compression->blockWidth);
@@ -647,18 +664,18 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 
         size_t byteCount = checkedByteCount.value();
 
-        UniqueBuffer zeros = calloc(1, byteCount);
+        UniqueBuffer zeros(calloc(1, byteCount));
         if (!zeros)
             return false;
 
-        GLenum error = CompressedTexSubImage(gl, target, level, 0, 0, 0, width, height,
-                                             depth, format, zeros.get());
+        GLenum error = DoCompressedTexSubImage(gl, target, level, 0, 0, 0, width, height,
+                                               depth, format, zeros.get());
         if (error)
             return false;
     } else {
         auto driverUnpackInfo = format->idealUnpack;
-        auto bytesPerPixel = BytesPerPixel({driverUnpackInfo->unpackFormat,
-                                            driverUnpackInfo->unpackType});
+        auto bytesPerPixel = webgl::BytesPerPixel(driverUnpackInfo->unpackFormat,
+                                                  driverUnpackInfo->unpackType);
 
         CheckedUint32 checkedByteCount = bytesPerPixel;
         checkedByteCount *= width;
@@ -670,22 +687,22 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 
         size_t byteCount = checkedByteCount.value();
 
-        UniqueBuffer zeros = calloc(1, byteCount);
+        UniqueBuffer zeros(calloc(1, byteCount));
         if (!zeros)
             return false;
 
-        GLenum error = TexSubImage(gl, target, level, 0, 0, 0, width, height, depth,
-                                   driverUnpackInfo, zeros.get());
+        GLenum error = DoTexSubImage(gl, target, level, 0, 0, 0, width, height, depth,
+                                     driverUnpackInfo, zeros.get());
         if (error)
             return false;
     }
 
-    SetIsDataInitialized(true, this);
+    imageInfo.SetIsDataInitialized(true, this);
     return true;
 }
 
 
-
+/*
 
     gl::ScopedBindTexture autoBindTex(gl, mGLName, mTarget.get());
 
@@ -734,7 +751,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     imageInfo.SetIsDataInitialized(true, this);
     return true;
 }
-
+*/
 void
 WebGLTexture::ClampLevelBaseAndMax()
 {
@@ -863,7 +880,7 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
         return;
     }
 
-    auto format = baseImageInfo.mFormat->formatInfo;
+    auto format = baseImageInfo.mFormat->format;
     if (format->compression) {
         mContext->ErrorInvalidOperation("generateMipmap: Texture data at base level is"
                               " compressed.");

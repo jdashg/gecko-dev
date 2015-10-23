@@ -30,8 +30,8 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
 
     auto& authority = webgl->mFormatUsage;
 
-    PackingInfo pi;
-    DriverUnpackInfo dui;
+    webgl::PackingInfo pi;
+    webgl::DriverUnpackInfo dui;
 
     auto usage = authority->EditUsage(EffectiveFormat::SRGB8);
     usage->asRenderbuffer = false;

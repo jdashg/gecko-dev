@@ -690,7 +690,7 @@ BindFakeBlackHelper(gl::GLContext* gl, TexTarget target,
 
         if (status == WebGLTextureFakeBlackStatus::UninitializedImageData) {
             const auto& imageInfo = tex->BaseImageInfo();
-            if (imageInfo.mFormat->formatInfo->hasAlpha) {
+            if (imageInfo.mFormat->format->hasAlpha) {
                 fakeTex = alphaTex;
             }
         }

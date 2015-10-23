@@ -90,7 +90,7 @@ WebGLRenderbuffer::MemoryUsage() const
     if (!mFormat)
         return 0;
 
-    auto bytesPerPixel = mFormat->formatInfo->bytesPerPixel;
+    auto bytesPerPixel = mFormat->format->bytesPerPixel;
     uint64_t pixels = uint64_t(mWidth) * uint64_t(mHeight);
 
     uint64_t totalSize = pixels * bytesPerPixel;
@@ -255,7 +255,7 @@ WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
     gl::GLContext* gl = mContext->gl;
     MOZ_ASSERT(samples >= 0 && samples <= 256); // Sanity check.
 
-    GLenum primaryFormat = GetRBSizedFormat(format->formatInfo->effectiveFormat);
+    GLenum primaryFormat = GetRBSizedFormat(format->format->effectiveFormat);
     GLenum secondaryFormat = 0;
 
     if (NeedsDepthStencilEmu(mContext->gl, primaryFormat)) {
@@ -321,7 +321,7 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
 
     switch (pname.get()) {
     case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE:
-        if (!mFormat->formatInfo->hasStencil)
+        if (!mFormat->format->hasStencil)
             return 0;
 
         return 8;
@@ -348,7 +348,7 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
 GLenum
 WebGLRenderbuffer::GetInternalFormat() const
 {
-    return GetRBSizedFormat(mFormat->formatInfo->effectiveFormat);
+    return GetRBSizedFormat(mFormat->format->effectiveFormat);
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLRenderbuffer)

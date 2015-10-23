@@ -449,8 +449,8 @@ WebGLContext::CompressedTexImage2D(GLenum rawTexImageTarget, GLint level,
 
     const GLsizei depth = 1;
 
-    tex->CompressedTexImage2D(target, level, internalFormat, width, height, depth, border,
-                              view);
+    tex->CompressedTexImage(funcName, funcDims, target, level, internalFormat, width,
+                            height, depth, border, view);
 }
 
 void
@@ -473,8 +473,8 @@ WebGLContext::CompressedTexSubImage2D(GLenum rawTexImageTarget, GLint level,
     const GLint zOffset = 0;
     const GLsizei depth = 1;
 
-    tex->CompressedTexSubImage2D(target, level, xOffset, yOffset, zOffset, width, height,
-                                 depth, sizedUnpackFormat, view);
+    tex->CompressedTexSubImage(funcName, funcDims, target, level, xOffset, yOffset,
+                               zOffset, width, height, depth, sizedUnpackFormat, view);
 }
 
 ////////////////////////////////////////
@@ -496,7 +496,7 @@ WebGLContext::CopyTexImage2D(GLenum rawTexImageTarget, GLint level, GLenum inter
         return;
     }
 
-    tex->CopyTexImage(target, level, internalFormat, x, y, width, height, border);
+    tex->CopyTexImage2D(target, level, internalFormat, x, y, width, height, border);
 }
 
 void
@@ -517,7 +517,8 @@ WebGLContext::CopyTexSubImage2D(GLenum rawTexImageTarget, GLint level, GLint xOf
 
     const GLint zOffset = 0;
 
-    tex->CopyTexSubImage2D(target, level, xOffset, yOffset, zOffset, x, y, width, height);
+    tex->CopyTexSubImage(funcName, funcDims, target, level, xOffset, yOffset, zOffset, x,
+                         y, width, height);
 }
 
 } // namespace mozilla

@@ -4,13 +4,14 @@
 
 #include "WebGLExtensions.h"
 
+#include "GLContext.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 #include "WebGLFormats.h"
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;a
+using mozilla::webgl::EffectiveFormat;
 
 WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
@@ -23,18 +24,15 @@ WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
     authority->EditUsage(EffectiveFormat::Luminance32F)->asTexture = true;
     authority->EditUsage(EffectiveFormat::Alpha32F)->asTexture = true;
 
-    PackingInfo pi;
-    DriverUnpackInfo dui;
-
-    pi = {LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
-    dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    webgl::PackingInfo pi = {LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    webgl::DriverUnpackInfo dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
     authority->EditUsage(EffectiveFormat::RGBA32F)->AddUnpack(pi, dui);
 
     pi = {LOCAL_GL_RGB, LOCAL_GL_FLOAT};
     dui = {LOCAL_GL_RGB, LOCAL_GL_RGB, LOCAL_GL_FLOAT};
     authority->EditUsage(EffectiveFormat::RGB32F)->AddUnpack(pi, dui);
 
-    if (webgl->gl->IsCoreProfile()) {
+    if (webgl->GL()->IsCoreProfile()) {
         pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
         dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
         authority->EditUsage(EffectiveFormat::Luminance32F)->AddUnpack(pi, dui);

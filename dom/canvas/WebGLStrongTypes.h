@@ -147,6 +147,12 @@ public:
         return mValue;
     }
 
+    explicit operator GLenum() const {
+        MOZ_ASSERT(mValue != NonexistantGLenum);
+        return mValue;
+    }
+
+
     bool operator==(const StrongGLenum& other) const {
         return get() == other.get();
     }

@@ -20,7 +20,7 @@ WebGLExtensionColorBufferFloat::WebGLExtensionColorBufferFloat(WebGLContext* web
 
     auto& authority = webgl->mFormatUsage;
 
-    auto fnUpdateUsage = [authority](EffectiveFormat effFormat) {
+    auto fnUpdateUsage = [&authority](EffectiveFormat effFormat) {
         auto usage = authority->EditUsage(effFormat);
         usage->asRenderbuffer = true;
         usage->isRenderable = true;

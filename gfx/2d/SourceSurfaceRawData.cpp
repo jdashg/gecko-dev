@@ -24,8 +24,6 @@ SourceSurfaceRawData::InitWrappingData(uint8_t *aData,
   mStride = aStride;
   mFormat = aFormat;
   mOwnData = aOwnData;
-
-  return true;
 }
 
 void

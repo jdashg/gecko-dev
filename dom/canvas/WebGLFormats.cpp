@@ -15,7 +15,7 @@ namespace webgl {
 
 std::map<EffectiveFormat, const CompressedFormatInfo> gCompressedFormatInfoMap;
 std::map<EffectiveFormat, const FormatInfo> gFormatInfoMap;
-std::map<UnpackTuple, const FormatInfo*> gUnpackTupleMap;
+std::map<PackingInfo, const FormatInfo*> gUnpackTupleMap;
 std::map<GLenum, const FormatInfo*> gSizedFormatMap;
 
 static const CompressedFormatInfo*
@@ -46,8 +46,8 @@ static auto
 AlwaysInsert(std::map<K,V>& dest, const K2& key, const V2& val)
 {
     auto res = dest.insert({ key, val });
-    bool didInsert = res.second;
-    MOZ_ALWAYS_TRUE(didInsert);
+    DebugOnly<bool> didInsert = res.second;
+    MOZ_ASSERT(didInsert);
 
     return res.first;
 }
@@ -292,7 +292,7 @@ InitFormatInfoMap()
 static void
 AddUnpackTuple(GLenum unpackFormat, GLenum unpackType, EffectiveFormat effectiveFormat)
 {
-    const UnpackTuple unpack = { unpackFormat, unpackType };
+    const PackingInfo unpack = { unpackFormat, unpackType };
     const FormatInfo* info = GetFormatInfo_NoLock(effectiveFormat);
     MOZ_ASSERT(info);
 
@@ -469,7 +469,7 @@ GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType)
     StaticMutexAutoLock lock(gFormatMapMutex);
     EnsureInitFormatTables();
 
-    const UnpackTuple unpack = { unpackFormat, unpackType };
+    const PackingInfo unpack = { unpackFormat, unpackType };
 
     MOZ_ASSERT(!gUnpackTupleMap.empty());
     auto itr = gUnpackTupleMap.find(unpack);
@@ -496,10 +496,10 @@ GetInfoBySizedFormat(GLenum sizedFormat)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 uint8_t
-BytesPerPixel(const PackingInfo& pi)
+BytesPerPixel(GLenum unpackFormat, GLenum unpackType)
 {
     uint8_t bytesPerChannel;
-    switch (pi.unpackType) {
+    switch (unpackType) {
     case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
     case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
     case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
@@ -539,7 +539,7 @@ BytesPerPixel(const PackingInfo& pi)
     }
 
     uint8_t channels;
-    switch (pi.unpackFormat) {
+    switch (unpackFormat) {
     case LOCAL_GL_RG:
     case LOCAL_GL_RG_INTEGER:
     case LOCAL_GL_LUMINANCE_ALPHA:
@@ -580,7 +580,7 @@ FormatUsageInfo::AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value
 {
     MOZ_RELEASE_ASSERT(asTexture);
 
-    const auto itr = AlwaysInsert(validUnpack, key, value);
+    auto itr = AlwaysInsert(validUnpacks, key, value);
 
     if (!idealUnpack) {
         // First one!
@@ -612,10 +612,10 @@ AddUsage(FormatUsageAuthority* fua, EffectiveFormat effFormat, bool asRenderbuff
     MOZ_ASSERT(!fua->GetUsage(effFormat));
 
     auto usage = fua->EditUsage(effFormat);
-    usage.asRenderbuffer = asRenderbuffer;
-    usage.isRenderable = isRenderable;
-    usage.asTexture = asTexture;
-    usage.isFilterable = isFilterable;
+    usage->asRenderbuffer = asRenderbuffer;
+    usage->isRenderable = isRenderable;
+    usage->asTexture = asTexture;
+    usage->isFilterable = isFilterable;
 }
 
 static inline void
@@ -664,29 +664,30 @@ UniquePtr<FormatUsageAuthority>
 FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 {
     UniquePtr<FormatUsageAuthority> ret(new FormatUsageAuthority);
+    const auto ptr = ret.get();
 
     ////////////////////////////////////////////////////////////////////////////
 
     // GLES 2.0.25, p117, Table 4.5
     // RGBA8 is made renderable in WebGL 1.0, "Framebuffer Object Attachments"
 
-    //                                              render       filter
-    //                                        RB    able   Tex   able
-    AddUnpack(ret, EffectiveFormat::RGBA8  , false, true , true, true);
-    AddUnpack(ret, EffectiveFormat::RGBA4  , true , true , true, true);
-    AddUnpack(ret, EffectiveFormat::RGB5_A1, true , true , true, true);
-    AddUnpack(ret, EffectiveFormat::RGB8   , false, false, true, true);
-    AddUnpack(ret, EffectiveFormat::RGB565 , true , true , true, true);
+    //                                             render       filter
+    //                                       RB    able   Tex   able
+    AddUsage(ptr, EffectiveFormat::RGBA8  , false, true , true, true);
+    AddUsage(ptr, EffectiveFormat::RGBA4  , true , true , true, true);
+    AddUsage(ptr, EffectiveFormat::RGB5_A1, true , true , true, true);
+    AddUsage(ptr, EffectiveFormat::RGB8   , false, false, true, true);
+    AddUsage(ptr, EffectiveFormat::RGB565 , true , true , true, true);
 
-    AddUnpack(ret, EffectiveFormat::Luminance8Alpha8, false, false, true, true);
-    AddUnpack(ret, EffectiveFormat::Luminance8      , false, false, true, true);
-    AddUnpack(ret, EffectiveFormat::Alpha8          , false, false, true, true);
+    AddUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, false, true, true);
+    AddUsage(ptr, EffectiveFormat::Luminance8      , false, false, true, true);
+    AddUsage(ptr, EffectiveFormat::Alpha8          , false, false, true, true);
 
-    AddUnpack(ret, EffectiveFormat::DEPTH_COMPONENT16, true, true, false, false);
-    AddUnpack(ret, EffectiveFormat::STENCIL_INDEX8   , true, true, false, false);
+    AddUsage(ptr, EffectiveFormat::DEPTH_COMPONENT16, true, true, false, false);
+    AddUsage(ptr, EffectiveFormat::STENCIL_INDEX8   , true, true, false, false);
 
     // Added in WebGL 1.0 spec:
-    AddUnpack(ret, EffectiveFormat::DEPTH24_STENCIL8, true, true, false, false);
+    AddUsage(ptr, EffectiveFormat::DEPTH24_STENCIL8, true, true, false, false);
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -694,14 +695,14 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 
     // SetUnpack and AddAuxUnpack
 
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA8  , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA4  , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4);
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB5_A1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1);
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB8   , LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_BYTE         );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB565 , LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA8  , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA4  , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB5_A1, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB8   , LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_BYTE         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB565 , LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  );
 
     // L, A, LA
-    AddLegacyUnpacks_LA8(ret, gl);
+    AddLegacyUnpacks_LA8(ptr, gl);
 
     return Move(ret);
 }
@@ -717,7 +718,7 @@ AddES3TexFormat(FormatUsageAuthority* fua, EffectiveFormat format, bool isRender
 }
 
 UniquePtr<FormatUsageAuthority>
-FormatUsageAuthority::CreateForWebGL2()
+FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 {
     UniquePtr<FormatUsageAuthority> ret(new FormatUsageAuthority);
     FormatUsageAuthority* const ptr = ret.get();
@@ -823,94 +824,94 @@ FormatUsageAuthority::CreateForWebGL2()
     ////////////////////////////////////////////////////////////////////////////
     // GLES 3.0.4 p111-113
     // RGBA
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA8       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA4       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA4       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1     );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
-    AddUnsizedUnpack(ret, EffectiveFormat::SRGB8_ALPHA8, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA8_SNORM , LOCAL_GL_RGBA, LOCAL_GL_BYTE                       );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB10_A2    , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA16F     , LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT                 );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA16F     , LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA32F     , LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA8       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA4       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA4       , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1     );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB5_A1     , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
+    AddUnsizedUnpack(ptr, EffectiveFormat::SRGB8_ALPHA8, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA8_SNORM , LOCAL_GL_RGBA, LOCAL_GL_BYTE                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB10_A2    , LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA16F     , LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT                 );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA16F     , LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA32F     , LOCAL_GL_RGBA, LOCAL_GL_FLOAT                      );
 
     // RGBA_INTEGER
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA8UI   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_BYTE              );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA8I    , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_BYTE                       );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA16UI  , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_SHORT             );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA16I   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_SHORT                      );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA32UI  , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT               );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGBA32I   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_INT                        );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB10_A2UI, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA8UI   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_BYTE              );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA8I    , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_BYTE                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA16UI  , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_SHORT             );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA16I   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_SHORT                      );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA32UI  , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT               );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGBA32I   , LOCAL_GL_RGBA_INTEGER, LOCAL_GL_INT                        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB10_A2UI, LOCAL_GL_RGBA_INTEGER, LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV);
 
     // RGB
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB8          , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
-    AddUnsizedUnpack(ret, EffectiveFormat::SRGB8         , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB565        , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_SHORT_5_6_5        );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB565        , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB8_SNORM    , LOCAL_GL_RGB, LOCAL_GL_BYTE                        );
-    AddUnsizedUnpack(ret, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV);
-    AddUnsizedUnpack(ret, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
-    AddUnsizedUnpack(ret, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB16F        , LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB16F        , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV    );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB32F        , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB8          , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
+    AddUnsizedUnpack(ptr, EffectiveFormat::SRGB8         , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB565        , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_SHORT_5_6_5        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB565        , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_BYTE               );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB8_SNORM    , LOCAL_GL_RGB, LOCAL_GL_BYTE                        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV);
+    AddUnsizedUnpack(ptr, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R11F_G11F_B10F, LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB16F        , LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB16F        , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV    );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT                  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB9_E5       , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB32F        , LOCAL_GL_RGB, LOCAL_GL_FLOAT                       );
 
     // RGB_INTEGER
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB8UI , LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB8I  , LOCAL_GL_RGB_INTEGER, LOCAL_GL_BYTE          );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB16UI, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB16I , LOCAL_GL_RGB_INTEGER, LOCAL_GL_SHORT         );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB32UI, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_INT  );
-    AddUnsizedUnpack(ret, EffectiveFormat::RGB32I , LOCAL_GL_RGB_INTEGER, LOCAL_GL_INT           );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB8UI , LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB8I  , LOCAL_GL_RGB_INTEGER, LOCAL_GL_BYTE          );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB16UI, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB16I , LOCAL_GL_RGB_INTEGER, LOCAL_GL_SHORT         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB32UI, LOCAL_GL_RGB_INTEGER, LOCAL_GL_UNSIGNED_INT  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RGB32I , LOCAL_GL_RGB_INTEGER, LOCAL_GL_INT           );
 
     // RG
-    AddUnsizedUnpack(ret, EffectiveFormat::RG8      , LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE);
-    AddUnsizedUnpack(ret, EffectiveFormat::RG8_SNORM, LOCAL_GL_RG, LOCAL_GL_BYTE         );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG16F    , LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT   );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG16F    , LOCAL_GL_RG, LOCAL_GL_FLOAT        );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG32F    , LOCAL_GL_RG, LOCAL_GL_FLOAT        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG8      , LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG8_SNORM, LOCAL_GL_RG, LOCAL_GL_BYTE         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG16F    , LOCAL_GL_RG, LOCAL_GL_HALF_FLOAT   );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG16F    , LOCAL_GL_RG, LOCAL_GL_FLOAT        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG32F    , LOCAL_GL_RG, LOCAL_GL_FLOAT        );
 
     // RG_INTEGER
-    AddUnsizedUnpack(ret, EffectiveFormat::RG8UI , LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG8I  , LOCAL_GL_RG_INTEGER, LOCAL_GL_BYTE          );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG16UI, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
-    AddUnsizedUnpack(ret, EffectiveFormat::RG16I , LOCAL_GL_RG_INTEGER, LOCAL_GL_SHORT         );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG32UI, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_INT  );
-    AddUnsizedUnpack(ret, EffectiveFormat::RG32I , LOCAL_GL_RG_INTEGER, LOCAL_GL_INT           );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG8UI , LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG8I  , LOCAL_GL_RG_INTEGER, LOCAL_GL_BYTE          );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG16UI, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG16I , LOCAL_GL_RG_INTEGER, LOCAL_GL_SHORT         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG32UI, LOCAL_GL_RG_INTEGER, LOCAL_GL_UNSIGNED_INT  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::RG32I , LOCAL_GL_RG_INTEGER, LOCAL_GL_INT           );
 
     // RED
-    AddUnsizedUnpack(ret, EffectiveFormat::R8      , LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE);
-    AddUnsizedUnpack(ret, EffectiveFormat::R8_SNORM, LOCAL_GL_RED, LOCAL_GL_BYTE         );
-    AddUnsizedUnpack(ret, EffectiveFormat::R16F    , LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT   );
-    AddUnsizedUnpack(ret, EffectiveFormat::R16F    , LOCAL_GL_RED, LOCAL_GL_FLOAT        );
-    AddUnsizedUnpack(ret, EffectiveFormat::R32F    , LOCAL_GL_RED, LOCAL_GL_FLOAT        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R8      , LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE);
+    AddUnsizedUnpack(ptr, EffectiveFormat::R8_SNORM, LOCAL_GL_RED, LOCAL_GL_BYTE         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R16F    , LOCAL_GL_RED, LOCAL_GL_HALF_FLOAT   );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R16F    , LOCAL_GL_RED, LOCAL_GL_FLOAT        );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R32F    , LOCAL_GL_RED, LOCAL_GL_FLOAT        );
 
     // RED_INTEGER
-    AddUnsizedUnpack(ret, EffectiveFormat::R8UI , LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
-    AddUnsizedUnpack(ret, EffectiveFormat::R8I  , LOCAL_GL_RED_INTEGER, LOCAL_GL_BYTE          );
-    AddUnsizedUnpack(ret, EffectiveFormat::R16UI, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
-    AddUnsizedUnpack(ret, EffectiveFormat::R16I , LOCAL_GL_RED_INTEGER, LOCAL_GL_SHORT         );
-    AddUnsizedUnpack(ret, EffectiveFormat::R32UI, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_INT  );
-    AddUnsizedUnpack(ret, EffectiveFormat::R32I , LOCAL_GL_RED_INTEGER, LOCAL_GL_INT           );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R8UI , LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_BYTE );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R8I  , LOCAL_GL_RED_INTEGER, LOCAL_GL_BYTE          );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R16UI, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_SHORT);
+    AddUnsizedUnpack(ptr, EffectiveFormat::R16I , LOCAL_GL_RED_INTEGER, LOCAL_GL_SHORT         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R32UI, LOCAL_GL_RED_INTEGER, LOCAL_GL_UNSIGNED_INT  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::R32I , LOCAL_GL_RED_INTEGER, LOCAL_GL_INT           );
 
     // DEPTH_COMPONENT
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH_COMPONENT16 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT);
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH_COMPONENT16 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  );
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH_COMPONENT24 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  );
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH_COMPONENT32F, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_FLOAT         );
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH_COMPONENT16 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT);
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH_COMPONENT16 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH_COMPONENT24 , LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT  );
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH_COMPONENT32F, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_FLOAT         );
 
     // DEPTH_STENCIL
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH24_STENCIL8 , LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             );
-    AddUnsizedUnpack(ret, EffectiveFormat::DEPTH32F_STENCIL8, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH24_STENCIL8 , LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             );
+    AddUnsizedUnpack(ptr, EffectiveFormat::DEPTH32F_STENCIL8, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
 
     // L, A, LA
-    AddLegacyUnpacks_LA8(ret, gl);
+    AddLegacyUnpacks_LA8(ptr, gl);
 
     return Move(ret);
 }
@@ -930,7 +931,7 @@ FormatUsageAuthority::EditUsage(EffectiveFormat format)
         itr = AlwaysInsert(mInfoMap, format, usage);
     }
 
-    const auto& inPlaceValue = itr->second;
+    auto& inPlaceValue = itr->second;
     return &inPlaceValue;
 }
 

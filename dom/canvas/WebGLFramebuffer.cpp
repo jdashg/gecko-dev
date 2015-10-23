@@ -67,7 +67,7 @@ WebGLFBAttachPoint::Format() const
 bool
 WebGLFBAttachPoint::HasAlpha() const
 {
-    return Format()->formatInfo->hasAlpha;
+    return Format()->format->hasAlpha;
 }
 
 const webgl::FormatUsageInfo*
@@ -85,7 +85,7 @@ WebGLFBAttachPoint::IsReadableFloat() const
     auto formatUsage = Format();
     MOZ_ASSERT(formatUsage);
 
-    auto format = formatUsage->formatInfo;
+    auto format = formatUsage->format;
     if (!format->isColorFormat)
         return false;
 
@@ -232,7 +232,7 @@ WebGLFBAttachPoint::IsComplete() const
     if (!formatUsage->isRenderable)
         return false;
 
-    auto format = formatUsage->formatInfo;
+    auto format = formatUsage->format;
 
     if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
         mAttachmentPoint <= FBAttachment(LOCAL_GL_COLOR_ATTACHMENT0 - 1 +
@@ -275,7 +275,7 @@ WebGLFBAttachPoint::FinalizeAttachment(gl::GLContext* gl,
     MOZ_ASSERT(HasImage());
 
     if (Texture()) {
-        MOZ_ASSERT(gl == Texture()->Context()->GL());
+        MOZ_ASSERT(gl == Texture()->mContext->GL());
 
         const GLenum imageTarget = ImageTarget().get();
         const GLint mipLevel = MipLevel();

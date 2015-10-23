@@ -200,8 +200,8 @@ struct FormatInfo {
 };
 
 struct PackingInfo {
-    const GLenum format;
-    const GLenum type;
+    GLenum format;
+    GLenum type;
 
     bool operator <(const PackingInfo& x) const
     {
@@ -217,7 +217,7 @@ struct PackingInfo {
 const FormatInfo* GetFormatInfo(EffectiveFormat format);
 const FormatInfo* GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType);
 const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
-uint8_t BytesPerPixel(const PackingInfo& pi);
+uint8_t BytesPerPixel(GLenum unpackFormat, GLenum unpackType);
 
 GLint GetComponentSize(EffectiveFormat format, GLenum component);
 GLenum GetComponentType(EffectiveFormat format);
@@ -226,9 +226,9 @@ GLenum GetColorEncoding(EffectiveFormat format);
 ////////////////////////////////////////
 
 struct DriverUnpackInfo {
-    const GLenum internalFormat;
-    const GLenum unpackFormat;
-    const GLenum unpackType;
+    GLenum internalFormat;
+    GLenum unpackFormat;
+    GLenum unpackType;
 };
 
 struct FormatUsageInfo {
@@ -237,7 +237,7 @@ struct FormatUsageInfo {
     bool isRenderable;
     bool asTexture;
     bool isFilterable;
-    std::map<const PackingInfo, DriverUnpackInfo> validUnpacks;
+    std::map<PackingInfo, DriverUnpackInfo> validUnpacks;
     DriverUnpackInfo* idealUnpack;
     //const GLint* textureSwizzleRGBA;
 

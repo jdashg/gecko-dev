@@ -58,8 +58,8 @@ static bool
 IsElemValidForCORS(WebGLContext* webgl, dom::HTMLMediaElement* elem)
 {
     if (elem->GetCORSMode() == CORS_NONE) {
-        nsIPrincipal* srcPrincipal = elem->GetCurrentPrincipal();
-        if (!principal)
+        nsIPrincipal* srcPrincipal = elem->GetCurrentPrincipal().get();
+        if (!srcPrincipal)
             return false;
 
         nsIPrincipal* dstPrincipal = webgl->GetCanvas()->NodePrincipal();
@@ -112,7 +112,8 @@ ImageFromElement(dom::HTMLMediaElement* mediaElem, WebGLContext* webgl)
     if (!currentImages.Length())
         return nullptr;
 
-    return currentImages[0].mImage;
+    RefPtr<mozilla::layers::Image> ret = currentImages[0].mImage;
+    return ret.forget();
 }
 
 static already_AddRefed<gfx::DataSourceSurface>
@@ -808,7 +809,7 @@ DoCompressedTexImage(gl::GLContext* gl, uint8_t funcDims, TexImageTarget target,
     return errorScope.GetError();
 }
 
-static inline GLenum
+GLenum
 DoCompressedTexSubImage(gl::GLContext* gl, uint8_t funcDims, TexImageTarget target,
                         GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
                         GLsizei width, GLsizei height, GLenum sizedUnpackFormat,
@@ -1163,7 +1164,8 @@ void
 WebGLTexture::CompressedTexImage(const char* funcName, uint8_t funcDims,
                                  TexImageTarget target, GLint level,
                                  GLenum internalFormat, GLsizei width, GLsizei height,
-                                 GLsizei depth, GLint border, void* data, size_t dataSize)
+                                 GLsizei depth, GLint border,
+                                 const dom::ArrayBufferView& view)
 {
     ////////////////////////////////////
     // Get dest info
@@ -1191,6 +1193,10 @@ WebGLTexture::CompressedTexImage(const char* funcName, uint8_t funcDims,
 
     ////////////////////////////////////
     // Get source info
+
+    view.ComputeLengthAndData();
+    size_t dataSize = view.Length();
+    const void* data = view.Data();
 
     if (format->compression->requirePOT) {
         if (!IsPowerOfTwo(width) || !IsPowerOfTwo(height)) {
@@ -1258,8 +1264,8 @@ WebGLTexture::CompressedTexSubImage(const char* funcName, uint8_t funcDims,
                                          GLenum texImageTarget, GLint level,
                                          GLint xOffset, GLint yOffset, GLint zOffset,
                                          GLsizei width, GLsizei height, GLsizei depth,
-                                         GLenum sizedUnpackFormat, size_t dataSize,
-                                         const void* data)
+                                         GLenum sizedUnpackFormat,
+                                         const dom::ArrayBufferView& view)
 {
     ////////////////////////////////////
     // Get dest info
@@ -1279,6 +1285,10 @@ WebGLTexture::CompressedTexSubImage(const char* funcName, uint8_t funcDims,
 
     ////////////////////////////////////
     // Get source info
+
+    view.ComputeLengthAndData();
+    size_t dataSize = view.Length();
+    const void* data = view.Data();
 
     auto srcFormat = webgl::GetInfoBySizedFormat(sizedUnpackFormat);
     if (srcFormat != dstFormat) {

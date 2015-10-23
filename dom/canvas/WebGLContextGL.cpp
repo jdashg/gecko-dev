@@ -786,7 +786,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
             return JSUint32Value(LOCAL_GL_LINEAR);
 
         if (fba.IsDefined()) {
-            if (fba.Format()->formatInfo->isSRGB)
+            if (fba.Format()->format->isSRGB)
                 return JSUint32Value(LOCAL_GL_SRGB_EXT);
         }
 
@@ -812,7 +812,7 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
             return JS::NullValue();
         }
 
-        switch (fba.Format()->formatInfo->componentType) {
+        switch (fba.Format()->format->componentType) {
         case webgl::ComponentType::Int:
             return JSUint32Value(LOCAL_GL_INT);
 
@@ -1503,7 +1503,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
     CheckedUint32 checked_plainRowSize = CheckedUint32(width) * bytesPerPixel;
 
     CheckedUint32 checked_alignedRowSize =
-        RoundedToNextMultipleOf(checked_plainRowSize, mPixelStore_PackAlignment);
+        RoundUpToMultipleOf(checked_plainRowSize, mPixelStore_PackAlignment);
 
     if (!checked_neededByteLength.isValid())
         return ErrorInvalidOperation("readPixels: integer overflow computing the needed buffer size");
@@ -1524,7 +1524,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
     if (!ValidateCurFBForRead("readPixels", &srcFormat, &srcWidth, &srcHeight))
         return;
 
-    auto srcType = srcFormat->formatInfo->componentType;
+    auto srcType = srcFormat->format->componentType;
     const bool isSrcTypeFloat = (srcType == webgl::ComponentType::Float);
 
     // Check the format and type params to assure they are an acceptable pair (as per spec)
@@ -1613,9 +1613,10 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // now, same computation as above to find the size of the intermediate buffer to allocate for the subrect
         // no need to check again for integer overflow here, since we already know the sizes aren't greater than before
         uint32_t subrect_plainRowSize = subrect_width * bytesPerPixel;
-    // There are checks above to ensure that this doesn't overflow.
-        uint32_t subrect_alignedRowSize =
-            RoundedToNextMultipleOf(subrect_plainRowSize, mPixelStore_PackAlignment).value();
+
+        // There are checks above to ensure that this doesn't overflow.
+        uint32_t subrect_alignedRowSize = RoundUpToMultipleOf(subrect_plainRowSize,
+                                                              mPixelStore_PackAlignment);
         uint32_t subrect_byteLength = (subrect_height-1)*subrect_alignedRowSize + subrect_plainRowSize;
 
         // create subrect buffer, call glReadPixels, copy pixels into destination buffer, delete subrect buffer
