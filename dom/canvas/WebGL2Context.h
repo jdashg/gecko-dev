@@ -112,18 +112,19 @@ public:
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
                        dom::ImageData* data, ErrorResult& out_rv);
+protected:
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
                        dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
-
-    template<class ElementT>
+public:
+    template<class T>
     inline void
     TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
-                  GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                  ErrorResult& out_rv)
+                  GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_rv)
     {
+        dom::HTMLMediaElement* media = &elem;
         TexSubImage3D(target, level, xOffset, yOffset, zOffset, unpackFormat, unpackType,
-                      &elem, &out_rv);
+                      media, &out_rv);
     }
 
     void CopyTexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,

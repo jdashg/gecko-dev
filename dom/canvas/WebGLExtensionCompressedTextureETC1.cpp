@@ -14,7 +14,7 @@ WebGLExtensionCompressedTextureETC1::WebGLExtensionCompressedTextureETC1(WebGLCo
 {
     auto& authority = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::ETC1_RGB8)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::ETC1_RGB8_OES)->asTexture = true;
 }
 
 WebGLExtensionCompressedTextureETC1::~WebGLExtensionCompressedTextureETC1()

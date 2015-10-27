@@ -14,10 +14,10 @@ WebGLExtensionCompressedTextureS3TC::WebGLExtensionCompressedTextureS3TC(WebGLCo
 {
     auto& authority = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_S3TC_DXT1)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT1)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT3)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT5)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_S3TC_DXT1_EXT)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT1_EXT)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT3_EXT)->asTexture = true;
+    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT5_EXT)->asTexture = true;
 }
 
 WebGLExtensionCompressedTextureS3TC::~WebGLExtensionCompressedTextureS3TC()

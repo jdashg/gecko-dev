@@ -81,6 +81,7 @@ class nsIDocShell;
 
 namespace mozilla {
 
+class ScopedUnpackReset;
 class WebGLActiveInfo;
 class WebGLContextLossHandler;
 class WebGLBuffer;
@@ -113,6 +114,9 @@ class SourceSurface;
 namespace webgl {
 struct LinkedProgramInfo;
 class ShaderValidator;
+class TexUnpackBuffer;
+class TexUnpackImage;
+class TexUnpackSrcSurface;
 } // namespace webgl
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
@@ -1285,6 +1289,7 @@ protected:
                       WebGLTexelFormat dstFormat, bool dstPremultiplied,
                       size_t dstTexelSize);
 
+public:
     template<class ElementType>
     nsLayoutUtils::SurfaceFromElementResult
     SurfaceFromElement(ElementType* element) {
@@ -1306,10 +1311,11 @@ protected:
     }
 
     nsresult
-    SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,
-                                           RefPtr<gfx::DataSourceSurface>& imageOut,
-                                           WebGLTexelFormat* format);
+    SurfaceFromElementResultToImageSurface(const nsLayoutUtils::SurfaceFromElementResult& res,
+                                           RefPtr<gfx::DataSourceSurface>* const out_image,
+                                           WebGLTexelFormat* const out_format);
 
+protected:
     // Returns false if `object` is null or not valid.
     template<class ObjectType>
     bool ValidateObject(const char* info, ObjectType* object);
@@ -1366,7 +1372,10 @@ protected:
     GLenum CheckedBufferData(GLenum target, GLsizeiptr size, const GLvoid* data,
                              GLenum usage);
 
+public:
     void ForceLoseContext(bool simulateLoss = false);
+
+protected:
     void ForceRestoreContext();
 
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DTextures;
@@ -1423,9 +1432,10 @@ protected:
     bool mPixelStore_FlipY;
     bool mPixelStore_PremultiplyAlpha;
 
+public:
+    bool GetSrcFBFormat(const char* funcName, const webgl::FormatInfo** const out_format);
 
     // Fake-black
-public:
     class FakeBlackTexture {
         gl::GLContext* const mGL;
         GLuint mGLName;
@@ -1566,6 +1576,10 @@ public:
     virtual UniquePtr<webgl::FormatUsageAuthority> CreateFormatUsage() const = 0;
 
     // Friend list
+    friend class ScopedUnpackReset;
+    friend class webgl::TexUnpackBuffer;
+    friend class webgl::TexUnpackImage;
+    friend class webgl::TexUnpackSrcSurface;
     friend class WebGLTexture;
     friend class WebGLFramebuffer;
     friend class WebGLRenderbuffer;
@@ -1719,12 +1733,13 @@ public:
     void operator =(const UniqueBuffer& other) = delete; // assign using Move()!
 };
 
-struct ScopedUnpackReset
+class ScopedUnpackReset
     : public gl::ScopedGLWrapper<ScopedUnpackReset>
 {
     friend struct gl::ScopedGLWrapper<ScopedUnpackReset>;
 
 protected:
+    WebGLContext* const mWebGL;
     GLint mAlignment;
     GLint mRowLength;
     GLint mImageHeight;

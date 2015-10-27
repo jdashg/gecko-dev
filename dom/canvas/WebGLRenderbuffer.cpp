@@ -90,7 +90,7 @@ WebGLRenderbuffer::MemoryUsage() const
     if (!mFormat)
         return 0;
 
-    auto bytesPerPixel = mFormat->format->bytesPerPixel;
+    auto bytesPerPixel = mFormat->format->estimatedBytesPerPixel;
     uint64_t pixels = uint64_t(mWidth) * uint64_t(mHeight);
 
     uint64_t totalSize = pixels * bytesPerPixel;

@@ -103,7 +103,7 @@ WebGLTexture::ImageInfo::MemoryUsage() const
     if (!IsDefined())
         return 0;
 
-    const auto bytesPerTexel = mFormat->format->bytesPerPixel;
+    const auto bytesPerTexel = mFormat->format->estimatedBytesPerPixel;
     return size_t(mWidth) * size_t(mHeight) * size_t(mDepth) * bytesPerTexel;
 }
 
@@ -501,7 +501,7 @@ WebGLTexture::ResolveFakeBlackStatus()
                               " the implementation to (slowly) initialize the"
                               " uninitialized TexImages.");
 
-    GLenum baseTexImageTarget = GLenum(mTarget);
+    GLenum baseTexImageTarget = mTarget.get();
     if (baseTexImageTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
         baseTexImageTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
 
@@ -556,17 +556,17 @@ ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget target, GLint le
     if (format->isColorFormat) {
         mask |= LOCAL_GL_COLOR_BUFFER_BIT;
         gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                  GLenum(target), tex, level);
+                                  target.get(), tex, level);
     } else {
         if (format->hasDepth) {
             mask |= LOCAL_GL_DEPTH_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                      GLenum(target), tex, level);
+                                      target.get(), tex, level);
         }
         if (format->hasStencil) {
             mask |= LOCAL_GL_STENCIL_BUFFER_BIT;
             gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
-                                      GLenum(target), tex, level);
+                                      target.get(), tex, level);
         }
     }
 
@@ -644,7 +644,10 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     }
     // That didn't work. Try uploading zeros then.
 
-    auto format = imageInfo.mFormat;
+    auto usage = imageInfo.mFormat;
+    const GLint xOffset = 0;
+    const GLint yOffset = 0;
+    const GLint zOffset = 0;
     auto& width = imageInfo.mWidth;
     auto& height = imageInfo.mHeight;
     auto& depth = imageInfo.mDepth;
@@ -652,8 +655,11 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     ScopedUnpackReset scopedReset(mContext, 0);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
-    auto compression = format->format->compression;
+    auto compression = usage->format->compression;
     if (compression) {
+        auto sizedFormat = usage->format->sizedFormat;
+        MOZ_RELEASE_ASSERT(sizedFormat);
+
         CheckedUint32 checkedByteCount = compression->bytesPerBlock;
         checkedByteCount *= NumWholeBlocksForLength(width, compression->blockWidth);
         checkedByteCount *= NumWholeBlocksForLength(height, compression->blockHeight);
@@ -668,14 +674,20 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
         if (!zeros)
             return false;
 
-        GLenum error = DoCompressedTexSubImage(gl, target, level, 0, 0, 0, width, height,
-                                               depth, format, zeros.get());
+        GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
+                                               zOffset, width, height, depth, sizedFormat,
+                                               zeros.get());
         if (error)
             return false;
     } else {
-        auto driverUnpackInfo = format->idealUnpack;
-        auto bytesPerPixel = webgl::BytesPerPixel(driverUnpackInfo->unpackFormat,
-                                                  driverUnpackInfo->unpackType);
+        auto driverUnpackInfo = usage->idealUnpack;
+        MOZ_RELEASE_ASSERT(driverUnpackInfo);
+
+        auto unpackFormat = driverUnpackInfo->unpackFormat;
+        auto unpackType = driverUnpackInfo->unpackType;
+        const webgl::PackingInfo packing = { unpackFormat, unpackType };
+
+        auto bytesPerPixel = webgl::BytesPerPixel(packing);
 
         CheckedUint32 checkedByteCount = bytesPerPixel;
         checkedByteCount *= width;
@@ -691,8 +703,9 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
         if (!zeros)
             return false;
 
-        GLenum error = DoTexSubImage(gl, target, level, 0, 0, 0, width, height, depth,
-                                     driverUnpackInfo, zeros.get());
+        GLenum error = DoTexSubImage(gl, target.get(), level, xOffset,
+                                     yOffset, zOffset, width, height, depth,
+                                     unpackFormat, unpackType, zeros.get());
         if (error)
             return false;
     }
@@ -701,57 +714,6 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     return true;
 }
 
-
-/*
-
-    gl::ScopedBindTexture autoBindTex(gl, mGLName, mTarget.get());
-
-    GLenum driverInternalFormat = LOCAL_GL_NONE;
-    GLenum driverUnpackFormat = LOCAL_GL_NONE;
-    GLenum driverUnpackType = LOCAL_GL_NONE;
-    DriverFormatsForTextures(gl, formatUsage, &driverInternalFormat, &driverUnpackFormat,
-                             &driverUnpackType);
-
-    mContext->GetAndFlushUnderlyingGLErrors();
-    if (texImageTarget == LOCAL_GL_TEXTURE_3D) {
-        gl->fTexSubImage3D(texImageTarget.get(), level, 0, 0, 0, imageInfo.mWidth,
-                           imageInfo.mHeight, imageInfo.mDepth, driverUnpackFormat,
-                           driverUnpackType, zeros.get());
-    } else {
-        MOZ_ASSERT(imageInfo.mDepth == 1);
-        gl->fTexSubImage2D(texImageTarget.get(), level, 0, 0, imageInfo.mWidth,
-                           imageInfo.mHeight, driverUnpackFormat, driverUnpackType,
-                           zeros.get());
-    }
-
-    GLenum error = mContext->GetAndFlushUnderlyingGLErrors();
-    if (error) {
-        // Should only be OUT_OF_MEMORY. Anyway, there's no good way to recover
-        // from this here.
-        if (error != LOCAL_GL_OUT_OF_MEMORY) {
-            printf_stderr("Error: 0x%4x\n", error);
-            gfxCriticalError() << "GL context GetAndFlushUnderlyingGLErrors " << gfx::hexa(error);
-            // Errors on texture upload have been related to video
-            // memory exposure in the past, which is a security issue.
-            // Force loss of context.
-            mContext->ForceLoseContext(true);
-            return false;
-        }
-
-        // Out-of-memory uploading pixels to GL. Lose context and report OOM.
-        mContext->ForceLoseContext(true);
-        mContext->ErrorOutOfMemory("EnsureNoUninitializedImageData: Failed to "
-                                   "upload texture of width: %u, height: %u, "
-                                   "depth: %u to target %s level %d.",
-                                   imageInfo.mWidth, imageInfo.mHeight, imageInfo.mDepth,
-                                   mContext->EnumName(texImageTarget.get()), level);
-        return false;
-    }
-
-    imageInfo.SetIsDataInitialized(true, this);
-    return true;
-}
-*/
 void
 WebGLTexture::ClampLevelBaseAndMax()
 {

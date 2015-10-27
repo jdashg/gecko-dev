@@ -205,6 +205,7 @@ protected:
     ~WebGLTexture() {
         DeleteOnce();
     }
+
 public:
     ////////////////////////////////////
     // GL calls
@@ -218,34 +219,28 @@ public:
     ////////////////////////////////////
     // WebGLTextureUpload.cpp
 
-    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                  GLint level, GLenum internalFormat, GLsizei width, GLsizei height,
-                  GLsizei depth, GLint border, GLenum unpackFormat, GLenum unpackType,
-                  const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
-    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                     GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
-                     GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
-                     GLenum unpackType,
-                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
+    void TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
+                       GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLsizei width, GLsizei height, GLsizei depth,
+                       GLint border, GLenum unpackFormat, GLenum unpackType,
+                       const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView);
 
-    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                  GLint level, GLenum internalFormat, GLenum unpackFormat,
-                  GLenum unpackType, dom::ImageData* imageData);
-    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                     GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
-                     GLenum unpackFormat, GLenum unpackType,
-                     dom::ImageData* imageData);
+    void TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
+                       GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::ImageData* imageData);
 
-    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                  GLint level, GLenum internalFormat, GLenum unpackFormat,
-                  GLenum unpackType, dom::HTMLMediaElement* elem,
-                  ErrorResult* const out_rv);
-    void TexSubImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                     GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
-                     GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
-                     ErrorResult* const out_rv);
+    void TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
+                       GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLenum unpackFormat, GLenum unpackType,
+                       dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
 
 protected:
+    bool TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
+                       GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
+                       GLint zOffset, GLint border, GLenum unpackFormat,
+                       GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
+
     bool ValidateTexImageSpecification(const char* funcName, TexImageTarget target,
                                        GLint level, GLsizei width, GLsizei height,
                                        GLsizei depth, GLint border,
@@ -257,34 +252,29 @@ protected:
                                    WebGLTexture::ImageInfo** const out_imageInfo);
 
 public:
-    void TexStorage(const char* funcName, uint8_t funcDims, TexTarget target,
-                    GLsizei levels, GLenum sizedFormat, GLsizei width,
-                    GLsizei height, GLsizei depth);
+    void TexStorage(const char* funcName, TexTarget target, GLsizei levels,
+                    GLenum sizedFormat, GLsizei width, GLsizei height, GLsizei depth);
 protected:
-    void TexImage(const char* funcName, uint8_t funcDims, TexImageTarget target,
-                  GLint level, GLenum internalFormat, GLenum unpackFormat,
-                  GLenum unpackType, webgl::TexUnpackBlob* unpackBlob,
-                  bool* const out_tryAgain);
-    void TexSubImage(const char* funcName, uint8_t funcDims,
-                     TexImageTarget target, GLint level, GLint xOffset,
-                     GLint yOffset, GLint zOffset, GLenum unpackFormat,
+    // Returns false on internal error.
+    bool TexImage(const char* funcName, TexImageTarget target, GLint level,
+                  GLenum internalFormat, GLint border, GLenum unpackFormat,
+                  GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
+    bool TexSubImage(const char* funcName, TexImageTarget target, GLint level,
+                     GLint xOffset, GLint yOffset, GLint zOffset, GLenum unpackFormat,
                      GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
 public:
-    void CompressedTexImage(const char* funcName, uint8_t funcDims,
-                            TexImageTarget target, GLint level, GLenum internalFormat,
-                            GLsizei width, GLsizei height, GLsizei depth, GLint border,
+    void CompressedTexImage(const char* funcName, TexImageTarget target, GLint level,
+                            GLenum internalFormat, GLsizei width, GLsizei height,
+                            GLsizei depth, GLint border,
                             const dom::ArrayBufferView& view);
-    void CompressedTexSubImage(const char* funcName, uint8_t funcDims,
-                               TexImageTarget target, GLint level, GLint xOffset,
-                               GLint yOffset, GLint zOffset, GLsizei width,
+    void CompressedTexSubImage(const char* funcName, TexImageTarget target, GLint level,
+                               GLint xOffset, GLint yOffset, GLint zOffset, GLsizei width,
                                GLsizei height, GLsizei depth, GLenum sizedUnpackFormat,
                                const dom::ArrayBufferView& view);
     void CopyTexImage2D(TexImageTarget target, GLint level, GLenum internalFormat,
-                        GLint x, GLint y, GLsizei width, GLsizei height,
-                        GLint border);
-    void CopyTexSubImage(const char* funcName, uint8_t funcDims,
-                         TexImageTarget target, GLint level, GLint xOffset,
-                         GLint yOffset, GLint zOffset, GLint x, GLint y,
+                        GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+    void CopyTexSubImage(const char* funcName, TexImageTarget target, GLint level,
+                         GLint xOffset, GLint yOffset, GLint zOffset, GLint x, GLint y,
                          GLsizei width, GLsizei height);
 
     ////////////////////////////////////
@@ -350,8 +340,8 @@ public:
 
     size_t MemoryUsage() const;
 
-protected:
     bool InitializeImageData(TexImageTarget target, uint32_t level);
+protected:
     bool EnsureImageDataInitialized(TexImageTarget target, uint32_t level);
 
     bool CheckFloatTextureFilterParams() const {
@@ -417,10 +407,18 @@ TexImageTargetForTargetAndFace(TexTarget target, uint8_t face)
 }
 
 GLenum
-DoCompressedTexSubImage(gl::GLContext* gl, uint8_t funcDims, TexImageTarget target,
-                        GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
-                        GLsizei width, GLsizei height, GLenum sizedUnpackFormat,
-                        GLsizei dataSize, const void* data);
+DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLenum internalFormat,
+           GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
+           GLenum unpackType, const void* data);
+GLenum
+DoTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLint xOffset,
+              GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
+              GLsizei depth, GLenum unpackFormat, GLenum unpackType, const void* data);
+GLenum
+DoCompressedTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level,
+                        GLint xOffset, GLint yOffset, GLint zOffset, GLsizei width,
+                        GLsizei height, GLenum sizedUnpackFormat, GLsizei dataSize,
+                        const void* data);
 
 } // namespace mozilla
 

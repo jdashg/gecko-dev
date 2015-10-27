@@ -1706,7 +1706,7 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
         sizedInternalFormat = LOCAL_GL_DEPTH24_STENCIL8;
     }
 
-    const webgl::FormatInfo* format = webgl::GetInfoBySizedFormat(sizedInternalFormat);
+    const webgl::FormatInfo* format = webgl::GetSizedFormat(sizedInternalFormat);
     const webgl::FormatUsageInfo* formatUsage = nullptr;
     if (format) {
         formatUsage = mFormatUsage->GetUsage(format);
@@ -1832,14 +1832,15 @@ WebGLContext::StencilOpSeparate(GLenum face, GLenum sfail, GLenum dpfail, GLenum
 }
 
 nsresult
-WebGLContext::SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromElementResult& res,
-                                                     RefPtr<DataSourceSurface>& imageOut,
-                                                     WebGLTexelFormat* format)
+WebGLContext::SurfaceFromElementResultToImageSurface(const nsLayoutUtils::SurfaceFromElementResult& res,
+                                                     RefPtr<DataSourceSurface>* const out_image,
+                                                     WebGLTexelFormat* const out_format)
 {
-   *format = WebGLTexelFormat::None;
+    *out_format = WebGLTexelFormat::None;
 
     if (!res.mSourceSurface)
         return NS_OK;
+
     RefPtr<DataSourceSurface> data = res.mSourceSurface->GetDataSurface();
     if (!data) {
         // SurfaceFromElement lied!
@@ -1883,24 +1884,23 @@ WebGLContext::SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromE
 
     switch (data->GetFormat()) {
         case SurfaceFormat::B8G8R8A8:
-            *format = WebGLTexelFormat::BGRA8; // careful, our ARGB means BGRA
+            *out_format = WebGLTexelFormat::BGRA8; // careful, our ARGB means BGRA
             break;
         case SurfaceFormat::B8G8R8X8:
-            *format = WebGLTexelFormat::BGRX8; // careful, our RGB24 is not tightly packed. Whence BGRX8.
+            *out_format = WebGLTexelFormat::BGRX8; // careful, our RGB24 is not tightly packed. Whence BGRX8.
             break;
         case SurfaceFormat::A8:
-            *format = WebGLTexelFormat::A8;
+            *out_format = WebGLTexelFormat::A8;
             break;
         case SurfaceFormat::R5G6B5_UINT16:
-            *format = WebGLTexelFormat::RGB565;
+            *out_format = WebGLTexelFormat::RGB565;
             break;
         default:
             NS_ASSERTION(false, "Unsupported image format. Unimplemented.");
             return NS_ERROR_NOT_IMPLEMENTED;
     }
 
-    imageOut = data;
-
+    *out_image = data;
     return NS_OK;
 }
 

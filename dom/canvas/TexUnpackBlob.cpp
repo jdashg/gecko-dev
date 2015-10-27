@@ -14,47 +14,29 @@
 #include "nsLayoutUtils.h"
 #include "WebGLContext.h"
 #include "WebGLTexelConversions.h"
+#include "WebGLTexture.h"
 
 namespace mozilla {
 namespace webgl {
 
 static GLenum
-TexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
-         const webgl::DriverUnpackInfo* driverUnpackInfo, GLsizei width, GLsizei height,
-         GLsizei depth, const void* data)
+DoTexOrSubImage(bool isSubImage, gl::GLContext* gl, TexImageTarget target, GLint level,
+                const DriverUnpackInfo* dui, GLint xOffset, GLint yOffset, GLint zOffset,
+                GLsizei width, GLsizei height, GLsizei depth, const void* data)
 {
-    const GLenum& internalFormat = driverUnpackInfo->internalFormat;
-    const GLint border = 0;
-    const GLenum& unpackFormat = driverUnpackInfo->unpackFormat;
-    const GLenum& unpackType = driverUnpackInfo->unpackType;
+    auto internalFormat = dui->internalFormat;
+    auto unpackFormat = dui->unpackFormat;
+    auto unpackType = dui->unpackType;
 
-    gl::GLContext::LocalErrorScope errorScope(*gl);
-
-    switch (GLenum(target)) {
-    case LOCAL_GL_TEXTURE_2D:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
-    case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-        MOZ_ASSERT(depth == 1);
-        gl->fTexImage2D(GLenum(target), level, internalFormat, width, height, border,
-                        unpackFormat, unpackType, data);
-        break;
-
-    case LOCAL_GL_TEXTURE_3D:
-    case LOCAL_GL_TEXTURE_2D_ARRAY:
-        gl->fTexImage3D(GLenum(target), level, internalFormat, width, height, depth,
-                        border, unpackFormat, unpackType, data);
-        break;
-
-    default:
-        MOZ_CRASH('bad target');
+    if (isSubImage) {
+        return DoTexSubImage(gl, target, level, xOffset, yOffset, zOffset, width, height,
+                             depth, unpackFormat, unpackType, data);
+    } else {
+        return DoTexImage(gl, target, level, internalFormat, width, height, depth,
+                          unpackFormat, unpackType, data);
     }
-
-    return errorScope.GetError();
 }
+
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexUnpackBuffer
@@ -112,17 +94,17 @@ GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint8_t rowByteAlignment,
 ////////////////////
 
 bool
-TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
-                                const webgl::PackingInfo* packingInfo) override
+TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
+                                const webgl::PackingInfo& packingInfo)
 {
-    const auto bytesPerPixel           = format->bytesPerPixel;
+    const auto bytesPerPixel           = webgl::BytesPerPixel(packingInfo);
     const auto rowByteAlignment        = webgl->mPixelStore_UnpackAlignment;
     const auto maybeStridePixelsPerRow = webgl->mPixelStore_UnpackRowLength;
     const auto maybeStrideRowsPerImage = webgl->mPixelStore_UnpackImageHeight;
     const auto skipPixelsPerRow        = webgl->mPixelStore_UnpackSkipPixels;
     const auto skipRowsPerImage        = webgl->mPixelStore_UnpackSkipRows;
-    const auto skipImages              = (funcDims == 3) ? webgl->mPixelStore_UnpackSkipImages
-                                                         : 0;
+    const auto skipImages              = isFunc3D ? webgl->mPixelStore_UnpackSkipImages
+                                                  : 0;
     const auto usedPixelsPerRow = mWidth;
     const auto usedRowsPerImage = mHeight;
     const auto usedImages       = mDepth;
@@ -134,16 +116,16 @@ TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
                                 usedPixelsPerRow, usedRowsPerImage, usedImages,
                                 &bytesNeeded))
     {
-        mContext->ErrorInvalidOperation("%s: Overflow while computing the needed"
-                                        " buffer size.",
-                                        funcName);
+        webgl->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
+                                     " size.",
+                                     funcName);
         return false;
     }
 
     if (mData && bytesNeeded > mDataSize) {
-        mContext->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u,"
-                                        " has %u)",
-                                        funcName, bytesNeeded, mDataSize);
+        webgl->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u, has"
+                                     " %u)",
+                                     funcName, bytesNeeded, mDataSize);
         return false;
     }
 
@@ -151,19 +133,22 @@ TexUnpackBuffer::ValidateUnpack(WebGLContext* webgl, uint8_t funcDims,
 }
 
 bool
-TexUnpackBuffer::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                          GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
-                          GLenum* const out_glError) override
+TexUnpackBuffer::TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
+                               GLint level,
+                               const webgl::DriverUnpackInfo* driverUnpackInfo,
+                               GLint xOffset, GLint yOffset, GLint zOffset,
+                               GLenum* const out_glError)
 {
     WebGLContext* webgl = tex->mContext;
     gl::GLContext* gl = webgl->gl;
 
-    GLenum error = TexImage(gl, funcDims, target, level, driverUnpackInfo, mWidth,
-                            mHeight, mDepth, mData);
-
+    GLenum error = DoTexOrSubImage(isSubImage, gl, target, level, driverUnpackInfo,
+                                   xOffset, yOffset, zOffset, mWidth, mHeight, mDepth,
+                                   mData);
     *out_glError = error;
     return !error;
 }
+
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexUnpackImage
@@ -176,48 +161,55 @@ TexUnpackImage::TexUnpackImage(const RefPtr<mozilla::layers::Image>& image,
 { }
 
 bool
-TexUnpackImage::TexImage(WebGLTexture* tex, uint8_t funcDims, TexImageTarget target,
-                         GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
-                         GLenum* const out_glError) override
+TexUnpackImage::TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
+                              GLint level, const webgl::DriverUnpackInfo* dui,
+                              GLint xOffset, GLint yOffset, GLint zOffset,
+                              GLenum* const out_glError)
 {
     *out_glError = 0;
 
     WebGLContext* webgl = tex->mContext;
-    gl::GLContext* gl = webgl->gl;
+    gl::GLContext* gl = webgl->GL();
 
-    TexUnpackImage* unpackImage = unpackBlob->AsTexUnpackImage();
-    MOZ_ASSERT(unpackImage);
-
-    if (!webgl->mPixelStore_PrmultiplyAlpha ||
+    if (!webgl->mPixelStore_PremultiplyAlpha ||
         level != 0)
     {
         return false;
     }
 
-    switch (formatInfo->effectiveFormat) {
-    case webgl::EffectiveFormat::RGB8:
-    case webgl::EffectiveFormat::RGBA8:
-        if (driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+    auto internalFormat = dui->internalFormat;
+    auto unpackFormat = dui->unpackFormat;
+    auto unpackType = dui->unpackType;
+
+    switch (unpackType) {
+    case LOCAL_GL_UNSIGNED_BYTE:
+        switch (unpackFormat) {
+        case LOCAL_GL_RGB:
+        case LOCAL_GL_RGBA:
             break;
 
-        return false;
+        default:
+            return false;
+        }
 
     default:
         return false;
     }
 
+    if (isSubImage)
+        return false; // TODO: Not supported by out blit functions yet!
+
     // Looks good so far. We need to allocate the texture to blit into.
 
-    GLenum error = TexImage(gl, target, level, driverUnpackInfo, mWidth, mHeight, mDepth,
-                            nullptr);
+    GLenum error = DoTexImage(gl, target, level, internalFormat, mWidth, mHeight, mDepth,
+                              unpackFormat, unpackType, nullptr);
     if (error)
         return false;
 
-    auto& image = unpackImage->mImage;
-    const gl::OriginPos dstOrigin = mPixelStore_FlipY ? gl::OriginPos::BottomLeft
-                                                      : gl::OriginPos::TopLeft;
-    if (gl->BlitHelper()->BlitImageToTexture(image, image->GetSize(), tex->mGLName,
-                                             target, destOrigin))
+    const gl::OriginPos dstOrigin = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
+                                                             : gl::OriginPos::TopLeft;
+    if (gl->BlitHelper()->BlitImageToTexture(mImage, mImage->GetSize(), tex->mGLName,
+                                             target.get(), dstOrigin))
     {
         return true;
     }
@@ -234,7 +226,7 @@ GuessAlignment(const void* data, size_t width, size_t stride, size_t maxAlignmen
     while (alignmentGuess) {
         size_t guessStride = RoundUpToMultipleOf(width, alignmentGuess);
         if (guessStride == stride &&
-            data % alignmentGuess == 0)
+            uintptr_t(data) % alignmentGuess == 0)
         {
             *out_alignment = alignmentGuess;
             return true;
@@ -253,11 +245,13 @@ SupportsBGRA(gl::GLContext* gl)
     return false;
 }
 
-static bool
-UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
-                  GLint level, const webgl::DriverUnpackInfo* driverUnpackInfo,
-                  GLsizei width, GLsizei height, gfx::DataSourceSurface* surf,
-                  GLenum* const out_glError)
+bool
+TexUnpackSrcSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
+                                       TexImageTarget target, GLint level,
+                                       const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                                       GLint yOffset, GLint zOffset,
+                                       gfx::DataSourceSurface* surf,
+                                       GLenum* const out_glError)
 {
     *out_glError = 0;
 
@@ -275,45 +269,44 @@ UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
     // Uploading RGBX as RGBA and blitting to RGB is faster than repacking RGBX into
     // RGB on the CPU. However, this is optimization is out-of-scope for now.
 
-    static const webgl::UnpackInfo kInfoBGRA = {
+    static const webgl::DriverUnpackInfo kInfoBGRA = {
         LOCAL_GL_BGRA,
         LOCAL_GL_BGRA,
         LOCAL_GL_UNSIGNED_BYTE,
-        4,
     };
 
-    const webgl::UnpackInfo* chosenInfo = nullptr;
+    const webgl::DriverUnpackInfo* chosenDUI = nullptr;
 
     switch (surf->GetFormat()) {
     case gfx::SurfaceFormat::B8G8R8A8:
-        if (driverUnpackInfo->internalFormat == LOCAL_GL_RGBA &&
-            driverUnpackInfo->unpackFormat == LOCAL_GL_RGBA &&
-            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+        if (dui->internalFormat == LOCAL_GL_RGBA &&
+            dui->unpackFormat == LOCAL_GL_RGBA &&
+            dui->unpackType == LOCAL_GL_UNSIGNED_BYTE)
         {
             if (gl->IsANGLE()) {
-                chosenInfo = &kInfoBGRA;
+                chosenDUI = &kInfoBGRA;
             }
         }
         break;
 
     case gfx::SurfaceFormat::R8G8B8A8:
-        if (driverUnpackInfo->unpackFormat == LOCAL_GL_RGBA &&
-            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_BYTE)
+        if (dui->unpackFormat == LOCAL_GL_RGBA &&
+            dui->unpackType == LOCAL_GL_UNSIGNED_BYTE)
         {
-            chosenInfo = driverUnpackInfo;
+            chosenDUI = dui;
         }
         break;
 
     case gfx::SurfaceFormat::R5G6B5:
-        if (driverUnpackInfo->unpackFormat == LOCAL_GL_RGB &&
-            driverUnpackInfo->unpackType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
+        if (dui->unpackFormat == LOCAL_GL_RGB &&
+            dui->unpackType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
         {
-            chosenInfo = driverUnpackInfo;
+            chosenDUI = dui;
         }
         break;
     }
 
-    if (!chosenInfo)
+    if (!chosenDUI)
         return false;
 
     gfx::DataSourceSurface::ScopedMap map(surf, gfx::DataSourceSurface::MapType::READ);
@@ -322,7 +315,7 @@ UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
 
     const GLint kMaxUnpackAlignment = 8;
     size_t unpackAlignment;
-    if (!GuessAlignment(map.GetData(), width, map.GetStride(), kMaxUnpackAlignment,
+    if (!GuessAlignment(map.GetData(), mWidth, map.GetStride(), kMaxUnpackAlignment,
                         &unpackAlignment))
     {
         return false;
@@ -334,9 +327,10 @@ UploadDataSurface(WebGLContext* webgl, uint8_t funcDims, TexImageTarget target,
     ScopedUnpackReset scopedReset(webgl, pixelUnpackBuffer);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, unpackAlignment);
 
-    const GLsizei depth = 1;
-    GLenum error = TexImage(gl, GLenum(target), level, chosenInfo, width, height, depth,
-                            map.GetData());
+    MOZ_ASSERT(mDepth == 1);
+    GLenum error = DoTexOrSubImage(isSubImage, gl, target.get(), level, chosenDUI,
+                                   xOffset, yOffset, zOffset, mWidth, mHeight, mDepth,
+                                   map.GetData());
     if (error) {
         *out_glError = error;
         return false;
@@ -421,7 +415,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
             break;
         }
 
-    case LOCAL_GL_UNSIGNED_SHORT_565:
+    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
         switch (packingFormat) {
         case LOCAL_GL_RGB:
             *out_texelFormat = WebGLTexelFormat::RGB565;
@@ -431,7 +425,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
             break;
         }
 
-    case LOCAL_GL_UNSIGNED_SHORT_5551:
+    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
         switch (packingFormat) {
         case LOCAL_GL_RGBA:
             *out_texelFormat = WebGLTexelFormat::RGBA5551;
@@ -441,7 +435,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
             break;
         }
 
-    case LOCAL_GL_UNSIGNED_SHORT_4444:
+    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
         switch (packingFormat) {
         case LOCAL_GL_RGBA:
             *out_texelFormat = WebGLTexelFormat::RGBA4444;
@@ -514,22 +508,21 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
     return false;
 }
 
-static bool
-ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
-               const webgl::UnpackInfo* dstInfo,
-               UniqueBuffer* const out_convertedBuffer,
-               uint8_t* const out_convertedAlignment,
-               bool* const out_outOfMemory)
+bool
+TexUnpackSrcSurface::ConvertSurface(WebGLContext* webgl,
+                                    const webgl::DriverUnpackInfo* dui,
+                                    UniqueBuffer* const out_convertedBuffer,
+                                    uint8_t* const out_convertedAlignment,
+                                    bool* const out_outOfMemory)
 {
     *out_outOfMemory = false;
 
-    const size_t width = srcSurf->GetSize().width;
-    const size_t height = srcSurf->GetSize().height;
-    const bool yFlip = webgl->mPixelStore_FlipY;
+    const size_t width = mSurf->GetSize().width;
+    const size_t height = mSurf->GetSize().height;
 
     // Source args:
 
-    gfx::DataSourceSurface::ScopedMap srcMap(srcSurf,
+    gfx::DataSourceSurface::ScopedMap srcMap(mSurf,
                                              gfx::DataSourceSurface::MapType::READ);
     if (!srcMap.IsMapped())
         return false;
@@ -538,7 +531,7 @@ ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
     const size_t srcStride = srcMap.GetStride();
 
     WebGLTexelFormat srcFormat;
-    if (!GetFormatForSurf(srcSurf, &srcFormat))
+    if (!GetFormatForSurf(mSurf, &srcFormat))
         return false;
 
     const bool srcPremultiplied = true;
@@ -546,16 +539,14 @@ ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
     // Dest args:
 
     WebGLTexelFormat dstFormat;
-    if (!GetFormatForPackingTuple(dstInfo->unpackFormat, dstInfo->unpackType,
-                                  &dstFormat))
-    {
+    if (!GetFormatForPackingTuple(dui->unpackFormat, dui->unpackType, &dstFormat))
         return false;
-    }
+
+    const auto bytesPerPixel = webgl::BytesPerPixel({dui->unpackFormat, dui->unpackType});
+    const size_t dstRowBytes = bytesPerPixel * width;
 
     const size_t dstAlignment = 8; // Just use the max!
-
-    const size_t dstRowBytes = dstInfo->bytesPerPixel * width;
-    const size_t dstStride = Stride(dstRowBytes, dstAlignment);
+    const size_t dstStride = RoundUpToMultipleOf(dstRowBytes, dstAlignment);
 
     CheckedUint32 checkedDstSize = dstStride;
     checkedDstSize *= height;
@@ -566,20 +557,23 @@ ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
 
     const size_t dstSize = checkedDstSize.value();
 
-    UniqueBuffer dstBuffer = malloc(dstSize);
+    UniqueBuffer dstBuffer(malloc(dstSize));
     if (!dstBuffer) {
         *out_outOfMemory = true;
         return false;
     }
-    const void* const dstBegin = dstBuffer.get();
+    void* const dstBegin = dstBuffer.get();
 
+    const auto srcOrigin = gl::OriginPos::TopLeft; // As spec'd for DOM sources.
+    const auto dstOrigin = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
+                                                    : gl::OriginPos::TopLeft;
     const bool dstPremultiplied = webgl->mPixelStore_PremultiplyAlpha;
 
     // And go!:
 
-    if (!ConvertImage(width, height, yFlip, srcBegin, srcStride, srcFormat,
-                      srcPremultiplied, dstBegin, dstStride, dstFormat,
-                      dstPremultiplied))
+    if (!ConvertImage(width, height,
+                      srcBegin, srcStride, srcOrigin, srcFormat, srcPremultiplied,
+                      dstBegin, dstStride, dstOrigin, dstFormat, dstPremultiplied))
     {
         MOZ_ASSERT(false, "ConvertImage failed unexpectedly.");
         NS_ERROR("ConvertImage failed unexpectedly.");
@@ -588,31 +582,32 @@ ConvertSurface(WebGLContext* webgl, gfx::DataSourceSurface* srcSurf,
     }
 
     *out_convertedBuffer = Move(dstBuffer);
-    *out_alignment = dstAlignment;
+    *out_convertedAlignment = dstAlignment;
     return true;
 }
 
 
 ////////////////////
 
-TexUnpackSourceSurface::TexUnpackSourceSurface(const RefPtr<gfx::DataSourceSurface>& surf)
+TexUnpackSrcSurface::TexUnpackSrcSurface(const RefPtr<gfx::DataSourceSurface>& surf)
     : TexUnpackBlob(surf->GetSize().width, surf->GetSize().height, 1, true)
     , mSurf(surf)
 { }
 
 bool
-TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims,
-                                 TexImageTarget target, GLint level,
-                                 const webgl::DriverUnpackInfo* driverUnpackInfo,
-                                 GLenum* const out_glError) override
+TexUnpackSrcSurface::TexOrSubImage(bool isSubImage, WebGLTexture* tex,
+                                   TexImageTarget target, GLint level,
+                                   const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                                   GLint yOffset, GLint zOffset,
+                                   GLenum* const out_glError)
 {
     *out_glError = 0;
 
     WebGLContext* webgl = tex->mContext;
 
     GLenum error;
-    if (UploadDataSurface(webgl, funcDims, GLenum(target), level, driverUnpackInfo, mSurf,
-                          &error))
+    if (UploadDataSurface(isSubImage, webgl, target, level, dui, xOffset, yOffset,
+                          zOffset, mWidth, mHeight, mSurf, &error))
     {
         return true;
     }
@@ -627,8 +622,8 @@ TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims,
     uint8_t convertedAlignment;
     bool outOfMemory;
 
-    if (!ConvertSurface(webgl, mSurf, driverUnpackInfo, &convertedBuffer,
-                        &convertedAlignment, &outOfMemory))
+    if (!ConvertSurface(webgl, dui, &convertedBuffer, &convertedAlignment,
+                        &outOfMemory))
     {
         if (outOfMemory) {
             *out_glError = LOCAL_GL_OUT_OF_MEMORY;
@@ -638,10 +633,11 @@ TexUnpackSourceSurface::TexImage(WebGLTexture* tex, uint8_t funcDims,
 
     const GLuint pixelUnpackBuffer = 0;
     ScopedUnpackReset scopedReset(webgl, pixelUnpackBuffer);
-    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, convertedAlignment);
+    webgl->gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, convertedAlignment);
 
-    GLenum error = TexImage(gl, target, level, driverUnpackInfo, mWidth, mHeight, mDepth,
-                            convertedBuffer.get());
+    GLenum error = DoTexOrSubImage(isSubImage, gl, target.get(), level, dui, Offset,
+                                   yOffset, zOffset, mWidth, mHeight, mDepth,
+                                   convertedBuffer.get());
     if (error) {
         *out_glError = error;
         return false;
