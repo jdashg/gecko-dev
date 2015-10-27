@@ -93,10 +93,7 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
     STENCIL_INDEX8,
 
-    // GLES 3.0.4, p128, table 3.12.
-    Luminance8Alpha8,
-    Luminance8,
-    Alpha8,
+    ////////////////////////////////////
 
     // GLES 3.0.4, p147, table 3.19
     // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
@@ -117,10 +114,10 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     ATC_RGBA_INTERPOLATED_ALPHA_AMD,
 
     // EXT_texture_compression_s3tc
-    COMPRESSED_RGB_S3TC_DXT1,
-    COMPRESSED_RGBA_S3TC_DXT1,
-    COMPRESSED_RGBA_S3TC_DXT3,
-    COMPRESSED_RGBA_S3TC_DXT5,
+    COMPRESSED_RGB_S3TC_DXT1_EXT,
+    COMPRESSED_RGBA_S3TC_DXT1_EXT,
+    COMPRESSED_RGBA_S3TC_DXT3_EXT,
+    COMPRESSED_RGBA_S3TC_DXT5_EXT,
 
     // IMG_texture_compression_pvrtc
     COMPRESSED_RGB_PVRTC_4BPPV1,
@@ -129,7 +126,14 @@ enum class EffectiveFormat : EffectiveFormatValueT {
     COMPRESSED_RGBA_PVRTC_2BPPV1,
 
     // OES_compressed_ETC1_RGB8_texture
-    ETC1_RGB8,
+    ETC1_RGB8_OES,
+
+    ////////////////////////////////////
+
+    // GLES 3.0.4, p128, table 3.12.
+    Luminance8Alpha8,
+    Luminance8,
+    Alpha8,
 
     // OES_texture_float
     Luminance32FAlpha32F,
@@ -175,7 +179,8 @@ enum class SubImageUpdateBehavior : uint8_t {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct CompressedFormatInfo {
+struct CompressedFormatInfo
+{
     const EffectiveFormat effectiveFormat;
     const uint8_t bytesPerBlock;
     const uint8_t blockWidth;
@@ -184,22 +189,25 @@ struct CompressedFormatInfo {
     const SubImageUpdateBehavior subImageUpdateBehavior;
 };
 
-struct FormatInfo {
+struct FormatInfo
+{
     const EffectiveFormat effectiveFormat;
     const char* const name;
+    const GLenum sizedFormat;
     const UnsizedFormat unsizedFormat;
     const ComponentType componentType;
-    const uint8_t bytesPerPixel; // 0 iff `!!compression`.
-    const bool isColorFormat;
-    const bool isSRGB;
-    const bool hasAlpha;
+    const uint8_t estimatedBytesPerPixel; // 0 iff `!!compression`. Only use this for
+    const bool isColorFormat;             // memory usage estimation. Use
+    const bool isSRGB;                    // BytesPerPixel(packingFormat, packingType) for
+    const bool hasAlpha;                  // calculating pack/unpack byte count.
     const bool hasDepth;
     const bool hasStencil;
 
     const CompressedFormatInfo* const compression;
 };
 
-struct PackingInfo {
+struct PackingInfo
+{
     GLenum format;
     GLenum type;
 
@@ -212,12 +220,19 @@ struct PackingInfo {
     }
 };
 
+struct DriverUnpackInfo
+{
+    GLenum internalFormat;
+    GLenum unpackFormat;
+    GLenum unpackType;
+};
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
-const FormatInfo* GetFormatInfo(EffectiveFormat format);
-const FormatInfo* GetInfoByUnpackTuple(GLenum unpackFormat, GLenum unpackType);
-const FormatInfo* GetInfoBySizedFormat(GLenum sizedFormat);
-uint8_t BytesPerPixel(GLenum unpackFormat, GLenum unpackType);
+const FormatInfo* GetFormat(EffectiveFormat format);
+//const FormatInfo* GetUnsizedFormat(const PackingInfo& packing);
+//const FormatInfo* GetSizedFormat(GLenum sizedFormat);
+uint8_t BytesPerPixel(const PackingInfo& packing);
 
 GLint GetComponentSize(EffectiveFormat format, GLenum component);
 GLenum GetComponentType(EffectiveFormat format);
@@ -225,27 +240,20 @@ GLenum GetColorEncoding(EffectiveFormat format);
 
 ////////////////////////////////////////
 
-struct DriverUnpackInfo {
-    GLenum internalFormat;
-    GLenum unpackFormat;
-    GLenum unpackType;
-};
-
-struct FormatUsageInfo {
+struct FormatUsageInfo
+{
     const FormatInfo* const format;
     bool asRenderbuffer;
     bool isRenderable;
-    bool asTexture;
     bool isFilterable;
     std::map<PackingInfo, DriverUnpackInfo> validUnpacks;
-    DriverUnpackInfo* idealUnpack;
+    const DriverUnpackInfo* idealUnpack;
     //const GLint* textureSwizzleRGBA;
 
     FormatUsageInfo(const FormatInfo* _format)
         : format(_format)
         , asRenderbuffer(false)
         , isRenderable(false)
-        , asTexture(false)
         , isFilterable(false)
         , idealUnpack(nullptr)
     { }
@@ -257,7 +265,10 @@ struct FormatUsageInfo {
 
 class FormatUsageAuthority
 {
-    std::map<EffectiveFormat, FormatUsageInfo> mInfoMap;
+    std::map<EffectiveFormat, FormatUsageInfo> mUsageMap;
+
+    std::map<GLenum, const FormatUsageInfo*> mSizedTexFormatMap;
+    std::map<PackingInfo, const FormatUsageInfo*> mUnsizedTexFormatMap;
 
 public:
     static UniquePtr<FormatUsageAuthority> CreateForWebGL1(gl::GLContext* gl);
@@ -267,6 +278,12 @@ private:
     FormatUsageAuthority() { }
 
 public:
+    void AddSizedTexFormat(GLenum sizedFormat, EffectiveFormat effFormat);
+    void AddUnsizedTexFormat(const PackingInfo& packing, EffectiveFormat effFormat);
+
+    const FormatUsageInfo* GetTexUsage(GLenum internalFormat, GLenum unpackFormat,
+                                       GLenum unpackType);
+
     FormatUsageInfo* EditUsage(EffectiveFormat format);
 
     const FormatUsageInfo* GetUsage(EffectiveFormat format) const;
