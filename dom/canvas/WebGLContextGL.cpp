@@ -1310,28 +1310,28 @@ SetFullAlpha(void* data, GLenum format, GLenum type, size_t width, size_t height
 
 bool
 WebGLContext::DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
-                                     GLenum readFormat, GLenum readType,
-                                     GLenum destFormat, GLenum destType, void* destBytes)
+                                     GLenum destFormat, GLenum destType, void* destBytes,
+                                     GLenum auxReadFormat, GLenum auxReadType)
 {
-    if (readFormat == destFormat && readType == destType) {
-        gl->fReadPixels(x, y, width, height, destFormat, destType, destBytes);
-        return true;
-    }
+    GLenum readFormat = destFormat;
+    GLenum readType = destType;
 
-    if (readFormat == LOCAL_GL_RGBA &&
-        readType == LOCAL_GL_HALF_FLOAT &&
-        destFormat == LOCAL_GL_RGBA &&
-        destType == LOCAL_GL_FLOAT)
+    if (gl->WorkAroundDriverBugs() &&
+        gl->IsANGLE() &&
+        readType == LOCAL_GL_FLOAT &&
+        auxReadFormat == destFormat &&
+        auxReadType == LOCAL_GL_HALF_FLOAT)
     {
-        const size_t channelsPerPixel = 4;
+        readType = auxReadType;
 
-        const size_t readBytesPerPixel = sizeof(uint16_t) * channelsPerPixel;
+        const auto readBytesPerPixel = webgl::BytesPerPixel({readFormat, readType});
+        const auto destBytesPerPixel = webgl::BytesPerPixel({destFormat, destType});
+
         CheckedUint32 readOffset;
         CheckedUint32 readStride;
         const CheckedUint32 readSize = GetPackSize(width, height, readBytesPerPixel,
                                                    &readOffset, &readStride);
 
-        const size_t destBytesPerPixel = sizeof(float) * channelsPerPixel;
         CheckedUint32 destOffset;
         CheckedUint32 destStride;
         const CheckedUint32 destSize = GetPackSize(width, height, destBytesPerPixel,
@@ -1362,7 +1362,9 @@ WebGLContext::DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei he
             return false;
         }
 
-        const size_t channelsPerRow = width * channelsPerPixel;
+        size_t channelsPerRow = std::min(readStride.value() / sizeof(uint16_t),
+                                         destStride.value() / sizeof(float));
+
         const uint8_t* srcRow = (uint8_t*)(readBuffer.get()) + readOffset.value();
         uint8_t* dstRow = (uint8_t*)(destBytes) + destOffset.value();
 
@@ -1376,13 +1378,16 @@ WebGLContext::DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei he
                 ++src;
                 ++dst;
             }
+
+            srcRow += readStride.value();
+            dstRow += destStride.value();
         }
 
         return true;
     }
 
-    MOZ_RELEASE_ASSERT(false, "unhandled format/type");
-    return false;
+    gl->fReadPixels(x, y, width, height, destFormat, destType, destBytes);
+    return true;
 }
 
 static bool
@@ -1459,6 +1464,27 @@ ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
         *out_data = pixbuf.Data();
         *out_type = JS_GetSharedArrayBufferViewType(pixbuf.Obj());
     }
+}
+
+static void
+Intersect(uint32_t srcSize, int32_t dstStartInSrc,
+          uint32_t dstSize, uint32_t* const out_intStartInSrc,
+          uint32_t* const out_intStartInDst, uint32_t* const out_intSize)
+{
+    // Only >0 if dstStartInSrc is >0:
+    // 0  3          // src coords
+    // |  [========] // dst box
+    // ^--^
+    *out_intStartInSrc = std::max<int32_t>(0, dstStartInSrc);
+
+    // Only >0 if dstStartInSrc is <0:
+    //-6     0       // src coords
+    // [=====|==]    // dst box
+    // ^-----^
+    *out_intStartInDst = std::max<int32_t>(0, 0 - dstStartInSrc);
+
+    int32_t intEndInSrc = std::min<int32_t>(srcSize, dstStartInSrc + dstSize);
+    *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
 }
 
 void
@@ -1604,94 +1630,88 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     if (!isValid)
         return ErrorInvalidOperation("readPixels: Invalid format/type pair");
 
-    GLenum readType = type;
-    if (gl->WorkAroundDriverBugs() && gl->IsANGLE()) {
-        if (type == LOCAL_GL_FLOAT &&
-            auxReadFormat == format &&
-            auxReadType == LOCAL_GL_HALF_FLOAT)
-        {
-            readType = auxReadType;
-        }
+    // Now that the errors are out of the way, on to actually reading!
+
+    uint32_t readX, readY;
+    uint32_t writeX, writeY;
+    uint32_t rwWidth, rwHeight;
+    Intersect(srcWidth, x, width, &readX, &writeX, &rwWidth);
+    Intersect(srcHeight, y, height, &readY, &writeY, &rwHeight);
+
+    if (rwWidth == width && rwHeight == height) {
+        DoReadPixelsAndConvert(x, y, width, height, format, type, data, auxReadFormat,
+                               auxReadType);
+        return;
     }
 
-    // Now that the errors are out of the way, on to actually reading
+    // Read request contains out-of-bounds pixels. Unfortunately:
+    // GLES 3.0.4 p194 "Obtaining Pixels from the Framebuffer":
+    // "If any of these pixels lies outside of the window allocated to the current GL
+    //  context, or outside of the image attached to the currently bound framebuffer
+    //  object, then the values obtained for those pixels are undefined."
 
-    // If we won't be reading any pixels anyways, just skip the actual reading
-    if (width == 0 || height == 0)
-        return DummyFramebufferOperation("readPixels");
+    // This is a slow-path, so warn people away!
+    GenerateWarning("readPixels: Out-of-bounds reads with readPixels are deprecated, and"
+                    " may be slow.");
 
-    if (CanvasUtils::CheckSaneSubrectSize(x, y, width, height, srcWidth, srcHeight)) {
-        // the easy case: we're not reading out-of-range pixels
+    // Currently, the spec dictates that we need to zero the out-of-bounds pixels.
 
-        // Effectively: gl->fReadPixels(x, y, width, height, format, type, dest);
-        DoReadPixelsAndConvert(x, y, width, height, format, readType, format, type, data);
+    // Ideally we could just ReadPixels into the buffer, then zero the undefined parts.
+    // However, we can't do this for *shared* ArrayBuffers, as they can have racey
+    // accesses from Workers.
+
+    // We can use a couple tricks to do this faster, but we shouldn't encourage this
+    // anyway. Why not just do it the really safe, dead-simple way, even if it is
+    // hilariously slow?
+
+    ////////////////////////////////////
+    // Clear the targetted pixels to zero.
+
+    if (mPixelStore_PackRowLength ||
+        mPixelStore_PackSkipPixels ||
+        mPixelStore_PackSkipRows)
+    {
+        // Targetted bytes might not be contiguous, so do it row-by-row.
+        uint8_t* row = (uint8_t*)data + startOffset.value();
+        const auto bytesPerRow = bytesPerPixel * width;
+        for (uint32_t j = 0; j < uint32_t(height); j++) {
+            std::memset(row, 0, bytesPerRow);
+            row += rowStride.value();
+        }
     } else {
-        // the rectangle doesn't fit entirely in the bound buffer. We then have to set to zero the part
-        // of the buffer that correspond to out-of-range pixels. We don't want to rely on system OpenGL
-        // to do that for us, because passing out of range parameters to a buggy OpenGL implementation
-        // could conceivably allow to read memory we shouldn't be allowed to read. So we manually initialize
-        // the buffer to zero and compute the parameters to pass to OpenGL. We have to use an intermediate buffer
-        // to accomodate the potentially different strides (widths).
+        std::memset(data, 0, bytesNeeded.value());
+    }
 
-        // Zero the whole pixel dest area in the destination buffer.
-        memset(data, 0, bytesNeeded.value());
+    ////////////////////////////////////
+    // Read only the in-bounds pixels.
 
-        if (   x >= int32_t(srcWidth)
-            || x+width <= 0
-            || y >= int32_t(srcHeight)
-            || y+height <= 0)
-        {
-            // we are completely outside of range, can exit now with buffer filled with zeros
-            DummyFramebufferOperation("readPixels");
-            return;
+    if (!rwWidth || !rwHeight) {
+        // There aren't any, so we're 'done'.
+        DummyFramebufferOperation("readPixels");
+        return;
+    }
+
+    if (IsWebGL2()) {
+        if (!mPixelStore_PackRowLength) {
+            gl->fPixelStorei(LOCAL_GL_PACK_ROW_LENGTH, width);
         }
+        gl->fPixelStorei(LOCAL_GL_PACK_SKIP_PIXELS, mPixelStore_PackSkipPixels + writeX);
+        gl->fPixelStorei(LOCAL_GL_PACK_SKIP_ROWS, mPixelStore_PackSkipRows + writeY);
 
-        // compute the parameters of the subrect we're actually going to call glReadPixels on
-        GLint   subrect_x      = std::max(x, 0);
-        GLint   subrect_end_x  = std::min(x+width, int32_t(srcWidth));
-        GLsizei subrect_width  = subrect_end_x - subrect_x;
+        DoReadPixelsAndConvert(readX, readY, rwWidth, rwHeight, format, type, data,
+                               auxReadFormat, auxReadType);
 
-        GLint   subrect_y      = std::max(y, 0);
-        GLint   subrect_end_y  = std::min(y+height, int32_t(srcHeight));
-        GLsizei subrect_height = subrect_end_y - subrect_y;
+        gl->fPixelStorei(LOCAL_GL_PACK_ROW_LENGTH, mPixelStore_PackRowLength);
+        gl->fPixelStorei(LOCAL_GL_PACK_SKIP_PIXELS, mPixelStore_PackSkipPixels);
+        gl->fPixelStorei(LOCAL_GL_PACK_SKIP_ROWS, mPixelStore_PackSkipRows);
+    } else {
+        // I *did* say "hilariously slow".
 
-        if (subrect_width < 0 || subrect_height < 0 ||
-            subrect_width > width || subrect_height > height)
-        {
-            ErrorInvalidOperation("readPixels: integer overflow computing clipped rect size");
-            return;
-        }
-
-        // now we know that subrect_width is in the [0..width] interval, and same for heights.
-
-        // now, same computation as above to find the size of the intermediate buffer to allocate for the subrect
-        // no need to check again for integer overflow here, since we already know the sizes aren't greater than before
-        uint32_t subrect_plainRowSize = subrect_width * bytesPerPixel;
-
-        // There are checks above to ensure that this doesn't overflow.
-        uint32_t subrect_alignedRowSize = RoundUpToMultipleOf(subrect_plainRowSize,
-                                                              mPixelStore_PackAlignment);
-        uint32_t subrect_byteLength = (subrect_height-1)*subrect_alignedRowSize + subrect_plainRowSize;
-
-        // create subrect buffer, call glReadPixels, copy pixels into destination buffer, delete subrect buffer
-        UniquePtr<GLubyte> subrect_data(new (fallible) GLubyte[subrect_byteLength]);
-        if (!subrect_data)
-            return ErrorOutOfMemory("readPixels: subrect_data");
-
-        // Effectively: gl->fReadPixels(subrect_x, subrect_y, subrect_width,
-        //                              subrect_height, format, type, subrect_data.get());
-        DoReadPixelsAndConvert(subrect_x, subrect_y, subrect_width, subrect_height,
-                               format, readType, format, type, subrect_data.get());
-
-        // notice that this for loop terminates because we already checked that subrect_height is at most height
-        for (GLint y_inside_subrect = 0; y_inside_subrect < subrect_height; ++y_inside_subrect) {
-            GLint subrect_x_in_dest_buffer = subrect_x - x;
-            GLint subrect_y_in_dest_buffer = subrect_y - y;
-            memcpy(static_cast<GLubyte*>(data)
-                     + checked_alignedRowSize.value() * (subrect_y_in_dest_buffer + y_inside_subrect)
-                     + bytesPerPixel * subrect_x_in_dest_buffer, // destination
-                   subrect_data.get() + subrect_alignedRowSize * y_inside_subrect, // source
-                   subrect_plainRowSize); // size
+        uint8_t* row = (uint8_t*)data + startOffset.value() + writeX * bytesPerPixel;
+        for (uint32_t j = 0; j < rwHeight; j++) {
+            DoReadPixelsAndConvert(readX, readY+j, rwWidth, 1, format, type, row,
+                                   auxReadFormat, auxReadType);
+            row += rowStride.value();
         }
     }
 
@@ -1712,8 +1732,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     if (!needAlphaFilled)
         return;
 
-    size_t stride = checked_alignedRowSize.value(); // In bytes!
-    SetFullAlpha(data, format, type, width, height, stride);
+    SetFullAlpha(data, format, type, width, height, rowStride.value());
 }
 
 void

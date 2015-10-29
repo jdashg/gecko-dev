@@ -532,8 +532,8 @@ public:
     void PolygonOffset(GLfloat factor, GLfloat units);
 protected:
     bool DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
-                                GLenum readFormat, GLenum readType, GLenum destFormat,
-                                GLenum destType, void* destBytes);
+                                GLenum destFormat, GLenum destType, void* destBytes,
+                                GLenum auxReadFormat, GLenum auxReadType);
 public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
