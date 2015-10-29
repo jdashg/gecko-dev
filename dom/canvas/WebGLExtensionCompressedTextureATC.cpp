@@ -7,16 +7,29 @@
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 
+#ifdef FOO
+#error FOO is already defined! We use FOO() macros to keep things succinct in this file.
+#endif
+
 namespace mozilla {
 
 WebGLExtensionCompressedTextureATC::WebGLExtensionCompressedTextureATC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::ATC_RGB_AMD)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::ATC_RGBA_EXPLICIT_ALPHA_AMD)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::ATC_RGBA_INTERPOLATED_ALPHA_AMD)->asTexture = true;
+    const auto fnAdd = [&fua](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddSizedTexFormat(sizedFormat, usage);
+    };
+
+#define FOO(x) LOCAL_GL_ ## x, webgl::EffectiveFormat::x
+
+    fnAdd(FOO(ATC_RGB_AMD));
+    fnAdd(FOO(ATC_RGBA_EXPLICIT_ALPHA_AMD));
+    fnAdd(FOO(ATC_RGBA_INTERPOLATED_ALPHA_AMD));
+
+#undef FOO
 }
 
 WebGLExtensionCompressedTextureATC::~WebGLExtensionCompressedTextureATC()

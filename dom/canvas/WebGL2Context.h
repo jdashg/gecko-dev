@@ -115,16 +115,15 @@ public:
 protected:
     void TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
-                       dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
+                       dom::Element* elem, ErrorResult* const out_rv);
 public:
     template<class T>
     inline void
     TexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset, GLint zOffset,
                   GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_rv)
     {
-        dom::HTMLMediaElement* media = &elem;
         TexSubImage3D(target, level, xOffset, yOffset, zOffset, unpackFormat, unpackType,
-                      media, &out_rv);
+                      &elem, &out_rv);
     }
 
     void CopyTexSubImage3D(GLenum target, GLint level, GLint xOffset, GLint yOffset,
@@ -394,7 +393,8 @@ public:
 
 private:
     WebGL2Context();
-    virtual UniquePtr<webgl::FormatUsageAuthority> CreateFormatUsage() const override;
+    virtual UniquePtr<webgl::FormatUsageAuthority>
+    CreateFormatUsage(gl::GLContext* gl) const override;
 
     virtual bool IsTexParamValid(GLenum pname) const override;
 

@@ -7,17 +7,30 @@
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 
+#ifdef FOO
+#error FOO is already defined! We use FOO() macros to keep things succinct in this file.
+#endif
+
 namespace mozilla {
 
 WebGLExtensionCompressedTexturePVRTC::WebGLExtensionCompressedTexturePVRTC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_PVRTC_4BPPV1)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_PVRTC_2BPPV1)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_PVRTC_4BPPV1)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_PVRTC_2BPPV1)->asTexture = true;
+    const auto fnAdd = [&fua](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddSizedTexFormat(sizedFormat, usage);
+    };
+
+#define FOO(x) LOCAL_GL_ ## x, webgl::EffectiveFormat::x
+
+    fnAdd(FOO(COMPRESSED_RGB_PVRTC_4BPPV1));
+    fnAdd(FOO(COMPRESSED_RGB_PVRTC_2BPPV1));
+    fnAdd(FOO(COMPRESSED_RGBA_PVRTC_4BPPV1));
+    fnAdd(FOO(COMPRESSED_RGBA_PVRTC_2BPPV1));
+
+#undef FOO
 }
 
 WebGLExtensionCompressedTexturePVRTC::~WebGLExtensionCompressedTexturePVRTC()

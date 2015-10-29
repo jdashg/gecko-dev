@@ -27,6 +27,7 @@
 #include "nsWrapperCache.h"
 #include "SurfaceTypes.h"
 #include "ScopedGLHelpers.h"
+#include "TexUnpackBlob.h"
 
 #ifdef XP_MACOSX
 #include "ForceDiscreteGPUHelperCGL.h"
@@ -529,6 +530,11 @@ public:
     void LinkProgram(WebGLProgram* prog);
     void PixelStorei(GLenum pname, GLint param);
     void PolygonOffset(GLfloat factor, GLfloat units);
+protected:
+    bool DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
+                                GLenum readFormat, GLenum readType, GLenum destFormat,
+                                GLenum destType, void* destBytes);
+public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
@@ -891,46 +897,44 @@ public:
                     GLsizei width, GLsizei height, GLint border, GLenum unpackFormat,
                     GLenum unpackType,
                     const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                    ErrorResult& out_rv);
+                    ErrorResult&);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
                     GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                    ErrorResult& out_rv);
+                    ErrorResult&);
     void TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-                    GLenum unpackFormat, GLenum unpackType, dom::HTMLMediaElement* elem,
-                    ErrorResult* const out_rv);
-
+                    GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                    ErrorResult* const out_error);
 
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLsizei width, GLsizei height, GLenum unpackFormat,
                        GLenum unpackType,
                        const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& maybeView,
-                       ErrorResult& out_rv);
+                       ErrorResult&);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
                        GLenum unpackFormat, GLenum unpackType, dom::ImageData* imageData,
-                       ErrorResult& out_rv);
+                       ErrorResult&);
     void TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                       GLenum unpackFormat, GLenum unpackType,
-                       dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
+                       GLenum unpackFormat, GLenum unpackType, dom::Element* elem,
+                       ErrorResult* const out_error);
 
     // Allow whatever element unpackTypes the bindings are willing to pass
     // us in Tex(Sub)Image2D
-    template<typename ElementT>
+    template<typename T>
     inline void
     TexImage2D(GLenum texImageTarget, GLint level, GLenum internalFormat,
-               GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-               ErrorResult& out_rv)
+               GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_error)
     {
         TexImage2D(texImageTarget, level, internalFormat, unpackFormat, unpackType, &elem,
-                   &out_rv);
+                   &out_error);
     }
-    template<typename ElementT>
+
+    template<typename T>
     inline void
     TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
-                  GLenum unpackFormat, GLenum unpackType, ElementT& elem,
-                  ErrorResult& out_rv)
+                  GLenum unpackFormat, GLenum unpackType, T& elem, ErrorResult& out_error)
     {
         TexSubImage2D(texImageTarget, level, xOffset, yOffset, unpackFormat, unpackType,
-                      &elem, &out_rv);
+                      &elem, &out_error);
     }
 
     // WebGLTextureUpload.cpp
@@ -1051,10 +1055,6 @@ protected:
     WebGLVertexAttrib0Status WhatDoesVertexAttrib0Need();
     bool DoFakeVertexAttrib0(GLuint vertexCount);
     void UndoFakeVertexAttrib0();
-
-    static CheckedUint32 GetImageSize(GLsizei height, GLsizei width,
-                                      GLsizei depth, uint32_t pixelSize,
-                                      uint32_t alignment);
 
     inline void InvalidateBufferFetching()
     {
@@ -1290,24 +1290,19 @@ protected:
                       size_t dstTexelSize);
 
 public:
-    template<class ElementType>
     nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType* element) {
-        MOZ_ASSERT(element);
-
+    SurfaceFromElement(dom::Element* elem)
+    {
         uint32_t flags = nsLayoutUtils::SFE_WANT_IMAGE_SURFACE;
+
         if (mPixelStore_ColorspaceConversion == LOCAL_GL_NONE)
             flags |= nsLayoutUtils::SFE_NO_COLORSPACE_CONVERSION;
+
         if (!mPixelStore_PremultiplyAlpha)
             flags |= nsLayoutUtils::SFE_PREFER_NO_PREMULTIPLY_ALPHA;
 
-        return nsLayoutUtils::SurfaceFromElement(element, flags);
-    }
-
-    template<class ElementType>
-    nsLayoutUtils::SurfaceFromElementResult
-    SurfaceFromElement(ElementType& element) {
-       return SurfaceFromElement(&element);
+        gfx::DrawTarget* idealDrawTarget = nullptr; // Don't care for now.
+        return nsLayoutUtils::SurfaceFromElement(elem, flags, idealDrawTarget);
     }
 
     nsresult
@@ -1427,6 +1422,10 @@ protected:
     uint32_t mPixelStore_PackSkipRows;
     uint32_t mPixelStore_PackSkipPixels;
     uint32_t mPixelStore_PackAlignment;
+
+    CheckedUint32 GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel,
+                              CheckedUint32* const out_startOffset,
+                              CheckedUint32* const out_rowStride);
 
     GLenum mPixelStore_ColorspaceConversion;
     bool mPixelStore_FlipY;
@@ -1573,13 +1572,14 @@ public:
 
 public:
     UniquePtr<webgl::FormatUsageAuthority> mFormatUsage;
-    virtual UniquePtr<webgl::FormatUsageAuthority> CreateFormatUsage() const = 0;
+
+    virtual UniquePtr<webgl::FormatUsageAuthority>
+    CreateFormatUsage(gl::GLContext* gl) const = 0;
 
     // Friend list
     friend class ScopedUnpackReset;
-    friend class webgl::TexUnpackBuffer;
-    friend class webgl::TexUnpackImage;
-    friend class webgl::TexUnpackSrcSurface;
+    friend class webgl::TexUnpackBytes;
+    friend class webgl::TexUnpackSurface;
     friend class WebGLTexture;
     friend class WebGLFramebuffer;
     friend class WebGLRenderbuffer;
@@ -1718,11 +1718,13 @@ public:
         free(this->mBuffer);
         this->mBuffer = other.mBuffer;
         other.mBuffer = nullptr;
+        return *this;
     }
 
     UniqueBuffer& operator =(void* newBuffer) {
         free(this->mBuffer);
         this->mBuffer = newBuffer;
+        return *this;
     }
 
     explicit operator bool() const { return bool(mBuffer); }

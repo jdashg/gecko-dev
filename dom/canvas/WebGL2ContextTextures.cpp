@@ -149,7 +149,7 @@ WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffse
 void
 WebGL2Context::TexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xOffset,
                              GLint yOffset, GLint zOffset, GLenum unpackFormat,
-                             GLenum unpackType, dom::HTMLMediaElement* elem,
+                             GLenum unpackType, dom::Element* elem,
                              ErrorResult* const out_rv)
 {
     const char funcName[] = "texSubImage3D";

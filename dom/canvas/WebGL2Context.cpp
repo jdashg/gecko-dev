@@ -29,9 +29,9 @@ WebGL2Context::~WebGL2Context()
 }
 
 UniquePtr<webgl::FormatUsageAuthority>
-WebGL2Context::CreateFormatUsage() const
+WebGL2Context::CreateFormatUsage(gl::GLContext* gl) const
 {
-    return webgl::FormatUsageAuthority::CreateForWebGL2();
+    return webgl::FormatUsageAuthority::CreateForWebGL2(gl);
 }
 
 /*static*/ bool

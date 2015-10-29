@@ -28,12 +28,13 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
     }
 
     *out_samples = 1; // TODO
+    *out_colorFormat = nullptr;
+    *out_depthFormat = nullptr;
+    *out_stencilFormat = nullptr;
 
     if (fb->ColorAttachment(0).IsDefined()) {
         const auto& attachment = fb->ColorAttachment(0);
         *out_colorFormat = attachment.Format()->format;
-    } else {
-        *out_colorFormat = nullptr;
     }
 
     if (fb->DepthStencilAttachment().IsDefined()) {
@@ -44,15 +45,11 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
         if (fb->DepthAttachment().IsDefined()) {
             const auto& attachment = fb->DepthAttachment();
             *out_depthFormat = attachment.Format()->format;
-        } else {
-            *out_depthFormat = nullptr;
         }
 
         if (fb->StencilAttachment().IsDefined()) {
             const auto& attachment = fb->StencilAttachment();
             *out_stencilFormat = attachment.Format()->format;
-        } else {
-            *out_stencilFormat = nullptr;
         }
     }
     return true;
@@ -100,10 +97,34 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
         return;
     }
 
+    auto& options = mOptions;
+    const auto fnGetBackbufferFormats = [&options](const webgl::FormatInfo** const out_color,
+                                                   const webgl::FormatInfo** const out_depth,
+                                                   const webgl::FormatInfo** const out_stencil)
+    {
+        const auto effFormat = options.alpha ? webgl::EffectiveFormat::RGBA8
+                                              : webgl::EffectiveFormat::RGB8;
+        *out_color = webgl::GetFormat(effFormat);
+
+        *out_depth = nullptr;
+        *out_stencil = nullptr;
+        if (options.depth && options.stencil) {
+            *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH24_STENCIL8);
+            *out_stencil = *out_depth;
+        } else {
+            if (options.depth) {
+                *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH_COMPONENT16);
+            }
+            if (options.stencil) {
+                *out_stencil = webgl::GetFormat(webgl::EffectiveFormat::STENCIL_INDEX8);
+            }
+        }
+    };
+
     GLsizei srcSamples;
-    const webgl::FormatInfo* srcColorFormat;
-    const webgl::FormatInfo* srcDepthFormat;
-    const webgl::FormatInfo* srcStencilFormat;
+    const webgl::FormatInfo* srcColorFormat = nullptr;
+    const webgl::FormatInfo* srcDepthFormat = nullptr;
+    const webgl::FormatInfo* srcStencilFormat = nullptr;
 
     if (mBoundReadFramebuffer) {
         if (!GetFBInfoForBlit(mBoundReadFramebuffer, this, "READ_FRAMEBUFFER",
@@ -115,28 +136,13 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     } else {
         srcSamples = 1; // Always 1.
 
-        // TODO: Don't hardcode these.
-        const auto effFormat = mOptions.alpha ? webgl::EffectiveFormat::RGBA8
-                                              : webgl::EffectiveFormat::RGB8;
-        srcColorFormat = webgl::GetFormat(effFormat);
-
-        if (mOptions.depth && mOptions.stencil) {
-            srcDepthFormat = webgl::GetFormat(webgl::EffectiveFormat::DEPTH24_STENCIL8);
-            srcStencilFormat = srcDepthFormat;
-        } else {
-            if (mOptions.depth) {
-                srcDepthFormat = webgl::GetFormat(webgl::EffectiveFormat::DEPTH_COMPONENT16);
-            }
-            if (mOptions.stencil) {
-                srcStencilFormat = webgl::GetFormat(webgl::EffectiveFormat::STENCIL_INDEX8);
-            }
-        }
+        fnGetBackbufferFormats(&srcColorFormat, &srcDepthFormat, &srcStencilFormat);
     }
 
     GLsizei dstSamples;
-    const webgl::FormatInfo* dstColorFormat;
-    const webgl::FormatInfo* dstDepthFormat;
-    const webgl::FormatInfo* dstStencilFormat;
+    const webgl::FormatInfo* dstColorFormat = nullptr;
+    const webgl::FormatInfo* dstDepthFormat = nullptr;
+    const webgl::FormatInfo* dstStencilFormat = nullptr;
 
     if (mBoundDrawFramebuffer) {
         if (!GetFBInfoForBlit(mBoundDrawFramebuffer, this, "DRAW_FRAMEBUFFER",
@@ -148,38 +154,36 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     } else {
         dstSamples = gl->Screen()->Samples();
 
-        // TODO: Don't hardcode these.
-        const auto effFormat = mOptions.alpha ? webgl::EffectiveFormat::RGBA8
-                                              : webgl::EffectiveFormat::RGB8;
-        dstColorFormat = webgl::GetFormat(effFormat);
-
-        if (mOptions.depth && mOptions.stencil) {
-            dstDepthFormat = webgl::GetFormat(webgl::EffectiveFormat::DEPTH24_STENCIL8);
-            dstStencilFormat = srcDepthFormat;
-        } else {
-            if (mOptions.depth) {
-                dstDepthFormat = webgl::GetFormat(webgl::EffectiveFormat::DEPTH_COMPONENT16);
-            }
-            if (mOptions.stencil) {
-                dstStencilFormat = webgl::GetFormat(webgl::EffectiveFormat::STENCIL_INDEX8);
-            }
-        }
+        fnGetBackbufferFormats(&dstColorFormat, &dstDepthFormat, &dstStencilFormat);
     }
 
-
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        const GLenum srcColorType = srcColorFormat ? ValueTypeForFormat(srcColorFormat)
-                                                   : 0;
-        const GLenum dstColorType = dstColorFormat ? ValueTypeForFormat(dstColorFormat)
-                                                   : 0;
-        if (dstColorType != srcColorType) {
-            ErrorInvalidOperation("blitFramebuffer: Color buffer value type"
+        const auto fnSignlessType = [](const webgl::FormatInfo* format) {
+            if (!format)
+                return webgl::ComponentType::None;
+
+            switch (format->componentType) {
+            case webgl::ComponentType::UInt:
+                return webgl::ComponentType::Int;
+
+            case webgl::ComponentType::NormUInt:
+                return webgl::ComponentType::NormInt;
+
+            default:
+                return format->componentType;
+            }
+        };
+
+        const auto srcType = fnSignlessType(srcColorFormat);
+        const auto dstType = fnSignlessType(dstColorFormat);
+
+        if (srcType != dstType) {
+            ErrorInvalidOperation("blitFramebuffer: Color buffer format component type"
                                   " mismatch.");
             return;
         }
 
-        const bool srcIsInt = srcColorType == LOCAL_GL_INT ||
-                              srcColorType == LOCAL_GL_UNSIGNED_INT;
+        const bool srcIsInt = (srcType == webgl::ComponentType::Int);
         if (srcIsInt && filter != LOCAL_GL_NEAREST) {
             ErrorInvalidOperation("blitFramebuffer: Integer read buffers can only"
                                   " be filtered with NEAREST.");

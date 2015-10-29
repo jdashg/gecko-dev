@@ -175,11 +175,6 @@ AddFormatInfo(EffectiveFormat format, const char* name, GLenum sizedFormat,
                               bytesPerPixel, isColorFormat, isSRGB, hasAlpha, hasDepth,
                               hasStencil, compressedFormatInfo };
     const auto itr = AlwaysInsert(gFormatInfoMap, format, info);
-
-    if (sizedFormat) {
-        auto pInfo = &(itr->second);
-        AlwaysInsert(gSizedFormatMap, sizedFormat, pInfo);
-    }
 }
 
 static void
@@ -341,26 +336,6 @@ GetFormat(EffectiveFormat format)
     return GetFormatInfo_NoLock(format);
 }
 
-const FormatInfo*
-GetUnsizedFormat(const PackingInfo& packing)
-{
-    StaticMutexAutoLock lock(gFormatMapMutex);
-    EnsureInitFormatTables(lock);
-
-    MOZ_ASSERT(!gUnsizedFormatMap.empty());
-    return FindOrNull(gUnsizedFormatMap, packing);
-}
-
-const FormatInfo*
-GetSizedFormat(GLenum sizedFormat)
-{
-    StaticMutexAutoLock lock(gFormatMapMutex);
-    EnsureInitFormatTables(lock);
-
-    MOZ_ASSERT(!gSizedFormatMap.empty());
-    return FindOrNull(gSizedFormatMap, sizedFormat);
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
 
 uint8_t
@@ -446,8 +421,6 @@ BytesPerPixel(const PackingInfo& packing)
 void
 FormatUsageInfo::AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value)
 {
-    MOZ_RELEASE_ASSERT(asTexture);
-
     auto itr = AlwaysInsert(validUnpacks, key, value);
 
     if (!idealUnpack) {
@@ -471,15 +444,12 @@ FormatUsageInfo::IsUnpackValid(const PackingInfo& key,
 ////////////////////////////////////////
 
 static inline void
-SetUsage(FormatUsageAuthority* fua, EffectiveFormat effFormat, bool asRenderbuffer,
-         bool isRenderable, bool isFilterable)
+SetUsage(FormatUsageAuthority* fua, EffectiveFormat effFormat, bool isRenderable,
+         bool isFilterable)
 {
-    MOZ_ASSERT_IF(asRenderbuffer, isRenderable);
-
     MOZ_ASSERT(!fua->GetUsage(effFormat));
 
     auto usage = fua->EditUsage(effFormat);
-    usage->asRenderbuffer = asRenderbuffer;
     usage->isRenderable = isRenderable;
     usage->isFilterable = isFilterable;
 }
@@ -492,8 +462,6 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
 
     const auto fnAdd = [fua, &pi, &dui](EffectiveFormat effFormat) {
         auto usage = fua->EditUsage(effFormat);
-        MOZ_ASSERT(effFormat);
-
         fua->AddUnsizedTexFormat(pi, usage);
         usage->AddUnpack(pi, dui);
     };
@@ -501,34 +469,31 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
     const bool isCore = gl->IsCoreProfile();
 
     pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
-    dui = isCore ? {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE}
-                 : {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
+    if (isCore) dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
+    else        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
     fnAdd(EffectiveFormat::Luminance8);
 
     pi = {LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    dui = isCore ? {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE}
-                 : {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    if (isCore) dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
+    else        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
     fnAdd(EffectiveFormat::Alpha8);
 
     pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    dui = isCore ? {LOCAL_GL_RG8, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE}
-                 : {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    if (isCore) dui = {LOCAL_GL_RG8, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE};
+    else        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
     fnAdd(EffectiveFormat::Luminance8Alpha8);
 }
 
 static void
 AddBasicUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
-    PackingInfo pi;
-
-    const auto fnAddSimpleUnsized = [ptr, &pi](GLenum unpackFormat, GLenum unpackType,
-                                               EffectiveFormat effFormat)
+    const auto fnAddSimpleUnsized = [fua](GLenum unpackFormat, GLenum unpackType,
+                                          EffectiveFormat effFormat)
     {
-        auto usage = ptr->EditUsage(effFormat);
-        MOZ_ASSERT(usage);
+        auto usage = fua->EditUsage(effFormat);
 
-        pi = {unpackFormat, unpackType};
-        ptr->AddUnsizedTexFormat(pi, usage);
+        const PackingInfo pi = {unpackFormat, unpackType};
+        fua->AddUnsizedTexFormat(pi, usage);
 
         const DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
         usage->AddUnpack(pi, dui);
@@ -543,7 +508,7 @@ AddBasicUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
     fnAddSimpleUnsized(LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  , EffectiveFormat::RGB565 );
 
     // L, A, LA
-    AddLegacyFormats_LA8(ptr, gl);
+    AddLegacyFormats_LA8(fua, gl);
 }
 
 UniquePtr<FormatUsageAuthority>
@@ -558,23 +523,37 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
     // GLES 2.0.25, p117, Table 4.5
     // RGBA8 is made renderable in WebGL 1.0, "Framebuffer Object Attachments"
 
-    //                                             render filter
-    //                                       RB    able   able
-    SetUsage(ptr, EffectiveFormat::RGBA8  , false, true , true);
-    SetUsage(ptr, EffectiveFormat::RGBA4  , true , true , true);
-    SetUsage(ptr, EffectiveFormat::RGB5_A1, true , true , true);
-    SetUsage(ptr, EffectiveFormat::RGB8   , false, false, true);
-    SetUsage(ptr, EffectiveFormat::RGB565 , true , true , true);
+    //                                      render filter
+    //                                      able   able
+    SetUsage(ptr, EffectiveFormat::RGBA8  , true , true);
+    SetUsage(ptr, EffectiveFormat::RGBA4  , true , true);
+    SetUsage(ptr, EffectiveFormat::RGB5_A1, true , true);
+    SetUsage(ptr, EffectiveFormat::RGB8   , false, true);
+    SetUsage(ptr, EffectiveFormat::RGB565 , true , true);
 
-    SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, false, true);
-    SetUsage(ptr, EffectiveFormat::Luminance8      , false, false, true);
-    SetUsage(ptr, EffectiveFormat::Alpha8          , false, false, true);
+    SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
+    SetUsage(ptr, EffectiveFormat::Luminance8      , false, true);
+    SetUsage(ptr, EffectiveFormat::Alpha8          , false, true);
 
-    SetUsage(ptr, EffectiveFormat::DEPTH_COMPONENT16, true, true, false);
-    SetUsage(ptr, EffectiveFormat::STENCIL_INDEX8   , true, true, false);
+    SetUsage(ptr, EffectiveFormat::DEPTH_COMPONENT16, true, false);
+    SetUsage(ptr, EffectiveFormat::STENCIL_INDEX8   , true, false);
 
     // Added in WebGL 1.0 spec:
-    SetUsage(ptr, EffectiveFormat::DEPTH24_STENCIL8, true, true, false);
+    SetUsage(ptr, EffectiveFormat::DEPTH24_STENCIL8, true, false);
+
+    ////////////////////////////////////
+    // RB formats
+
+#define FOO(x) ptr->AddRBFormat(LOCAL_GL_ ## x, ptr->GetUsage(EffectiveFormat::x))
+
+    FOO(RGBA4            );
+    FOO(RGB5_A1          );
+    FOO(RGB565           );
+    FOO(DEPTH_COMPONENT16);
+    FOO(STENCIL_INDEX8   );
+    FOO(DEPTH24_STENCIL8 );
+
+#undef FOO
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -592,11 +571,13 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     const auto fnAddES3TexFormat = [ptr](GLenum sizedFormat, EffectiveFormat effFormat,
                                          bool isRenderable, bool isFilterable)
     {
-        const bool asRenderbuffer = isRenderable;
-
-        SetUsage(ptr, effFormat, asRenderbuffer, isRenderable, isFilterable);
+        SetUsage(ptr, effFormat, isRenderable, isFilterable);
         auto usage = ptr->GetUsage(effFormat);
         ptr->AddSizedTexFormat(sizedFormat, usage);
+
+        if (isRenderable) {
+            ptr->AddRBFormat(sizedFormat, usage);
+        }
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -813,8 +794,15 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 //////////////////////////////////////////////////////////////////////////////////////////
 
 void
+FormatUsageAuthority::AddRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage)
+{
+    AlwaysInsert(mRBFormatMap, sizedFormat, usage);
+}
+
+void
 FormatUsageAuthority::AddSizedTexFormat(GLenum sizedFormat, const FormatUsageInfo* usage)
 {
+    MOZ_ASSERT(usage->isRenderable);
     AlwaysInsert(mSizedTexFormatMap, sizedFormat, usage);
 }
 
@@ -826,28 +814,34 @@ FormatUsageAuthority::AddUnsizedTexFormat(const PackingInfo& pi,
 }
 
 const FormatUsageInfo*
-FormatUsageAuthority::GetTexUsage(GLenum internalFormat, GLenum unpackFormat,
-                                  GLenum unpackType) const
+FormatUsageAuthority::GetRBUsage(GLenum sizedFormat) const
 {
-    auto usage = FindOrNull(mSizedTexFormatMap, sizedFormat);
-    if (usage)
-        return usage;
+    return FindOrNull(mRBFormatMap, sizedFormat);
+}
 
-    const PackingInfo pi = {unpackFormat, unpackType};
+const FormatUsageInfo*
+FormatUsageAuthority::GetSizedTexUsage(GLenum sizedFormat) const
+{
+    return FindOrNull(mSizedTexFormatMap, sizedFormat);
+}
+
+const FormatUsageInfo*
+FormatUsageAuthority::GetUnsizedTexUsage(const PackingInfo& pi) const
+{
     return FindOrNull(mUnsizedTexFormatMap, pi);
 }
 
 FormatUsageInfo*
 FormatUsageAuthority::EditUsage(EffectiveFormat format)
 {
-    auto itr = mInfoMap.find(format);
+    auto itr = mUsageMap.find(format);
 
-    if (itr == mInfoMap.end()) {
+    if (itr == mUsageMap.end()) {
         const FormatInfo* formatInfo = GetFormat(format);
         MOZ_RELEASE_ASSERT(formatInfo);
 
         FormatUsageInfo usage(formatInfo);
-        itr = AlwaysInsert(mInfoMap, format, usage);
+        itr = AlwaysInsert(mUsageMap, format, usage);
     }
 
     return &(itr->second);
@@ -856,9 +850,9 @@ FormatUsageAuthority::EditUsage(EffectiveFormat format)
 const FormatUsageInfo*
 FormatUsageAuthority::GetUsage(EffectiveFormat format) const
 {
-    MOZ_ASSERT(!mInfoMap.empty());
-    auto itr = mInfoMap.find(format);
-    if (itr == mInfoMap.end())
+    MOZ_ASSERT(!mUsageMap.empty());
+    auto itr = mUsageMap.find(format);
+    if (itr == mUsageMap.end())
         return nullptr;
 
     return &(itr->second);

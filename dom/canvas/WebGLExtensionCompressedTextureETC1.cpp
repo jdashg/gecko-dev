@@ -7,14 +7,27 @@
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 
+#ifdef FOO
+#error FOO is already defined! We use FOO() macros to keep things succinct in this file.
+#endif
+
 namespace mozilla {
 
 WebGLExtensionCompressedTextureETC1::WebGLExtensionCompressedTextureETC1(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::ETC1_RGB8_OES)->asTexture = true;
+    const auto fnAdd = [&fua](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddSizedTexFormat(sizedFormat, usage);
+    };
+
+#define FOO(x) LOCAL_GL_ ## x, webgl::EffectiveFormat::x
+
+    fnAdd(FOO(ETC1_RGB8_OES));
+
+#undef FOO
 }
 
 WebGLExtensionCompressedTextureETC1::~WebGLExtensionCompressedTextureETC1()

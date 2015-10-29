@@ -7,17 +7,30 @@
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
 #include "WebGLContext.h"
 
+#ifdef FOO
+#error FOO is already defined! We use FOO() macros to keep things succinct in this file.
+#endif
+
 namespace mozilla {
 
 WebGLExtensionCompressedTextureS3TC::WebGLExtensionCompressedTextureS3TC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGB_S3TC_DXT1_EXT)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT1_EXT)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT3_EXT)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT5_EXT)->asTexture = true;
+    const auto fnAdd = [&fua](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddSizedTexFormat(sizedFormat, usage);
+    };
+
+#define FOO(x) LOCAL_GL_ ## x, webgl::EffectiveFormat::x
+
+    fnAdd(FOO(COMPRESSED_RGB_S3TC_DXT1_EXT));
+    fnAdd(FOO(COMPRESSED_RGBA_S3TC_DXT1_EXT));
+    fnAdd(FOO(COMPRESSED_RGBA_S3TC_DXT3_EXT));
+    fnAdd(FOO(COMPRESSED_RGBA_S3TC_DXT5_EXT));
+
+#undef FOO
 }
 
 WebGLExtensionCompressedTextureS3TC::~WebGLExtensionCompressedTextureS3TC()

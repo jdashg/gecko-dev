@@ -183,7 +183,7 @@ GetRBSizedFormat(webgl::EffectiveFormat effFormat)
 #error FOO already defined.
 #endif
 
-#define FOO(X)  case EffectiveFormat::X: return LOCAL_GL_ ## X;
+#define FOO(X)  case webgl::EffectiveFormat::X: return LOCAL_GL_ ## X;
 
         FOO(R8)
         FOO(RG8)

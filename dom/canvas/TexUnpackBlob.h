@@ -21,6 +21,7 @@ class WebGLTexture;
 namespace dom {
 class Element;
 class HTMLCanvasElement;
+class HTMLVideoElement;
 } // namespace dom
 
 namespace gfx {
@@ -59,90 +60,69 @@ protected:
 
 public:
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
-                                const webgl::PackingInfo& packingInfo) = 0;
+                                const webgl::PackingInfo& pi) = 0;
 
     // Returns false on internal failure OR GL error. If !*out_glError, then it was an
     // internal error.
-    virtual bool TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level,
-                               const webgl::DriverUnpackInfo* driverUnpackInfo,
+    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
+                               GLint level, const webgl::DriverUnpackInfo* dui,
                                GLint xOffset, GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) = 0;
 };
 
-class TexUnpackBuffer : public TexUnpackBlob
+class TexUnpackBytes : public TexUnpackBlob
 {
 public:
-    const size_t mDataSize;
-    const void* const mData;
+    const size_t mByteCount;
+    const void* const mBytes;
 
-    TexUnpackBuffer(GLsizei width, GLsizei height, GLsizei depth, size_t dataSize,
-                    const void* data)
-        : TexUnpackBlob(width, height, depth, bool(data))
-        , mDataSize(dataSize)
-        , mData(data)
+    TexUnpackBytes(GLsizei width, GLsizei height, GLsizei depth, size_t byteCount,
+                    const void* bytes)
+        : TexUnpackBlob(width, height, depth, bool(bytes))
+        , mByteCount(byteCount)
+        , mBytes(bytes)
     { }
 
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
-                                const webgl::PackingInfo& packingInfo) override;
+                                const webgl::PackingInfo& pi) override;
 
-    virtual bool TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level,
-                               const webgl::DriverUnpackInfo* driverUnpackInfo,
+    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
+                               GLint level, const webgl::DriverUnpackInfo* dui,
                                GLint xOffset, GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
 };
 
-class TexUnpackImage : public TexUnpackBlob
+class TexUnpackSurface : public TexUnpackBlob
 {
 public:
-    const RefPtr<mozilla::layers::Image> mImage;
-    dom::HTMLMediaElement* const mElem;
+    const RefPtr<gfx::SourceSurface> mSurf;
 
-    TexUnpackImage(const RefPtr<mozilla::layers::Image>& image,
-                   dom::HTMLMediaElement* elem);
+    TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf);
 
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
-                                const webgl::PackingInfo& packingInfo) override
+                                const webgl::PackingInfo& pi) override
     {
         return true;
     }
 
-    virtual bool TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level,
-                               const webgl::DriverUnpackInfo* driverUnpackInfo,
-                               GLint xOffset, GLint yOffset, GLint zOffset,
-                               GLenum* const out_glError) override;
-};
-
-class TexUnpackSrcSurface : public TexUnpackBlob
-{
-public:
-    const RefPtr<gfx::DataSourceSurface> mSurf;
-
-    TexUnpackSrcSurface(const RefPtr<gfx::DataSourceSurface>& surf);
-
-    virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
-                                const webgl::PackingInfo& packingInfo) override
-    {
-        return true;
-    }
-
-    virtual bool TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
+    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
                                GLint level,
                                const webgl::DriverUnpackInfo* driverUnpackInfo,
                                GLint xOffset, GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
 
 protected:
-    bool ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackInfo* dui,
-                        UniqueBuffer* const out_convertedBuffer,
-                        uint8_t* const out_convertedAlignment,
-                        bool* const out_outOfMemory);
-    bool UploadDataSurface(bool isSubImage, WebGLContext* webgl, TexImageTarget target,
-                           GLint level, const webgl::DriverUnpackInfo* dui, GLint xOffset,
-                           GLint yOffset, GLint zOffset, gfx::DataSourceSurface* surf,
-                           GLenum* const out_glError);
+    static bool ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackInfo* dui,
+                               gfx::DataSourceSurface* surf,
+                               UniqueBuffer* const out_convertedBuffer,
+                               uint8_t* const out_convertedAlignment,
+                               bool* const out_outOfMemory);
+    static bool UploadDataSurface(bool isSubImage, WebGLContext* webgl,
+                                  TexImageTarget target, GLint level,
+                                  const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                                  GLint yOffset, GLint zOffset, GLsizei width,
+                                  GLsizei height, gfx::DataSourceSurface* surf,
+                                  GLenum* const out_glError);
 };
 
 } // namespace webgl

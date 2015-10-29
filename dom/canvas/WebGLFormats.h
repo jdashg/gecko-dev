@@ -230,8 +230,6 @@ struct DriverUnpackInfo
 //////////////////////////////////////////////////////////////////////////////////////////
 
 const FormatInfo* GetFormat(EffectiveFormat format);
-//const FormatInfo* GetUnsizedFormat(const PackingInfo& packing);
-//const FormatInfo* GetSizedFormat(GLenum sizedFormat);
 uint8_t BytesPerPixel(const PackingInfo& packing);
 
 GLint GetComponentSize(EffectiveFormat format, GLenum component);
@@ -243,7 +241,6 @@ GLenum GetColorEncoding(EffectiveFormat format);
 struct FormatUsageInfo
 {
     const FormatInfo* const format;
-    bool asRenderbuffer;
     bool isRenderable;
     bool isFilterable;
     std::map<PackingInfo, DriverUnpackInfo> validUnpacks;
@@ -252,7 +249,6 @@ struct FormatUsageInfo
 
     FormatUsageInfo(const FormatInfo* _format)
         : format(_format)
-        , asRenderbuffer(false)
         , isRenderable(false)
         , isFilterable(false)
         , idealUnpack(nullptr)
@@ -267,6 +263,7 @@ class FormatUsageAuthority
 {
     std::map<EffectiveFormat, FormatUsageInfo> mUsageMap;
 
+    std::map<GLenum, const FormatUsageInfo*> mRBFormatMap;
     std::map<GLenum, const FormatUsageInfo*> mSizedTexFormatMap;
     std::map<PackingInfo, const FormatUsageInfo*> mUnsizedTexFormatMap;
 
@@ -278,11 +275,13 @@ private:
     FormatUsageAuthority() { }
 
 public:
-    void AddSizedTexFormat(GLenum sizedFormat, EffectiveFormat effFormat);
-    void AddUnsizedTexFormat(const PackingInfo& packing, EffectiveFormat effFormat);
+    void AddRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
+    void AddSizedTexFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
+    void AddUnsizedTexFormat(const PackingInfo& pi, const FormatUsageInfo* usage);
 
-    const FormatUsageInfo* GetTexUsage(GLenum internalFormat, GLenum unpackFormat,
-                                       GLenum unpackType);
+    const FormatUsageInfo* GetRBUsage(GLenum sizedFormat) const;
+    const FormatUsageInfo* GetSizedTexUsage(GLenum sizedFormat) const;
+    const FormatUsageInfo* GetUnsizedTexUsage(const PackingInfo& pi) const;
 
     FormatUsageInfo* EditUsage(EffectiveFormat format);
 

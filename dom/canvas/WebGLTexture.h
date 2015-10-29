@@ -25,7 +25,6 @@ class WebGLContext;
 
 namespace dom {
 class Element;
-class HTMLMediaElement;
 class ImageData;
 class ArrayBufferViewOrSharedArrayBufferView;
 } // namespace dom
@@ -233,13 +232,13 @@ public:
     void TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
                        GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLenum unpackFormat, GLenum unpackType,
-                       dom::HTMLMediaElement* elem, ErrorResult* const out_rv);
+                       dom::Element* elem, ErrorResult* const out_error);
 
 protected:
-    bool TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
+    void TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarget target,
                        GLint level, GLenum internalFormat, GLint xOffset, GLint yOffset,
                        GLint zOffset, GLint border, GLenum unpackFormat,
-                       GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
+                       GLenum unpackType, webgl::TexUnpackBlob* blob);
 
     bool ValidateTexImageSpecification(const char* funcName, TexImageTarget target,
                                        GLint level, GLsizei width, GLsizei height,
@@ -255,13 +254,12 @@ public:
     void TexStorage(const char* funcName, TexTarget target, GLsizei levels,
                     GLenum sizedFormat, GLsizei width, GLsizei height, GLsizei depth);
 protected:
-    // Returns false on internal error.
-    bool TexImage(const char* funcName, TexImageTarget target, GLint level,
+    void TexImage(const char* funcName, TexImageTarget target, GLint level,
                   GLenum internalFormat, GLint border, GLenum unpackFormat,
-                  GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
-    bool TexSubImage(const char* funcName, TexImageTarget target, GLint level,
+                  GLenum unpackType, webgl::TexUnpackBlob* blob);
+    void TexSubImage(const char* funcName, TexImageTarget target, GLint level,
                      GLint xOffset, GLint yOffset, GLint zOffset, GLenum unpackFormat,
-                     GLenum unpackType, webgl::TexUnpackBlob* unpackBlob);
+                     GLenum unpackType, webgl::TexUnpackBlob* blob);
 public:
     void CompressedTexImage(const char* funcName, TexImageTarget target, GLint level,
                             GLenum internalFormat, GLsizei width, GLsizei height,
@@ -406,6 +404,9 @@ TexImageTargetForTargetAndFace(TexTarget target, uint8_t face)
     }
 }
 
+already_AddRefed<mozilla::layers::Image>
+ImageFromVideo(dom::HTMLVideoElement* elem);
+
 GLenum
 DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLenum internalFormat,
            GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
@@ -417,8 +418,8 @@ DoTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLint xOffs
 GLenum
 DoCompressedTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level,
                         GLint xOffset, GLint yOffset, GLint zOffset, GLsizei width,
-                        GLsizei height, GLenum sizedUnpackFormat, GLsizei dataSize,
-                        const void* data);
+                        GLsizei height, GLsizei depth, GLenum sizedUnpackFormat,
+                        GLsizei dataSize, const void* data);
 
 } // namespace mozilla
 

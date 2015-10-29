@@ -676,7 +676,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
 
         GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
                                                zOffset, width, height, depth, sizedFormat,
-                                               zeros.get());
+                                               byteCount, zeros.get());
         if (error)
             return false;
     } else {

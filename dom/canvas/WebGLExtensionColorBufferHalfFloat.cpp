@@ -9,28 +9,32 @@
 #include "WebGLContext.h"
 #include "WebGLFormats.h"
 
-namespace mozilla {
+#ifdef FOO
+#error FOO is already defined! We use FOO() macros to keep things succinct in this file.
+#endif
 
-using mozilla::webgl::EffectiveFormat;
+namespace mozilla {
 
 WebGLExtensionColorBufferHalfFloat::WebGLExtensionColorBufferHalfFloat(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
     MOZ_ASSERT(IsSupported(webgl), "Don't construct extension if unsupported.");
 
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    auto fnUpdateUsage = [&authority](EffectiveFormat effFormat) {
-        auto usage = authority->EditUsage(effFormat);
-        usage->asRenderbuffer = true;
+    auto fnUpdateUsage = [&fua](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
         usage->isRenderable = true;
+
+        fua->AddRBFormat(sizedFormat, usage);
     };
 
-    fnUpdateUsage(EffectiveFormat::RGBA16F);
-    fnUpdateUsage(EffectiveFormat::RGB16F);
-    fnUpdateUsage(EffectiveFormat::Luminance16FAlpha16F);
-    fnUpdateUsage(EffectiveFormat::Luminance16F);
-    fnUpdateUsage(EffectiveFormat::Alpha16F);
+#define FOO(x) fnUpdateUsage(LOCAL_GL_ ## x, webgl::EffectiveFormat::x)
+
+    FOO(RGBA16F);
+    FOO(RGB16F);
+
+#undef FOO
 }
 
 WebGLExtensionColorBufferHalfFloat::~WebGLExtensionColorBufferHalfFloat()

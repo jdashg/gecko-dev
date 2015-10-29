@@ -10,18 +10,16 @@
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;
-
 WebGLExtensionTextureHalfFloatLinear::WebGLExtensionTextureHalfFloatLinear(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::RGBA16F)->isFilterable = true;
-    authority->EditUsage(EffectiveFormat::RGB16F)->isFilterable = true;
-    authority->EditUsage(EffectiveFormat::Luminance16FAlpha16F)->isFilterable = true;
-    authority->EditUsage(EffectiveFormat::Luminance16F)->isFilterable = true;
-    authority->EditUsage(EffectiveFormat::Alpha16F)->isFilterable = true;
+    fua->EditUsage(webgl::EffectiveFormat::RGBA16F)->isFilterable = true;
+    fua->EditUsage(webgl::EffectiveFormat::RGB16F)->isFilterable = true;
+    fua->EditUsage(webgl::EffectiveFormat::Luminance16FAlpha16F)->isFilterable = true;
+    fua->EditUsage(webgl::EffectiveFormat::Luminance16F)->isFilterable = true;
+    fua->EditUsage(webgl::EffectiveFormat::Alpha16F)->isFilterable = true;
 }
 
 WebGLExtensionTextureHalfFloatLinear::~WebGLExtensionTextureHalfFloatLinear()

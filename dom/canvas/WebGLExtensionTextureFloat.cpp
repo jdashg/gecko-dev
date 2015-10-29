@@ -11,52 +11,44 @@
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;
-
 WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    authority->EditUsage(EffectiveFormat::RGBA32F)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::RGB32F)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::Luminance32F)->asTexture = true;
-    authority->EditUsage(EffectiveFormat::Alpha32F)->asTexture = true;
+    webgl::PackingInfo pi;
+    webgl::DriverUnpackInfo dui;
 
-    webgl::PackingInfo pi = {LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
-    webgl::DriverUnpackInfo dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
-    authority->EditUsage(EffectiveFormat::RGBA32F)->AddUnpack(pi, dui);
+    const auto fnAdd = [&fua, &pi, &dui](webgl::EffectiveFormat effFormat) {
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddUnsizedTexFormat(pi, usage);
+        usage->AddUnpack(pi, dui);
+    };
+
+    const bool isCore = webgl->GL()->IsCoreProfile();
+
+    pi = {LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, LOCAL_GL_FLOAT};
+    fnAdd(webgl::EffectiveFormat::RGBA32F);
 
     pi = {LOCAL_GL_RGB, LOCAL_GL_FLOAT};
     dui = {LOCAL_GL_RGB, LOCAL_GL_RGB, LOCAL_GL_FLOAT};
-    authority->EditUsage(EffectiveFormat::RGB32F)->AddUnpack(pi, dui);
+    fnAdd(webgl::EffectiveFormat::RGB32F);
 
-    if (webgl->GL()->IsCoreProfile()) {
-        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Luminance32F)->AddUnpack(pi, dui);
+    pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
+    if (isCore) dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
+    else        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
+    fnAdd(webgl::EffectiveFormat::Luminance32F);
 
-        pi = {LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Alpha32F)->AddUnpack(pi, dui);
+    pi = {LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
+    if (isCore) dui = {LOCAL_GL_R32F, LOCAL_GL_RED, LOCAL_GL_FLOAT};
+    else        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
+    fnAdd(webgl::EffectiveFormat::Alpha32F);
 
-        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_RG32F, LOCAL_GL_RG, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->AddUnpack(pi, dui);
-    } else {
-        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Luminance32F)->AddUnpack(pi, dui);
-
-        pi = {LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Alpha32F)->AddUnpack(pi, dui);
-
-        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
-        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
-        authority->EditUsage(EffectiveFormat::Luminance32FAlpha32F)->AddUnpack(pi, dui);
-    }
+    pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
+    if (isCore) dui = {LOCAL_GL_RG32F, LOCAL_GL_RG, LOCAL_GL_FLOAT};
+    else        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_FLOAT};
+    fnAdd(webgl::EffectiveFormat::Luminance32FAlpha32F);
 }
 
 WebGLExtensionTextureFloat::~WebGLExtensionTextureFloat()

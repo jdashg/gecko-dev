@@ -13,30 +13,27 @@ namespace mozilla {
 WebGLExtensionDepthTexture::WebGLExtensionDepthTexture(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
-    auto usage = authority->EditUsage(EffectiveFormat::DEPTH_COMPONENT16);
-    usage->asTexture = true;
+    const auto fnAdd = [&fua](webgl::EffectiveFormat effFormat, GLenum unpackFormat,
+                              GLenum unpackType)
+    {
+        auto usage = fua->EditUsage(effFormat);
+        const webgl::PackingInfo pi = {unpackFormat, unpackType};
+        const webgl::DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
 
-    webgl::PackingInfo pi = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT};
-    webgl::DriverUnpackInfo dui = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_SHORT};
-    usage->AddUnpack(pi, dui);
+        fua->AddUnsizedTexFormat(pi, usage);
+        usage->AddUnpack(pi, dui);
+    };
 
+    fnAdd(webgl::EffectiveFormat::DEPTH_COMPONENT16, LOCAL_GL_DEPTH_COMPONENT,
+          LOCAL_GL_UNSIGNED_SHORT);
 
-    usage = authority->EditUsage(EffectiveFormat::DEPTH_COMPONENT24);
-    usage->asTexture = true;
+    fnAdd(webgl::EffectiveFormat::DEPTH_COMPONENT24, LOCAL_GL_DEPTH_COMPONENT,
+          LOCAL_GL_UNSIGNED_INT);
 
-    pi = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT};
-    dui = {LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_DEPTH_COMPONENT, LOCAL_GL_UNSIGNED_INT};
-    usage->AddUnpack(pi, dui);
-
-
-    usage = authority->EditUsage(EffectiveFormat::DEPTH24_STENCIL8);
-    usage->asTexture = true;
-
-    pi = {LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8};
-    dui = {LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8};
-    usage->AddUnpack(pi, dui);
+    fnAdd(webgl::EffectiveFormat::DEPTH24_STENCIL8, LOCAL_GL_DEPTH_STENCIL,
+          LOCAL_GL_UNSIGNED_INT_24_8);
 }
 
 WebGLExtensionDepthTexture::~WebGLExtensionDepthTexture()

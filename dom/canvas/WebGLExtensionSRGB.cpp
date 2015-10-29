@@ -12,9 +12,6 @@
 
 namespace mozilla {
 
-using mozilla::webgl::EffectiveFormat;
-
-
 WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
@@ -28,30 +25,29 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
         gl->fEnable(LOCAL_GL_FRAMEBUFFER_SRGB_EXT);
     }
 
-    auto& authority = webgl->mFormatUsage;
+    auto& fua = webgl->mFormatUsage;
 
+    webgl::FormatUsageInfo* usage;
     webgl::PackingInfo pi;
     webgl::DriverUnpackInfo dui;
 
-    auto usage = authority->EditUsage(EffectiveFormat::SRGB8);
-    usage->asRenderbuffer = false;
+    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8);
     usage->isRenderable = false;
-    usage->asTexture = true;
     usage->isFilterable = true;
-
     pi = {LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
     dui = {LOCAL_GL_SRGB, LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
+    fua->AddUnsizedTexFormat(pi, usage);
     usage->AddUnpack(pi, dui);
 
-    usage = authority->EditUsage(EffectiveFormat::SRGB8_ALPHA8);
-    usage->asRenderbuffer = true;
+    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8_ALPHA8);
     usage->isRenderable = true;
-    usage->asTexture = true;
     usage->isFilterable = true;
-
     pi = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
     dui = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+    fua->AddUnsizedTexFormat(pi, usage);
     usage->AddUnpack(pi, dui);
+
+    fua->AddRBFormat(LOCAL_GL_SRGB_ALPHA, usage);
 }
 
 WebGLExtensionSRGB::~WebGLExtensionSRGB()

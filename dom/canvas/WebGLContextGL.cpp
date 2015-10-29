@@ -1259,9 +1259,9 @@ WebGLContext::PixelStorei(GLenum pname, GLint param)
 
 // `width` in pixels.
 // `stride` in bytes.
-static bool
-SetFullAlpha(void* data, GLenum format, GLenum type, size_t width,
-             size_t height, size_t stride)
+static void
+SetFullAlpha(void* data, GLenum format, GLenum type, size_t width, size_t height,
+             size_t stride)
 {
     if (format == LOCAL_GL_ALPHA && type == LOCAL_GL_UNSIGNED_BYTE) {
         // Just memset the rows.
@@ -1271,7 +1271,7 @@ SetFullAlpha(void* data, GLenum format, GLenum type, size_t width,
             row += stride;
         }
 
-        return true;
+        return;
     }
 
     if (format == LOCAL_GL_RGBA && type == LOCAL_GL_UNSIGNED_BYTE) {
@@ -1286,7 +1286,7 @@ SetFullAlpha(void* data, GLenum format, GLenum type, size_t width,
             }
         }
 
-        return true;
+        return;
     }
 
     if (format == LOCAL_GL_RGBA && type == LOCAL_GL_FLOAT) {
@@ -1302,21 +1302,20 @@ SetFullAlpha(void* data, GLenum format, GLenum type, size_t width,
             }
         }
 
-        return true;
+        return;
     }
 
-    MOZ_ASSERT(false, "Unhandled case, how'd we get here?");
-    return false;
+    MOZ_CRASH("Unhandled case, how'd we get here?");
 }
 
-static void
-ReadPixelsAndConvert(gl::GLContext* gl, GLint x, GLint y, GLsizei width, GLsizei height,
-                     GLenum readFormat, GLenum readType, size_t pixelStorePackAlignment,
-                     GLenum destFormat, GLenum destType, void* destBytes)
+bool
+WebGLContext::DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
+                                     GLenum readFormat, GLenum readType,
+                                     GLenum destFormat, GLenum destType, void* destBytes)
 {
     if (readFormat == destFormat && readType == destType) {
         gl->fReadPixels(x, y, width, height, destFormat, destType, destBytes);
-        return;
+        return true;
     }
 
     if (readFormat == LOCAL_GL_RGBA &&
@@ -1324,38 +1323,66 @@ ReadPixelsAndConvert(gl::GLContext* gl, GLint x, GLint y, GLsizei width, GLsizei
         destFormat == LOCAL_GL_RGBA &&
         destType == LOCAL_GL_FLOAT)
     {
-        size_t readBytesPerPixel = sizeof(uint16_t) * 4;
-        size_t destBytesPerPixel = sizeof(float) * 4;
+        const size_t channelsPerPixel = 4;
 
-        size_t readBytesPerRow = readBytesPerPixel * width;
+        const size_t readBytesPerPixel = sizeof(uint16_t) * channelsPerPixel;
+        CheckedUint32 readOffset;
+        CheckedUint32 readStride;
+        const CheckedUint32 readSize = GetPackSize(width, height, readBytesPerPixel,
+                                                   &readOffset, &readStride);
 
-        size_t readStride = RoundUpToMultipleOf(readBytesPerRow, pixelStorePackAlignment);
-        size_t destStride = RoundUpToMultipleOf(destBytesPerPixel * width,
-                                                pixelStorePackAlignment);
+        const size_t destBytesPerPixel = sizeof(float) * channelsPerPixel;
+        CheckedUint32 destOffset;
+        CheckedUint32 destStride;
+        const CheckedUint32 destSize = GetPackSize(width, height, destBytesPerPixel,
+                                                   &destOffset, &destStride);
+        if (!readSize.isValid() || !destSize.isValid()) {
+            ErrorOutOfMemory("readPixels: Overflow calculating sizes for conversion.");
+            return false;
+        }
 
-        size_t bytesNeeded = ((height - 1) * readStride) + readBytesPerRow;
-        UniquePtr<uint8_t[]> readBuffer(new uint8_t[bytesNeeded]);
+        UniqueBuffer readBuffer(malloc(readSize.value()));
+        if (!readBuffer) {
+            ErrorOutOfMemory("readPixels: Failed to alloc temp buffer for conversion.");
+            return false;
+        }
+
+        gl::GLContext::LocalErrorScope errorScope(*gl);
 
         gl->fReadPixels(x, y, width, height, readFormat, readType, readBuffer.get());
 
-        size_t channelsPerRow = width * 4;
-        for (size_t j = 0; j < (size_t)height; j++) {
-            uint16_t* src = (uint16_t*)(readBuffer.get()) + j*readStride;
-            float* dst = (float*)(destBytes) + j*destStride;
+        const GLenum error = errorScope.GetError();
+        if (error == LOCAL_GL_OUT_OF_MEMORY) {
+            ErrorOutOfMemory("readPixels: Driver ran out of memory.");
+            return false;
+        }
 
-            uint16_t* srcEnd = src + channelsPerRow;
+        if (error) {
+            MOZ_RELEASE_ASSERT(false, "Unexpected driver error.");
+            return false;
+        }
+
+        const size_t channelsPerRow = width * channelsPerPixel;
+        const uint8_t* srcRow = (uint8_t*)(readBuffer.get()) + readOffset.value();
+        uint8_t* dstRow = (uint8_t*)(destBytes) + destOffset.value();
+
+        for (size_t j = 0; j < (size_t)height; j++) {
+            auto src = (const uint16_t*)srcRow;
+            auto dst = (float*)dstRow;
+
+            const auto srcEnd = src + channelsPerRow;
             while (src != srcEnd) {
                 *dst = unpackFromFloat16(*src);
-
                 ++src;
                 ++dst;
             }
         }
 
-        return;
+        return true;
     }
 
-    MOZ_CRASH("bad format/type");
+    MOZ_RELEASE_ASSERT(false, "unhandled format/type");
+    return false;
 }
 
 static bool
@@ -1387,6 +1414,31 @@ IsFormatAndTypeUnpackable(GLenum format, GLenum type)
     }
 }
 
+CheckedUint32
+WebGLContext::GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel,
+                          CheckedUint32* const out_startOffset,
+                          CheckedUint32* const out_rowStride)
+{
+    const CheckedUint32 pixelsPerRow = (mPixelStore_PackRowLength ? width
+                                                                  : mPixelStore_PackRowLength);
+    const CheckedUint32 skipPixels = mPixelStore_PackSkipPixels;
+    const CheckedUint32 skipRows = mPixelStore_PackSkipRows;
+    const CheckedUint32 alignment = mPixelStore_PackAlignment;
+
+    // GLES 3.0.4, p116 (PACK_ functions like UNPACK_)
+    const auto totalBytesPerRow = bytesPerPixel * pixelsPerRow;
+    const auto rowStride = RoundUpToMultipleOf(totalBytesPerRow, alignment);
+
+    const auto startOffset = rowStride * skipRows + bytesPerPixel * skipPixels;
+    const auto usedBytesPerRow = bytesPerPixel * width;
+
+    const auto bytesNeeded = startOffset + rowStride * (height - 1) + usedBytesPerRow;
+
+    *out_startOffset = startOffset;
+    *out_rowStride = rowStride;
+    return bytesNeeded;
+}
+
 // This function is temporary, and will be removed once https://bugzilla.mozilla.org/show_bug.cgi?id=1176214 lands, which will
 // collapse the SharedArrayBufferView and ArrayBufferView into one.
 void
@@ -1410,10 +1462,9 @@ ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
 }
 
 void
-WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
-                         GLsizei height, GLenum format,
-                         GLenum type, const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
-                         ErrorResult& rv)
+WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
+                         GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
+                         ErrorResult& out_error)
 {
     if (IsContextLost())
         return;
@@ -1423,7 +1474,8 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         !nsContentUtils::IsCallerChrome())
     {
         GenerateWarning("readPixels: Not allowed");
-        return rv.Throw(NS_ERROR_DOM_SECURITY_ERR);
+        out_error.Throw(NS_ERROR_DOM_SECURITY_ERR);
+        return;
     }
 
     if (width < 0 || height < 0)
@@ -1484,36 +1536,37 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         MOZ_CRASH("bad `type`");
     }
 
-    const dom::ArrayBufferViewOrSharedArrayBufferView &view = pixels.Value();
+    const dom::ArrayBufferViewOrSharedArrayBufferView& view = pixels.Value();
     // Compute length and data.  Don't reenter after this point, lest the
     // precomputed go out of sync with the instant length/data.
-    size_t dataByteLen;
     void* data;
+    size_t bytesAvailable;
     js::Scalar::Type dataType;
-    ComputeLengthAndData(view, &data, &dataByteLen, &dataType);
+    ComputeLengthAndData(view, &data, &bytesAvailable, &dataType);
 
     // Check the pixels param type
     if (dataType != requiredDataType)
         return ErrorInvalidOperation("readPixels: Mismatched type/pixels types");
 
-    // Check the pixels param size
-    CheckedUint32 checked_neededByteLength =
-        GetImageSize(height, width, 1, bytesPerPixel, mPixelStore_PackAlignment);
+    CheckedUint32 startOffset;
+    CheckedUint32 rowStride;
+    const auto bytesNeeded = GetPackSize(width, height, bytesPerPixel, &startOffset,
+                                         &rowStride);
+    if (!bytesNeeded.isValid()) {
+        ErrorInvalidOperation("readPixels: Integer overflow computing the needed buffer"
+                              " size.");
+        return;
+    }
 
-    CheckedUint32 checked_plainRowSize = CheckedUint32(width) * bytesPerPixel;
-
-    CheckedUint32 checked_alignedRowSize =
-        RoundUpToMultipleOf(checked_plainRowSize, mPixelStore_PackAlignment);
-
-    if (!checked_neededByteLength.isValid())
-        return ErrorInvalidOperation("readPixels: integer overflow computing the needed buffer size");
-
-    if (checked_neededByteLength.value() > dataByteLen)
-        return ErrorInvalidOperation("readPixels: buffer too small");
+    if (bytesNeeded.value() > bytesAvailable) {
+        ErrorInvalidOperation("readPixels: buffer too small");
+        return;
+    }
 
     if (!data) {
         ErrorOutOfMemory("readPixels: buffer storage is null. Did we run out of memory?");
-        return rv.Throw(NS_ERROR_OUT_OF_MEMORY);
+        out_error.Throw(NS_ERROR_OUT_OF_MEMORY);
+        return;
     }
 
     MakeContextCurrent();
@@ -1571,8 +1624,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // the easy case: we're not reading out-of-range pixels
 
         // Effectively: gl->fReadPixels(x, y, width, height, format, type, dest);
-        ReadPixelsAndConvert(gl, x, y, width, height, format, readType,
-                             mPixelStore_PackAlignment, format, type, data);
+        DoReadPixelsAndConvert(x, y, width, height, format, readType, format, type, data);
     } else {
         // the rectangle doesn't fit entirely in the bound buffer. We then have to set to zero the part
         // of the buffer that correspond to out-of-range pixels. We don't want to rely on system OpenGL
@@ -1582,7 +1634,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         // to accomodate the potentially different strides (widths).
 
         // Zero the whole pixel dest area in the destination buffer.
-        memset(data, 0, checked_neededByteLength.value());
+        memset(data, 0, bytesNeeded.value());
 
         if (   x >= int32_t(srcWidth)
             || x+width <= 0
@@ -1590,7 +1642,8 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
             || y+height <= 0)
         {
             // we are completely outside of range, can exit now with buffer filled with zeros
-            return DummyFramebufferOperation("readPixels");
+            DummyFramebufferOperation("readPixels");
+            return;
         }
 
         // compute the parameters of the subrect we're actually going to call glReadPixels on
@@ -1605,7 +1658,8 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         if (subrect_width < 0 || subrect_height < 0 ||
             subrect_width > width || subrect_height > height)
         {
-            return ErrorInvalidOperation("readPixels: integer overflow computing clipped rect size");
+            ErrorInvalidOperation("readPixels: integer overflow computing clipped rect size");
+            return;
         }
 
         // now we know that subrect_width is in the [0..width] interval, and same for heights.
@@ -1626,9 +1680,8 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
 
         // Effectively: gl->fReadPixels(subrect_x, subrect_y, subrect_width,
         //                              subrect_height, format, type, subrect_data.get());
-        ReadPixelsAndConvert(gl, subrect_x, subrect_y, subrect_width, subrect_height,
-                             format, readType, mPixelStore_PackAlignment, format, type,
-                             subrect_data.get());
+        DoReadPixelsAndConvert(subrect_x, subrect_y, subrect_width, subrect_height,
+                               format, readType, format, type, subrect_data.get());
 
         // notice that this for loop terminates because we already checked that subrect_height is at most height
         for (GLint y_inside_subrect = 0; y_inside_subrect < subrect_height; ++y_inside_subrect) {
@@ -1660,9 +1713,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
         return;
 
     size_t stride = checked_alignedRowSize.value(); // In bytes!
-    if (!SetFullAlpha(data, format, type, width, height, stride)) {
-        return rv.Throw(NS_ERROR_FAILURE);
-    }
+    SetFullAlpha(data, format, type, width, height, stride);
 }
 
 void
@@ -1700,19 +1751,8 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
         return;
     }
 
-    // Convert DEPTH_STENCIL to sized type for testing
-    GLenum sizedInternalFormat = internalFormat;
-    if (sizedInternalFormat == LOCAL_GL_DEPTH_STENCIL) {
-        sizedInternalFormat = LOCAL_GL_DEPTH24_STENCIL8;
-    }
-
-    const webgl::FormatInfo* format = webgl::GetSizedFormat(sizedInternalFormat);
-    const webgl::FormatUsageInfo* formatUsage = nullptr;
-    if (format) {
-        formatUsage = mFormatUsage->GetUsage(format);
-    }
-
-    if (!formatUsage || !formatUsage->asRenderbuffer) {
+    const auto usage = mFormatUsage->GetRBUsage(internalFormat);
+    if (!usage) {
         ErrorInvalidEnumInfo("`internalFormat`", funcName, internalFormat);
         return;
     }
@@ -1722,7 +1762,7 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
     MakeContextCurrent();
 
     GetAndFlushUnderlyingGLErrors();
-    mBoundRenderbuffer->RenderbufferStorage(samples, formatUsage, width, height);
+    mBoundRenderbuffer->RenderbufferStorage(samples, usage, width, height);
     GLenum error = GetAndFlushUnderlyingGLErrors();
     if (error) {
         GenerateWarning("%s generated error %s", funcName,
