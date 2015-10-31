@@ -55,6 +55,31 @@ GetFBInfoForBlit(const WebGLFramebuffer* fb, WebGLContext* webgl,
     return true;
 }
 
+static void
+GetBackbufferFormats(const WebGLContextOptions& options,
+                     const webgl::FormatInfo** const out_color,
+                     const webgl::FormatInfo** const out_depth,
+                     const webgl::FormatInfo** const out_stencil)
+{
+    const auto effFormat = options.alpha ? webgl::EffectiveFormat::RGBA8
+                                          : webgl::EffectiveFormat::RGB8;
+    *out_color = webgl::GetFormat(effFormat);
+
+    *out_depth = nullptr;
+    *out_stencil = nullptr;
+    if (options.depth && options.stencil) {
+        *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH24_STENCIL8);
+        *out_stencil = *out_depth;
+    } else {
+        if (options.depth) {
+            *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH_COMPONENT16);
+        }
+        if (options.stencil) {
+            *out_stencil = webgl::GetFormat(webgl::EffectiveFormat::STENCIL_INDEX8);
+        }
+    }
+}
+
 void
 WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
                                GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
@@ -97,30 +122,6 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
         return;
     }
 
-    auto& options = mOptions;
-    const auto fnGetBackbufferFormats = [&options](const webgl::FormatInfo** const out_color,
-                                                   const webgl::FormatInfo** const out_depth,
-                                                   const webgl::FormatInfo** const out_stencil)
-    {
-        const auto effFormat = options.alpha ? webgl::EffectiveFormat::RGBA8
-                                              : webgl::EffectiveFormat::RGB8;
-        *out_color = webgl::GetFormat(effFormat);
-
-        *out_depth = nullptr;
-        *out_stencil = nullptr;
-        if (options.depth && options.stencil) {
-            *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH24_STENCIL8);
-            *out_stencil = *out_depth;
-        } else {
-            if (options.depth) {
-                *out_depth = webgl::GetFormat(webgl::EffectiveFormat::DEPTH_COMPONENT16);
-            }
-            if (options.stencil) {
-                *out_stencil = webgl::GetFormat(webgl::EffectiveFormat::STENCIL_INDEX8);
-            }
-        }
-    };
-
     GLsizei srcSamples;
     const webgl::FormatInfo* srcColorFormat = nullptr;
     const webgl::FormatInfo* srcDepthFormat = nullptr;
@@ -136,7 +137,8 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     } else {
         srcSamples = 1; // Always 1.
 
-        fnGetBackbufferFormats(&srcColorFormat, &srcDepthFormat, &srcStencilFormat);
+        GetBackbufferFormats(mOptions, &srcColorFormat, &srcDepthFormat,
+                             &srcStencilFormat);
     }
 
     GLsizei dstSamples;
@@ -154,7 +156,8 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     } else {
         dstSamples = gl->Screen()->Samples();
 
-        fnGetBackbufferFormats(&dstColorFormat, &dstDepthFormat, &dstStencilFormat);
+        GetBackbufferFormats(mOptions, &dstColorFormat, &dstDepthFormat,
+                             &dstStencilFormat);
     }
 
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
@@ -343,7 +346,7 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
                                                  GLenum target,
                                                  GLenum attachment,
                                                  GLenum pname,
-                                                 ErrorResult& rv)
+                                                 ErrorResult& out_error)
 {
     if (IsContextLost())
         return JS::NullValue();
@@ -367,27 +370,20 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
     }
 
     if (boundFB) {
-        return boundFB->GetAttachmentParameter(cx, attachment, pname, rv);
+        return boundFB->GetAttachmentParameter(cx, target, attachment, pname, &out_error);
     }
 
+    ////////////////
     // Handle default FB
-    const gl::GLFormats& formats = gl->GetGLFormats();
-    GLenum internalFormat = LOCAL_GL_NONE;
 
-    /* If the default framebuffer is bound to target, then attachment must be BACK,
-       identifying the color buffer; DEPTH, identifying the depth buffer; or STENCIL,
-       identifying the stencil buffer. */
+    // If the default framebuffer is bound to target, then attachment must be BACK,
+    // identifying the color buffer; DEPTH, identifying the depth buffer; or STENCIL,
+    // identifying the stencil buffer.
     switch (attachment) {
     case LOCAL_GL_BACK:
-        internalFormat = formats.color_texInternalFormat;
-        break;
-
     case LOCAL_GL_DEPTH:
-        internalFormat = formats.depth;
-        break;
-
     case LOCAL_GL_STENCIL:
-        internalFormat = formats.stencil;
+    case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
         break;
 
     default:
@@ -397,10 +393,6 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
         return JS::NullValue();
     }
 
-    const FormatInfo* info = webgl::GetInfoBySizedFormat(internalFormat);
-    MOZ_RELEASE_ASSERT(info);
-    EffectiveFormat effectiveFormat = info->effectiveFormat;
-
     switch (pname) {
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
         return JS::Int32Value(LOCAL_GL_FRAMEBUFFER_DEFAULT);
@@ -408,30 +400,59 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE:
+        if (attachment != LOCAL_GL_BACK)
+            return JS::Int32Value(0);
+
+        return JS::Int32Value(8);
+
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
+        if (attachment != LOCAL_GL_BACK)
+            return JS::Int32Value(0);
+
+        return JS::Int32Value(mOptions.alpha ? 8 : 0);
+
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
+        if (attachment != LOCAL_GL_DEPTH &&
+            attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+        {
+            return JS::Int32Value(0);
+        }
+
+        return JS::Int32Value(mOptions.depth ? 16 : 0);
+
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
-        return JS::Int32Value(webgl::GetComponentSize(effectiveFormat, pname));
+        if (attachment != LOCAL_GL_STENCIL &&
+            attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+        {
+            return JS::Int32Value(0);
+        }
+
+        return JS::Int32Value(mOptions.stencil ? 8 : 0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
-        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT &&
-            pname == LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE)
-        {
+        switch (attachment) {
+        case LOCAL_GL_BACK:    return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
+        case LOCAL_GL_DEPTH:   return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
+        case LOCAL_GL_STENCIL: return JS::Int32Value(LOCAL_GL_UNSIGNED_INT);
+
+        case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
             ErrorInvalidOperation("getFramebufferAttachmentParameter: Querying "
                                   "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE against "
                                   "DEPTH_STENCIL_ATTACHMENT is an error.");
             return JS::NullValue();
         }
-
-        return JS::Int32Value(webgl::GetComponentType(effectiveFormat));
+        MOZ_CRASH("unreachable");
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-        return JS::Int32Value(webgl::GetColorEncoding(effectiveFormat));
+        if (attachment != LOCAL_GL_BACK)
+            return JS::Int32Value(0);
+
+        return JS::Int32Value(LOCAL_GL_LINEAR);
     }
 
-    /* Any combinations of framebuffer type and pname not described above will generate an
-       INVALID_ENUM error. */
-    ErrorInvalidEnum("getFramebufferAttachmentParameter: Invalid combination of ");
+    // Any combinations of framebuffer type and pname not described above will generate an
+    // INVALID_ENUM error.
+    ErrorInvalidEnum("getFramebufferAttachmentParameter: Invalid combination of params.");
     return JS::NullValue();
 }
 

@@ -96,8 +96,9 @@ class TexUnpackSurface : public TexUnpackBlob
 {
 public:
     const RefPtr<gfx::SourceSurface> mSurf;
+    const bool mIsAlphaPremult;
 
-    TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf);
+    TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf, bool isAlphaPremult);
 
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) override
@@ -113,7 +114,7 @@ public:
 
 protected:
     static bool ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackInfo* dui,
-                               gfx::DataSourceSurface* surf,
+                               gfx::DataSourceSurface* surf, bool isSurfAlphaPremult,
                                UniqueBuffer* const out_convertedBuffer,
                                uint8_t* const out_convertedAlignment,
                                bool* const out_outOfMemory);
@@ -122,7 +123,7 @@ protected:
                                   const webgl::DriverUnpackInfo* dui, GLint xOffset,
                                   GLint yOffset, GLint zOffset, GLsizei width,
                                   GLsizei height, gfx::DataSourceSurface* surf,
-                                  GLenum* const out_glError);
+                                  bool isSurfAlphaPremult, GLenum* const out_glError);
 };
 
 } // namespace webgl

@@ -173,77 +173,6 @@ RenderbufferStorageMaybeMultisample(gl::GLContext* gl, GLsizei samples,
     }
 }
 
-static GLenum
-GetRBSizedFormat(webgl::EffectiveFormat effFormat)
-{
-    switch (effFormat) {
-        // Every format that can be FormatUsageInfo::asRenderbuffer:
-
-#ifdef FOO
-#error FOO already defined.
-#endif
-
-#define FOO(X)  case webgl::EffectiveFormat::X: return LOCAL_GL_ ## X;
-
-        FOO(R8)
-        FOO(RG8)
-        FOO(RGB8)
-        FOO(RGBA8)
-
-        FOO(RGB565)
-        FOO(RGBA4)
-        FOO(RGB5_A1)
-        FOO(RGB10_A2)
-        FOO(RGB10_A2UI)
-
-        FOO(SRGB8_ALPHA8)
-
-        FOO(R16F)
-        FOO(RG16F)
-        FOO(RGB16F)
-        FOO(RGBA16F)
-
-        FOO(R32F)
-        FOO(RG32F)
-        FOO(RGB32F)
-        FOO(RGBA32F)
-
-        FOO(R8I)
-        FOO(R8UI)
-        FOO(R16I)
-        FOO(R16UI)
-        FOO(R32I)
-        FOO(R32UI)
-
-        FOO(RG8I)
-        FOO(RG8UI)
-        FOO(RG16I)
-        FOO(RG16UI)
-        FOO(RG32I)
-        FOO(RG32UI)
-
-        FOO(RGBA8I)
-        FOO(RGBA8UI)
-        FOO(RGBA16I)
-        FOO(RGBA16UI)
-        FOO(RGBA32I)
-        FOO(RGBA32UI)
-
-        FOO(DEPTH_COMPONENT16)
-        FOO(DEPTH_COMPONENT24)
-        FOO(DEPTH_COMPONENT32F)
-        FOO(DEPTH24_STENCIL8)
-        FOO(DEPTH32F_STENCIL8)
-
-        FOO(STENCIL_INDEX8)
-
-#undef FOO
-
-    default:
-        MOZ_CRASH("Bad effective format for renderbuffer.");
-    }
-}
-
 void
 WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
                                        const webgl::FormatUsageInfo* format,
@@ -255,7 +184,7 @@ WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
     gl::GLContext* gl = mContext->gl;
     MOZ_ASSERT(samples >= 0 && samples <= 256); // Sanity check.
 
-    GLenum primaryFormat = GetRBSizedFormat(format->format->effectiveFormat);
+    GLenum primaryFormat = format->format->sizedFormat;
     GLenum secondaryFormat = 0;
 
     if (NeedsDepthStencilEmu(mContext->gl, primaryFormat)) {
@@ -321,6 +250,9 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
 
     switch (pname.get()) {
     case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE:
+        if (!mFormat)
+            return 0;
+
         if (!mFormat->format->hasStencil)
             return 0;
 
@@ -348,7 +280,10 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
 GLenum
 WebGLRenderbuffer::GetInternalFormat() const
 {
-    return GetRBSizedFormat(mFormat->format->effectiveFormat);
+    if (!mFormat)
+        return 0;
+
+    return mFormat->format->sizedFormat;
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLRenderbuffer)

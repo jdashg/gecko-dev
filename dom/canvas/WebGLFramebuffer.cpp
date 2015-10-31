@@ -328,16 +328,12 @@ WebGLFBAttachPoint::FinalizeAttachment(gl::GLContext* gl,
 }
 
 JS::Value
-WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum pname)
+WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum target, GLenum attachment,
+                                 GLenum pname)
 {
-    // TODO: WebGLTexture and WebGLRenderbuffer should store FormatInfo instead of doing
-    // this dance every time.
-    const GLenum internalFormat = EffectiveInternalFormat().get();
-    const webgl::FormatInfo* info = webgl::GetInfoBySizedFormat(internalFormat);
-    MOZ_ASSERT(info);
-
     WebGLTexture* tex = Texture();
 
+    bool isPNameValid = false;
     switch (pname) {
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
@@ -345,13 +341,10 @@ WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum pname)
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
-        return JS::Int32Value(webgl::GetComponentSize(info->effectiveFormat, pname));
-
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
-        return JS::Int32Value(webgl::GetComponentType(info->effectiveFormat));
-
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-        return JS::Int32Value(webgl::GetColorEncoding(info->effectiveFormat));
+        isPNameValid = true;
+        break;
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
         if (tex) {
@@ -382,9 +375,18 @@ WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum pname)
         break;
     }
 
-    context->ErrorInvalidEnum("getFramebufferParameter: Invalid combination of "
-                              "attachment and pname.");
-    return JS::NullValue();
+    if (!isPNameValid) {
+        context->ErrorInvalidEnum("getFramebufferParameter: Invalid combination of "
+                                  "attachment and pname.");
+        return JS::NullValue();
+    }
+
+    gl::GLContext* gl = tex->mContext->GL();
+    gl->MakeCurrent();
+
+    GLint ret = 0;
+    gl->fGetFramebufferAttachmentParameteriv(target, attachment, pname, &ret);
+    return JS::Int32Value(ret);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -930,10 +932,8 @@ AttachmentsDontMatch(const WebGLFBAttachPoint& a, const WebGLFBAttachPoint& b)
 }
 
 JS::Value
-WebGLFramebuffer::GetAttachmentParameter(JSContext* cx,
-                                         GLenum attachment,
-                                         GLenum pname,
-                                         ErrorResult& rv)
+WebGLFramebuffer::GetAttachmentParameter(JSContext* cx, GLenum target, GLenum attachment,
+                                         GLenum pname, ErrorResult* const out_error)
 {
     // "If a framebuffer object is bound to target, then attachment must be one of the
     // attachment points of the framebuffer listed in table 4.6."
@@ -998,13 +998,13 @@ WebGLFramebuffer::GetAttachmentParameter(JSContext* cx,
 
         if (objectType == LOCAL_GL_RENDERBUFFER) {
             const WebGLRenderbuffer* rb = fba.Renderbuffer();
-            return mContext->WebGLObjectAsJSValue(cx, rb, rv);
+            return mContext->WebGLObjectAsJSValue(cx, rb, *out_error);
         }
 
         /* If the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is TEXTURE, then */
         if (objectType == LOCAL_GL_TEXTURE) {
             const WebGLTexture* tex = fba.Texture();
-            return mContext->WebGLObjectAsJSValue(cx, tex, rv);
+            return mContext->WebGLObjectAsJSValue(cx, tex, *out_error);
         }
         break;
     }
@@ -1016,7 +1016,7 @@ WebGLFramebuffer::GetAttachmentParameter(JSContext* cx,
         return JS::NullValue();
     }
 
-    return fba.GetParameter(mContext, pname);
+    return fba.GetParameter(mContext, target, attachment, pname);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

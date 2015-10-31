@@ -1432,8 +1432,6 @@ protected:
     bool mPixelStore_PremultiplyAlpha;
 
 public:
-    bool GetSrcFBFormat(const char* funcName, const webgl::FormatInfo** const out_format);
-
     // Fake-black
     class FakeBlackTexture {
         gl::GLContext* const mGL;
@@ -1742,17 +1740,9 @@ class ScopedUnpackReset
 
 protected:
     WebGLContext* const mWebGL;
-    GLint mAlignment;
-    GLint mRowLength;
-    GLint mImageHeight;
-    GLint mSkipPixels;
-    GLint mSkipRows;
-    GLint mSkipImages;
-    GLuint mPixelUnpackBuffer;
-    bool mChangedPixelUnpackBuffer;
 
 public:
-    ScopedUnpackReset(WebGLContext* webgl, GLuint tempPixelUnpackBuffer);
+    explicit ScopedUnpackReset(WebGLContext* webgl);
 
 protected:
     void UnwrapImpl();
@@ -1762,6 +1752,11 @@ void
 ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
                      void** const out_data, size_t* const out_length,
                      js::Scalar::Type* const out_type);
+
+void
+Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
+          uint32_t* const out_intStartInSrc, uint32_t* const out_intStartInDst,
+          uint32_t* const out_intSize);
 
 } // namespace mozilla
 

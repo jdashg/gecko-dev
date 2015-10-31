@@ -231,11 +231,10 @@ struct DriverUnpackInfo
 
 const FormatInfo* GetFormat(EffectiveFormat format);
 uint8_t BytesPerPixel(const PackingInfo& packing);
-
-GLint GetComponentSize(EffectiveFormat format, GLenum component);
-GLenum GetComponentType(EffectiveFormat format);
-GLenum GetColorEncoding(EffectiveFormat format);
-
+/*
+GLint ComponentSize(const FormatInfo* format, GLenum component);
+GLenum ComponentType(const FormatInfo* format);
+*/
 ////////////////////////////////////////
 
 struct FormatUsageInfo

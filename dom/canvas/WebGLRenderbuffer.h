@@ -14,6 +14,9 @@
 #include "WebGLStrongTypes.h"
 
 namespace mozilla {
+namespace webgl {
+struct FormatUsageInfo;
+}
 
 class WebGLRenderbuffer final
     : public nsWrapperCache

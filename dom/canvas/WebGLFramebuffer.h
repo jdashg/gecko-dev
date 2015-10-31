@@ -92,7 +92,8 @@ public:
     void FinalizeAttachment(gl::GLContext* gl,
                             FBAttachment attachmentLoc) const;
 
-    JS::Value GetParameter(WebGLContext* context, GLenum pname);
+    JS::Value GetParameter(WebGLContext* context, GLenum target, GLenum attachment,
+                           GLenum pname);
 
     void OnBackingStoreRespecified() const;
 };
@@ -226,8 +227,8 @@ public:
                          const webgl::FormatUsageInfo** const out_format,
                          uint32_t* const out_width, uint32_t* const out_height);
 
-    JS::Value GetAttachmentParameter(JSContext* cx, GLenum attachment, GLenum pname,
-                                     ErrorResult& rv);
+    JS::Value GetAttachmentParameter(JSContext* cx, GLenum target, GLenum attachment,
+                                     GLenum pname, ErrorResult* const out_error);
 };
 
 } // namespace mozilla

@@ -652,7 +652,7 @@ WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
     auto& height = imageInfo.mHeight;
     auto& depth = imageInfo.mDepth;
 
-    ScopedUnpackReset scopedReset(mContext, 0);
+    ScopedUnpackReset scopedReset(mContext);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
 
     auto compression = usage->format->compression;

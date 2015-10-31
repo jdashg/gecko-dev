@@ -1208,11 +1208,11 @@ WebGLContext::PixelStorei(GLenum pname, GLint param)
     switch (pname) {
     case UNPACK_FLIP_Y_WEBGL:
         mPixelStore_FlipY = bool(param);
-        break;
+        return;
 
     case UNPACK_PREMULTIPLY_ALPHA_WEBGL:
         mPixelStore_PremultiplyAlpha = bool(param);
-        break;
+        return;
 
     case UNPACK_COLORSPACE_CONVERSION_WEBGL:
         switch (param) {
@@ -1424,8 +1424,8 @@ WebGLContext::GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel
                           CheckedUint32* const out_startOffset,
                           CheckedUint32* const out_rowStride)
 {
-    const CheckedUint32 pixelsPerRow = (mPixelStore_PackRowLength ? width
-                                                                  : mPixelStore_PackRowLength);
+    const CheckedUint32 pixelsPerRow = (mPixelStore_PackRowLength ? mPixelStore_PackRowLength
+                                                                  : width);
     const CheckedUint32 skipPixels = mPixelStore_PackSkipPixels;
     const CheckedUint32 skipRows = mPixelStore_PackSkipRows;
     const CheckedUint32 alignment = mPixelStore_PackAlignment;
@@ -1452,44 +1452,25 @@ ComputeLengthAndData(const dom::ArrayBufferViewOrSharedArrayBufferView& view,
                      js::Scalar::Type* const out_type)
 {
     if (view.IsArrayBufferView()) {
-        const dom::ArrayBufferView& pixbuf = view.GetAsArrayBufferView();
-        pixbuf.ComputeLengthAndData();
-        *out_length = pixbuf.Length();
-        *out_data = pixbuf.Data();
-        *out_type = JS_GetArrayBufferViewType(pixbuf.Obj());
+        const auto& view2 = view.GetAsArrayBufferView();
+        view2.ComputeLengthAndData();
+
+        *out_length = view2.Length();
+        *out_data = view2.Data();
+        *out_type = JS_GetArrayBufferViewType(view2.Obj());
     } else {
-        const dom::SharedArrayBufferView& pixbuf = view.GetAsSharedArrayBufferView();
-        pixbuf.ComputeLengthAndData();
-        *out_length = pixbuf.Length();
-        *out_data = pixbuf.Data();
-        *out_type = JS_GetSharedArrayBufferViewType(pixbuf.Obj());
+        const auto& view2 = view.GetAsSharedArrayBufferView();
+        view2.ComputeLengthAndData();
+        *out_length = view2.Length();
+        *out_data = view2.Data();
+        *out_type = JS_GetSharedArrayBufferViewType(view2.Obj());
     }
-}
-
-static void
-Intersect(uint32_t srcSize, int32_t dstStartInSrc,
-          uint32_t dstSize, uint32_t* const out_intStartInSrc,
-          uint32_t* const out_intStartInDst, uint32_t* const out_intSize)
-{
-    // Only >0 if dstStartInSrc is >0:
-    // 0  3          // src coords
-    // |  [========] // dst box
-    // ^--^
-    *out_intStartInSrc = std::max<int32_t>(0, dstStartInSrc);
-
-    // Only >0 if dstStartInSrc is <0:
-    //-6     0       // src coords
-    // [=====|==]    // dst box
-    // ^-----^
-    *out_intStartInDst = std::max<int32_t>(0, 0 - dstStartInSrc);
-
-    int32_t intEndInSrc = std::min<int32_t>(srcSize, dstStartInSrc + dstSize);
-    *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
 }
 
 void
 WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
-                         GLenum type, const dom::Nullable<dom::ArrayBufferView>& pixels,
+                         GLenum type,
+                         const dom::Nullable<dom::ArrayBufferViewOrSharedArrayBufferView>& pixels,
                          ErrorResult& out_error)
 {
     if (IsContextLost())
@@ -1562,7 +1543,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
         MOZ_CRASH("bad `type`");
     }
 
-    const dom::ArrayBufferViewOrSharedArrayBufferView& view = pixels.Value();
+    const auto& view = pixels.Value();
     // Compute length and data.  Don't reenter after this point, lest the
     // precomputed go out of sync with the instant length/data.
     void* data;
@@ -1708,6 +1689,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
         // I *did* say "hilariously slow".
 
         uint8_t* row = (uint8_t*)data + startOffset.value() + writeX * bytesPerPixel;
+        row += writeY * rowStride.value();
         for (uint32_t j = 0; j < rwHeight; j++) {
             DoReadPixelsAndConvert(readX, readY+j, rwWidth, 1, format, type, row,
                                    auxReadFormat, auxReadType);

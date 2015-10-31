@@ -1884,44 +1884,46 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
 
 ////////////////////
 
-ScopedUnpackReset::ScopedUnpackReset(WebGLContext* webgl, GLuint tempPixelUnpackBuffer)
+ScopedUnpackReset::ScopedUnpackReset(WebGLContext* webgl)
     : ScopedGLWrapper<ScopedUnpackReset>(webgl->gl)
     , mWebGL(webgl)
-    , mChangedPixelUnpackBuffer(false)
 {
-    gl::GLContext* gl = webgl->gl;
+    gl::GLContext* gl = mWebGL->gl;
 
-    if (webgl->mPixelStore_UnpackAlignment   != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , 4);
-    if (webgl->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
-    if (webgl->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
-    if (webgl->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
-    if (webgl->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
-    if (webgl->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
+    if (mWebGL->mPixelStore_UnpackAlignment != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , 4);
 
-    mPixelUnpackBuffer = 0;
-    if (webgl->mBoundPixelUnpackBuffer)
-        mPixelUnpackBuffer = webgl->mBoundPixelUnpackBuffer->mGLName;
+    if (mWebGL->IsWebGL2()) {
+        if (mWebGL->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
+        if (mWebGL->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
+        if (mWebGL->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
+        if (mWebGL->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
+        if (mWebGL->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
 
-    if (mPixelUnpackBuffer != tempPixelUnpackBuffer) {
-        gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, tempPixelUnpackBuffer);
-        mChangedPixelUnpackBuffer = true;
+        if (mWebGL->mBoundPixelUnpackBuffer) gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
     }
 }
 
 void
-ScopedUnpackReset::UnwrapImpl() {
+ScopedUnpackReset::UnwrapImpl()
+{
     // Check that we're not falling out of scope after the current context changed.
     MOZ_ASSERT(mGL->IsCurrent());
 
-    if (mWebGL->mPixelStore_UnpackAlignment   != 4) mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , mAlignment  );
-    if (mWebGL->mPixelStore_UnpackRowLength   != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , mRowLength  );
-    if (mWebGL->mPixelStore_UnpackImageHeight != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, mImageHeight);
-    if (mWebGL->mPixelStore_UnpackSkipPixels  != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , mSkipPixels );
-    if (mWebGL->mPixelStore_UnpackSkipRows    != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , mSkipRows   );
-    if (mWebGL->mPixelStore_UnpackSkipImages  != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , mSkipImages );
+    mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mWebGL->mPixelStore_UnpackAlignment);
 
-    if (mChangedPixelUnpackBuffer) {
-        mGL->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, mPixelUnpackBuffer);
+    if (mWebGL->IsWebGL2()) {
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , mWebGL->mPixelStore_UnpackRowLength  );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, mWebGL->mPixelStore_UnpackImageHeight);
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , mWebGL->mPixelStore_UnpackSkipPixels );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , mWebGL->mPixelStore_UnpackSkipRows   );
+        mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , mWebGL->mPixelStore_UnpackSkipImages );
+
+        GLuint pbo = 0;
+        if (mWebGL->mBoundPixelUnpackBuffer) {
+            pbo = mWebGL->mBoundPixelUnpackBuffer->mGLName;
+        }
+
+        mGL->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, pbo);
     }
 }
 
@@ -1943,25 +1945,25 @@ GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
     return false;
 }
 
-bool
-WebGLContext::GetSrcFBFormat(const char* funcName,
-                             const webgl::FormatInfo** const out_format)
+void
+Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
+          uint32_t* const out_intStartInSrc, uint32_t* const out_intStartInDst,
+          uint32_t* const out_intSize)
 {
-    if (mBoundReadFramebuffer) {
-        uint32_t width; // We don't actually use these here.
-        uint32_t height;
-        const webgl::FormatUsageInfo* usage;
-        if (!mBoundReadFramebuffer->ValidateForRead(funcName, &usage, &width, &height))
-            return false;
+    // Only >0 if dstStartInSrc is >0:
+    // 0  3          // src coords
+    // |  [========] // dst box
+    // ^--^
+    *out_intStartInSrc = std::max<int32_t>(0, dstStartInSrc);
 
-        *out_format = usage->format;
-        return true;
-    }
+    // Only >0 if dstStartInSrc is <0:
+    //-6     0       // src coords
+    // [=====|==]    // dst box
+    // ^-----^
+    *out_intStartInDst = std::max<int32_t>(0, 0 - dstStartInSrc);
 
-    auto srcEffFormat = mOptions.alpha ? webgl::EffectiveFormat::RGBA8
-                                       : webgl::EffectiveFormat::RGB8;
-    *out_format = webgl::GetFormat(srcEffFormat);
-    return true;
+    int32_t intEndInSrc = std::min<int32_t>(srcSize, dstStartInSrc + dstSize);
+    *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

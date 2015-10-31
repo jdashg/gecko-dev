@@ -1034,9 +1034,6 @@ WebGLContext::InitAndValidateGL()
         mDefaultVertexArray->BindVertexArray();
     }
 
-    if (mLoseContextOnMemoryPressure)
-        mContextObserver->RegisterMemoryPressureEvent();
-
     mPixelStore_FlipY = false;
     mPixelStore_PremultiplyAlpha = false;
     mPixelStore_ColorspaceConversion = BROWSER_DEFAULT_WEBGL;
