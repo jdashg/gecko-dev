@@ -19,6 +19,8 @@ WebGLExtensionDepthTexture::WebGLExtensionDepthTexture(WebGLContext* webgl)
                               GLenum unpackType)
     {
         auto usage = fua->EditUsage(effFormat);
+        usage->isRenderable = true;
+
         const webgl::PackingInfo pi = {unpackFormat, unpackType};
         const webgl::DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
 
