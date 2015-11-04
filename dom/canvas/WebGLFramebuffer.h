@@ -113,7 +113,7 @@ public:
     const GLuint mGLName;
 
 private:
-    mutable GLenum mStatus;
+    mutable bool mIsKnownFBComplete;
 
     GLenum mReadBufferMode;
 
@@ -220,7 +220,7 @@ public:
     void EnsureColorAttachPoints(size_t colorAttachmentId);
 
     void InvalidateFramebufferStatus() const {
-        mStatus = 0;
+        mIsKnownFBComplete = false;
     }
 
     bool ValidateForRead(const char* info,

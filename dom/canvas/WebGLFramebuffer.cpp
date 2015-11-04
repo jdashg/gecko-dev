@@ -402,7 +402,7 @@ WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum target, GLenum at
 WebGLFramebuffer::WebGLFramebuffer(WebGLContext* webgl, GLuint fbo)
     : WebGLContextBoundObject(webgl)
     , mGLName(fbo)
-    , mStatus(0)
+    , mIsKnownFBComplete(false)
     , mReadBufferMode(LOCAL_GL_COLOR_ATTACHMENT0)
     , mColorAttachment0(this, LOCAL_GL_COLOR_ATTACHMENT0)
     , mDepthAttachment(this, LOCAL_GL_DEPTH_ATTACHMENT)
@@ -684,12 +684,12 @@ WebGLFramebuffer::PrecheckFramebufferStatus() const
 FBStatus
 WebGLFramebuffer::CheckFramebufferStatus() const
 {
-    if (mStatus != 0)
-        return mStatus;
+    if (mIsKnownFBComplete)
+        return LOCAL_GL_FRAMEBUFFER_COMPLETE;
 
-    mStatus = PrecheckFramebufferStatus().get();
-    if (mStatus != LOCAL_GL_FRAMEBUFFER_COMPLETE)
-        return mStatus;
+    FBStatus ret = PrecheckFramebufferStatus();
+    if (ret != LOCAL_GL_FRAMEBUFFER_COMPLETE)
+        return ret;
 
     // Looks good on our end. Let's ask the driver.
     mContext->MakeContextCurrent();
@@ -698,8 +698,12 @@ WebGLFramebuffer::CheckFramebufferStatus() const
     FinalizeAttachments();
 
     // TODO: This should not be unconditionally GL_FRAMEBUFFER.
-    mStatus = mContext->gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    return mStatus;
+    ret = mContext->gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+
+    if (ret == LOCAL_GL_FRAMEBUFFER_COMPLETE)
+        mIsKnownFBComplete = true;
+
+    return ret;
 }
 
 bool
@@ -863,8 +867,6 @@ WebGLFramebuffer::FinalizeAttachments() const
 {
     MOZ_ASSERT(mContext->mBoundDrawFramebuffer == this ||
                mContext->mBoundReadFramebuffer == this);
-
-    MOZ_ASSERT(mStatus == LOCAL_GL_FRAMEBUFFER_COMPLETE);
 
     gl::GLContext* gl = mContext->gl;
 
