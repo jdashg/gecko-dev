@@ -440,9 +440,10 @@ WebGLTexture::MaxEffectiveMipmapLevel() const
 }
 
 bool
-WebGLTexture::ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out)
+WebGLTexture::ResolveFakeBlackStatus(const char* funcName,
+                                     WebGLTextureFakeBlackStatus* const out)
 {
-    if (!ResolveFakeBlackStatus())
+    if (!ResolveFakeBlackStatus(funcName))
         return false;
 
     *out = mFakeBlackStatus;
@@ -450,7 +451,7 @@ WebGLTexture::ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out)
 }
 
 bool
-WebGLTexture::ResolveFakeBlackStatus()
+WebGLTexture::ResolveFakeBlackStatus(const char* funcName)
 {
     if (MOZ_LIKELY(mFakeBlackStatus != WebGLTextureFakeBlackStatus::Unknown))
         return true;
@@ -508,7 +509,7 @@ WebGLTexture::ResolveFakeBlackStatus()
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
             TexImageTarget target = baseTexImageTarget + face;
-            if (!EnsureImageDataInitialized(target, level))
+            if (!EnsureImageDataInitialized(funcName, target, level))
                 return false; // The world just exploded.
         }
     }
@@ -517,197 +518,35 @@ WebGLTexture::ResolveFakeBlackStatus()
     return true;
 }
 
-static bool
-ClearByMask(WebGLContext* webgl, GLbitfield mask)
-{
-    gl::GLContext* gl = webgl->GL();
-    MOZ_ASSERT(gl->IsCurrent());
-
-    GLenum status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
-        return false;
-
-    bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = {false};
-    if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        colorAttachmentsMask[0] = true;
-    }
-
-    webgl->ForceClearFramebufferWithDefaultValues(false, mask, colorAttachmentsMask);
-    return true;
-}
-
-// `mask` from glClear.
-static bool
-ClearWithTempFB(WebGLContext* webgl, GLuint tex, TexImageTarget target, GLint level,
-                const WebGLTexture::ImageInfo& imageInfo)
-{
-    if (target == LOCAL_GL_TEXTURE_2D)
-        return false;
-
-    gl::GLContext* gl = webgl->GL();
-    MOZ_ASSERT(gl->IsCurrent());
-
-    gl::ScopedFramebuffer fb(gl);
-    gl::ScopedBindFramebuffer autoFB(gl, fb.FB());
-
-    auto format = imageInfo.mFormat->format;
-    GLbitfield mask = 0;
-
-    if (format->isColorFormat) {
-        mask |= LOCAL_GL_COLOR_BUFFER_BIT;
-        gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                  target.get(), tex, level);
-    } else {
-        if (format->hasDepth) {
-            mask |= LOCAL_GL_DEPTH_BUFFER_BIT;
-            gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_DEPTH_ATTACHMENT,
-                                      target.get(), tex, level);
-        }
-        if (format->hasStencil) {
-            mask |= LOCAL_GL_STENCIL_BUFFER_BIT;
-            gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_STENCIL_ATTACHMENT,
-                                      target.get(), tex, level);
-        }
-    }
-
-    if (!mask)
-        return false;
-
-    if (ClearByMask(webgl, mask))
-        return true;
-
-    // Failed to simply build an FB from the tex, but maybe it needs a
-    // color buffer to be complete.
-    if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        // Nope, it already had one.
-        return false;
-    }
-
-    gl::ScopedRenderbuffer rb(gl);
-    {
-        gl::ScopedBindRenderbuffer rbBinding(gl, rb.RB());
-
-        // Only GLES guarantees RGBA4.
-        const GLenum sizedFormat = gl->IsGLES() ? LOCAL_GL_RGBA4 : LOCAL_GL_RGBA8;
-        const GLsizei width = imageInfo.mWidth;
-        const GLsizei height = imageInfo.mHeight;
-        gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, sizedFormat, width, height);
-    }
-
-    gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
-                                 LOCAL_GL_RENDERBUFFER, rb.RB());
-    mask |= LOCAL_GL_COLOR_BUFFER_BIT;
-
-    // Last chance!
-    return ClearByMask(webgl, mask);
-}
-
-static TexImageTarget
-TexImageTargetFromFace(TexTarget target, uint8_t face)
-{
-    if (target != LOCAL_GL_TEXTURE_CUBE_MAP)
-        return target.get();
-
-    return LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
-}
-
-static CheckedUint32
-NumWholeBlocksForLength(CheckedUint32 length, uint8_t blockLength)
-{
-    return (length + blockLength - 1) / blockLength;
-}
-
 bool
-WebGLTexture::EnsureImageDataInitialized(TexImageTarget target, uint32_t level)
+WebGLTexture::EnsureImageDataInitialized(const char* funcName, TexImageTarget target,
+                                         uint32_t level)
 {
     auto& imageInfo = ImageInfoAt(target, level);
     if (imageInfo.IsDataInitialized())
         return true;
 
-    return InitializeImageData(target, level);
+    return InitializeImageData(funcName, target, level);
 }
 
 bool
-WebGLTexture::InitializeImageData(TexImageTarget target, uint32_t level)
+WebGLTexture::InitializeImageData(const char* funcName, TexImageTarget target,
+                                  uint32_t level)
 {
     auto& imageInfo = ImageInfoAt(target, level);
     MOZ_ASSERT(imageInfo.IsDefined());
     MOZ_ASSERT(!imageInfo.IsDataInitialized());
 
-    gl::GLContext* gl = mContext->gl;
-    gl->MakeCurrent();
+    const bool respecifyTexture = false;
+    const auto& usage = imageInfo.mFormat;
+    const auto& width = imageInfo.mWidth;
+    const auto& height = imageInfo.mHeight;
+    const auto& depth = imageInfo.mDepth;
 
-    // Try to clear with glClear.
-    if (ClearWithTempFB(mContext, mGLName, target, level, imageInfo)) {
-        imageInfo.SetIsDataInitialized(true, this);
-        return true;
-    }
-    // That didn't work. Try uploading zeros then.
-
-    auto usage = imageInfo.mFormat;
-    const GLint xOffset = 0;
-    const GLint yOffset = 0;
-    const GLint zOffset = 0;
-    auto& width = imageInfo.mWidth;
-    auto& height = imageInfo.mHeight;
-    auto& depth = imageInfo.mDepth;
-
-    ScopedUnpackReset scopedReset(mContext);
-    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
-
-    auto compression = usage->format->compression;
-    if (compression) {
-        auto sizedFormat = usage->format->sizedFormat;
-        MOZ_RELEASE_ASSERT(sizedFormat);
-
-        CheckedUint32 checkedByteCount = compression->bytesPerBlock;
-        checkedByteCount *= NumWholeBlocksForLength(width, compression->blockWidth);
-        checkedByteCount *= NumWholeBlocksForLength(height, compression->blockHeight);
-        checkedByteCount *= depth;
-
-        if (!checkedByteCount.isValid())
-            return false;
-
-        size_t byteCount = checkedByteCount.value();
-
-        UniqueBuffer zeros(calloc(1, byteCount));
-        if (!zeros)
-            return false;
-
-        GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
-                                               zOffset, width, height, depth, sizedFormat,
-                                               byteCount, zeros.get());
-        if (error)
-            return false;
-    } else {
-        auto driverUnpackInfo = usage->idealUnpack;
-        MOZ_RELEASE_ASSERT(driverUnpackInfo);
-
-        auto unpackFormat = driverUnpackInfo->unpackFormat;
-        auto unpackType = driverUnpackInfo->unpackType;
-        const webgl::PackingInfo packing = { unpackFormat, unpackType };
-
-        auto bytesPerPixel = webgl::BytesPerPixel(packing);
-
-        CheckedUint32 checkedByteCount = bytesPerPixel;
-        checkedByteCount *= width;
-        checkedByteCount *= height;
-        checkedByteCount *= depth;
-
-        if (!checkedByteCount.isValid())
-            return false;
-
-        size_t byteCount = checkedByteCount.value();
-
-        UniqueBuffer zeros(calloc(1, byteCount));
-        if (!zeros)
-            return false;
-
-        GLenum error = DoTexSubImage(gl, target.get(), level, xOffset,
-                                     yOffset, zOffset, width, height, depth,
-                                     unpackFormat, unpackType, zeros.get());
-        if (error)
-            return false;
+    if (!ZeroTextureData(mContext, funcName, respecifyTexture, target, level, usage, 0, 0,
+                         0, width, height, depth))
+    {
+        return false;
     }
 
     imageInfo.SetIsDataInitialized(true, this);

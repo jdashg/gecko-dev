@@ -296,14 +296,14 @@ WebGL2Context::FramebufferTextureLayer(GLenum target, GLenum attachment,
 
         switch (texture->Target().get()) {
         case LOCAL_GL_TEXTURE_3D:
-            if ((GLuint) layer >= mGLMax3DTextureSize) {
+            if (uint32_t(layer) >= mImplMax3DTextureSize) {
                 return ErrorInvalidValue("framebufferTextureLayer: layer must be < "
                                          "MAX_3D_TEXTURE_SIZE");
             }
             break;
 
         case LOCAL_GL_TEXTURE_2D_ARRAY:
-            if ((GLuint) layer >= mGLMaxArrayTextureLayers) {
+            if (uint32_t(layer) >= mImplMaxArrayTextureLayers) {
                 return ErrorInvalidValue("framebufferTextureLayer: layer must be < "
                                          "MAX_ARRAY_TEXTURE_LAYERS");
             }

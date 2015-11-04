@@ -62,11 +62,10 @@ public:
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) = 0;
 
-    // Returns false on internal failure OR GL error. If !*out_glError, then it was an
-    // internal error.
-    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level, const webgl::DriverUnpackInfo* dui,
-                               GLint xOffset, GLint yOffset, GLint zOffset,
+    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
+                               TexImageTarget target, GLint level,
+                               const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                               GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) = 0;
 };
 
@@ -86,9 +85,10 @@ public:
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) override;
 
-    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level, const webgl::DriverUnpackInfo* dui,
-                               GLint xOffset, GLint yOffset, GLint zOffset,
+    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
+                               TexImageTarget target, GLint level,
+                               const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                               GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
 };
 
@@ -106,10 +106,10 @@ public:
         return true;
     }
 
-    virtual void TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                               GLint level,
-                               const webgl::DriverUnpackInfo* driverUnpackInfo,
-                               GLint xOffset, GLint yOffset, GLint zOffset,
+    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
+                               TexImageTarget target, GLint level,
+                               const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                               GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
 
 protected:
@@ -124,6 +124,9 @@ protected:
                                   GLint yOffset, GLint zOffset, GLsizei width,
                                   GLsizei height, gfx::DataSourceSurface* surf,
                                   bool isSurfAlphaPremult, GLenum* const out_glError);
+
+    static void OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
+                              gl::OriginPos* const out_dst);
 };
 
 } // namespace webgl

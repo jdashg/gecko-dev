@@ -341,7 +341,7 @@ ConvertImage(size_t width, size_t height,
     if (!width || !height)
         return true;
 
-    const bool shouldYFlip = (srcOrigin == dstOrigin);
+    const bool shouldYFlip = (srcOrigin != dstOrigin);
 
     const bool canSkipPremult = (!HasAlpha(srcFormat) ||
                                  !HasColor(srcFormat) ||

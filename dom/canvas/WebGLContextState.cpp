@@ -380,13 +380,13 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
             return JS::Int32Value(i);
         }
         case LOCAL_GL_MAX_TEXTURE_SIZE:
-            return JS::Int32Value(mGLMaxTextureSize);
+            return JS::Int32Value(mImplMaxTextureSize);
 
         case LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE:
-            return JS::Int32Value(mGLMaxCubeMapTextureSize);
+            return JS::Int32Value(mImplMaxCubeMapTextureSize);
 
         case LOCAL_GL_MAX_RENDERBUFFER_SIZE:
-            return JS::Int32Value(mGLMaxRenderbufferSize);
+            return JS::Int32Value(mImplMaxRenderbufferSize);
 
         case LOCAL_GL_MAX_VERTEX_UNIFORM_VECTORS:
             return JS::Int32Value(mGLMaxVertexUniformVectors);

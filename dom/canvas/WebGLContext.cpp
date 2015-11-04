@@ -137,27 +137,6 @@ WebGLContext::WebGLContext()
     mDepthTestEnabled = 0;
     mStencilTestEnabled = 0;
 
-    // initialize some GL values: we're going to get them from the GL and use them as the sizes of arrays,
-    // so in case glGetIntegerv leaves them uninitialized because of a GL bug, we would have very weird crashes.
-    mGLMaxVertexAttribs = 0;
-    mGLMaxTextureUnits = 0;
-    mGLMaxTextureSize = 0;
-    mGLMaxTextureSizeLog2 = 0;
-    mGLMaxCubeMapTextureSize = 0;
-    mGLMaxCubeMapTextureSizeLog2 = 0;
-    mGLMaxRenderbufferSize = 0;
-    mGLMaxTextureImageUnits = 0;
-    mGLMaxVertexTextureImageUnits = 0;
-    mGLMaxVaryingVectors = 0;
-    mGLMaxFragmentUniformVectors = 0;
-    mGLMaxVertexUniformVectors = 0;
-    mGLMaxColorAttachments = 1;
-    mGLMaxDrawBuffers = 1;
-    mGLMaxTransformFeedbackSeparateAttribs = 0;
-    mGLMaxUniformBufferBindings = 0;
-    mGLMax3DTextureSize = 0;
-    mGLMaxArrayTextureLayers = 0;
-
     if (NS_IsMainThread()) {
         // XXX mtseng: bug 709490, not thread safe
         WebGLMemoryTracker::AddWebGLContext(this);
@@ -1964,6 +1943,109 @@ Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
 
     int32_t intEndInSrc = std::min<int32_t>(srcSize, dstStartInSrc + dstSize);
     *out_intSize = std::max<int32_t>(0, intEndInSrc - *out_intStartInSrc);
+}
+
+bool
+ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture,
+                TexImageTarget target, uint32_t level,
+                const webgl::FormatUsageInfo* usage, uint32_t xOffset, uint32_t yOffset,
+                uint32_t zOffset, uint32_t width, uint32_t height, uint32_t depth)
+{
+    // This has two usecases:
+    // 1. Lazy zeroing of uninitialized textures:
+    //    a. Before draw, when FakeBlack isn't viable. (TexStorage + Draw*)
+    //    b. Before partial upload. (TexStorage + TexSubImage)
+    // 2. Zero subrects from out-of-bounds blits. (CopyTex(Sub)Image)
+
+    // We have no sympathy for any of these cases.
+
+    // "Doctor, it hurts when I do this!" "Well don't do that!"
+    webgl->GenerateWarning("%s: This operation requires zeroing texture data. This is"
+                           " slow.",
+                           funcName);
+
+    gl::GLContext* gl = webgl->GL();
+    gl->MakeCurrent();
+
+    ScopedUnpackReset scopedReset(webgl);
+    gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 1); // Don't bother with striding it well.
+
+    auto compression = usage->format->compression;
+    if (compression) {
+        MOZ_RELEASE_ASSERT(!xOffset && !yOffset && !zOffset);
+        MOZ_RELEASE_ASSERT(!respecifyTexture);
+
+        auto sizedFormat = usage->format->sizedFormat;
+        MOZ_RELEASE_ASSERT(sizedFormat);
+
+        const auto fnSizeInBlocks = [](CheckedUint32 pixels, uint8_t pixelsPerBlock) {
+            return RoundUpToMultipleOf(pixels, pixelsPerBlock) / pixelsPerBlock;
+        };
+
+        const auto widthBlocks = fnSizeInBlocks(width, compression->blockWidth);
+        const auto heightBlocks = fnSizeInBlocks(height, compression->blockHeight);
+
+        CheckedUint32 checkedByteCount = compression->bytesPerBlock;
+        checkedByteCount *= widthBlocks;
+        checkedByteCount *= heightBlocks;
+        checkedByteCount *= depth;
+
+        if (!checkedByteCount.isValid())
+            return false;
+
+        const size_t byteCount = checkedByteCount.value();
+
+        UniqueBuffer zeros(calloc(1, byteCount));
+        if (!zeros)
+            return false;
+
+        GLenum error = DoCompressedTexSubImage(gl, target.get(), level, xOffset, yOffset,
+                                               zOffset, width, height, depth, sizedFormat,
+                                               byteCount, zeros.get());
+        if (error)
+            return false;
+
+        return true;
+    }
+
+    const auto driverUnpackInfo = usage->idealUnpack;
+    MOZ_RELEASE_ASSERT(driverUnpackInfo);
+
+    const auto unpackFormat = driverUnpackInfo->unpackFormat;
+    const auto unpackType = driverUnpackInfo->unpackType;
+    const webgl::PackingInfo packing = { unpackFormat, unpackType };
+
+    const auto bytesPerPixel = webgl::BytesPerPixel(packing);
+
+    CheckedUint32 checkedByteCount = bytesPerPixel;
+    checkedByteCount *= width;
+    checkedByteCount *= height;
+    checkedByteCount *= depth;
+
+    if (!checkedByteCount.isValid())
+        return false;
+
+    const size_t byteCount = checkedByteCount.value();
+
+    UniqueBuffer zeros(calloc(1, byteCount));
+    if (!zeros)
+        return false;
+
+    GLenum error;
+    if (respecifyTexture) {
+        MOZ_RELEASE_ASSERT(!xOffset && !yOffset && !zOffset);
+
+        const auto internalFormat = driverUnpackInfo->internalFormat;
+        error = DoTexImage(gl, target, level, internalFormat, width, height, depth,
+                           unpackFormat, unpackType, zeros.get());
+    } else {
+        error = DoTexSubImage(gl, target, level, xOffset, yOffset, zOffset, width, height,
+                              depth, unpackFormat, unpackType, zeros.get());
+    }
+    if (error)
+        return false;
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

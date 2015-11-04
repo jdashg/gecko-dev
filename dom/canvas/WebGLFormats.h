@@ -171,10 +171,12 @@ enum class ComponentType : uint8_t {
     Float,        // RGBA32F
 };
 
-enum class SubImageUpdateBehavior : uint8_t {
-    Forbidden,
-    FullOnly,
-    BlockAligned,
+enum class CompressionFamily : uint8_t {
+    ETC1,
+    ES3, // ETC2 or EAC
+    ATC,
+    S3TC,
+    PVRTC,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,8 +187,7 @@ struct CompressedFormatInfo
     const uint8_t bytesPerBlock;
     const uint8_t blockWidth;
     const uint8_t blockHeight;
-    const bool requirePOT;
-    const SubImageUpdateBehavior subImageUpdateBehavior;
+    const CompressionFamily family;
 };
 
 struct FormatInfo

@@ -338,9 +338,10 @@ public:
 
     size_t MemoryUsage() const;
 
-    bool InitializeImageData(TexImageTarget target, uint32_t level);
+    bool InitializeImageData(const char* funcName, TexImageTarget target, uint32_t level);
 protected:
-    bool EnsureImageDataInitialized(TexImageTarget target, uint32_t level);
+    bool EnsureImageDataInitialized(const char* funcName, TexImageTarget target,
+                                    uint32_t level);
 
     bool CheckFloatTextureFilterParams() const {
         // Without OES_texture_float_linear, only NEAREST and
@@ -379,9 +380,10 @@ public:
 
     // Fake black status
 protected:
-    bool ResolveFakeBlackStatus();
+    bool ResolveFakeBlackStatus(const char* funcName);
 public:
-    bool ResolveFakeBlackStatus(WebGLTextureFakeBlackStatus* const out);
+    bool ResolveFakeBlackStatus(const char* funcName,
+                                WebGLTextureFakeBlackStatus* const out);
 
     WebGLTextureFakeBlackStatus FakeBlackStatus() const { return mFakeBlackStatus; }
 

@@ -164,16 +164,6 @@ WebGLContext::InitWebGL2()
     gl->GetUIntegerv(LOCAL_GL_MAX_UNIFORM_BUFFER_BINDINGS,
                      &mGLMaxUniformBufferBindings);
 
-    if (MinCapabilityMode()) {
-        mGLMax3DTextureSize = MINVALUE_GL_MAX_3D_TEXTURE_SIZE;
-        mGLMaxArrayTextureLayers = MINVALUE_GL_MAX_ARRAY_TEXTURE_LAYERS;
-    } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_3D_TEXTURE_SIZE,
-                         (GLint*) &mGLMax3DTextureSize);
-        gl->fGetIntegerv(LOCAL_GL_MAX_ARRAY_TEXTURE_LAYERS,
-                         (GLint*) &mGLMaxArrayTextureLayers);
-    }
-
     mBoundTransformFeedbackBuffers.SetLength(mGLMaxTransformFeedbackSeparateAttribs);
     mBoundUniformBuffers.SetLength(mGLMaxUniformBufferBindings);
 

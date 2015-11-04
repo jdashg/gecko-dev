@@ -133,17 +133,164 @@ TexUnpackBytes::ValidateUnpack(WebGLContext* webgl, const char* funcName, bool i
     return true;
 }
 
+static bool
+UnpackFormatHasAlpha(GLenum unpackFormat)
+{
+    switch (unpackFormat) {
+    case LOCAL_GL_ALPHA:
+    case LOCAL_GL_LUMINANCE_ALPHA:
+    case LOCAL_GL_RGBA:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+static WebGLTexelFormat
+FormatFromPacking(const webgl::PackingInfo& pi)
+{
+    switch (pi.type) {
+    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+        return WebGLTexelFormat::RGB565;
+
+    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+        return WebGLTexelFormat::RGBA5551;
+
+    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+        return WebGLTexelFormat::RGBA4444;
+
+    case LOCAL_GL_UNSIGNED_BYTE:
+        switch (pi.format) {
+        case LOCAL_GL_LUMINANCE:        return WebGLTexelFormat::R8;
+        case LOCAL_GL_ALPHA:            return WebGLTexelFormat::A8;
+        case LOCAL_GL_LUMINANCE_ALPHA:  return WebGLTexelFormat::RA8;
+        case LOCAL_GL_RGB:              return WebGLTexelFormat::RGB8;
+        case LOCAL_GL_SRGB:             return WebGLTexelFormat::RGB8;
+        case LOCAL_GL_RGBA:             return WebGLTexelFormat::RGBA8;
+        case LOCAL_GL_SRGB_ALPHA:       return WebGLTexelFormat::RGBA8;
+        }
+
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+        switch (pi.format) {
+        case LOCAL_GL_LUMINANCE:        return WebGLTexelFormat::R16F;
+        case LOCAL_GL_ALPHA:            return WebGLTexelFormat::A16F;
+        case LOCAL_GL_LUMINANCE_ALPHA:  return WebGLTexelFormat::RA16F;
+        case LOCAL_GL_RGB:              return WebGLTexelFormat::RGB16F;
+        case LOCAL_GL_RGBA:             return WebGLTexelFormat::RGBA16F;
+        }
+
+    case LOCAL_GL_FLOAT:
+        switch (pi.format) {
+        case LOCAL_GL_LUMINANCE:        return WebGLTexelFormat::R32F;
+        case LOCAL_GL_ALPHA:            return WebGLTexelFormat::A32F;
+        case LOCAL_GL_LUMINANCE_ALPHA:  return WebGLTexelFormat::RA32F;
+        case LOCAL_GL_RGB:              return WebGLTexelFormat::RGB32F;
+        case LOCAL_GL_RGBA:             return WebGLTexelFormat::RGBA32F;
+        }
+    }
+
+    return WebGLTexelFormat::FormatNotSupportingAnyConversion;
+}
+
 void
-TexUnpackBytes::TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                              GLint level, const webgl::DriverUnpackInfo* dui,
-                              GLint xOffset, GLint yOffset, GLint zOffset,
-                              GLenum* const out_glError)
+TexUnpackBytes::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
+                              TexImageTarget target, GLint level,
+                              const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                              GLint yOffset, GLint zOffset, GLenum* const out_glError)
 {
     WebGLContext* webgl = tex->mContext;
     gl::GLContext* gl = webgl->gl;
 
+    const void* uploadBytes = mBytes;
+    UniqueBuffer tempBuffer;
+
+    do {
+        if (!webgl->mPixelStore_FlipY && !webgl->mPixelStore_PremultiplyAlpha)
+            break;
+
+        if (!mBytes || !mWidth || !mHeight || !mDepth)
+            break;
+
+        if (webgl->IsWebGL2())
+            break;
+        MOZ_ASSERT(mDepth == 1);
+
+        // This is literally the worst.
+        webgl->GenerateWarning("%s: Uploading ArrayBuffers with FLIP_Y or"
+                               " PREMULTIPLY_ALPHA is slow.",
+                               funcName);
+
+        tempBuffer = malloc(mByteCount);
+        if (!tempBuffer) {
+            *out_glError = LOCAL_GL_OUT_OF_MEMORY;
+            return;
+        }
+
+        const webgl::PackingInfo pi = { dui->unpackFormat, dui->unpackType };
+
+        const auto bytesPerPixel           = webgl::BytesPerPixel(pi);
+        const auto rowByteAlignment        = webgl->mPixelStore_UnpackAlignment;
+
+        const size_t bytesPerRow = bytesPerPixel * mWidth;
+        const size_t rowStride = RoundUpToMultipleOf(bytesPerRow, rowByteAlignment);
+
+        const bool needsYFlip = webgl->mPixelStore_FlipY;
+
+        bool needsAlphaPremult = webgl->mPixelStore_PremultiplyAlpha;
+        if (!UnpackFormatHasAlpha(pi.format))
+            needsAlphaPremult = false;
+
+        if (!needsAlphaPremult) {
+            if (!webgl->mPixelStore_FlipY)
+                break;
+
+            const uint8_t* src = (const uint8_t*)mBytes;
+            const uint8_t* const srcEnd = src + rowStride * mHeight;
+
+            uint8_t* dst = (uint8_t*)tempBuffer.get() + rowStride * (mHeight - 1);
+
+            while (src != srcEnd) {
+                memcpy(dst, src, bytesPerRow);
+                src += rowStride;
+                dst -= rowStride;
+            }
+
+            uploadBytes = tempBuffer.get();
+            break;
+        }
+
+        const auto texelFormat = FormatFromPacking(pi);
+        if (texelFormat == WebGLTexelFormat::FormatNotSupportingAnyConversion) {
+            MOZ_ASSERT(false, "Bad texelFormat from pi.");
+            *out_glError = LOCAL_GL_OUT_OF_MEMORY;
+            return;
+        }
+
+        const auto srcOrigin = gl::OriginPos::BottomLeft;
+        const auto dstOrigin = (needsYFlip ? gl::OriginPos::TopLeft
+                                           : gl::OriginPos::BottomLeft);
+
+        const bool srcPremultiplied = false;
+        const bool dstPremultiplied = needsAlphaPremult; // Always true here.
+        // And go!:
+        if (!ConvertImage(mWidth, mHeight,
+                          mBytes, rowStride, srcOrigin, texelFormat, srcPremultiplied,
+                          tempBuffer.get(), rowStride, dstOrigin, texelFormat,
+                          dstPremultiplied))
+        {
+            MOZ_ASSERT(false, "ConvertImage failed unexpectedly.");
+            *out_glError = LOCAL_GL_OUT_OF_MEMORY;
+            return;
+        }
+
+        uploadBytes = tempBuffer.get();
+        break;
+    } while (false);
+
     GLenum error = DoTexOrSubImage(isSubImage, gl, target, level, dui, xOffset, yOffset,
-                                   zOffset, mWidth, mHeight, mDepth, mBytes);
+                                   zOffset, mWidth, mHeight, mDepth, uploadBytes);
     *out_glError = error;
 }
 
@@ -178,6 +325,19 @@ SupportsBGRA(gl::GLContext* gl)
     return false;
 }
 
+/*static*/ void
+TexUnpackSurface::OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
+                                gl::OriginPos* const out_dst)
+{
+    // Our surfaces are TopLeft.
+    *out_src = gl::OriginPos::TopLeft;
+
+    // WebGL specs the default as passing DOM elements top-left first.
+    // Thus y-flip would give us bottom-left.
+    *out_dst = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
+                                      : gl::OriginPos::TopLeft;
+}
+
 /*static*/ bool
 TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
                                     TexImageTarget target, GLint level,
@@ -189,6 +349,11 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
     *out_glError = 0;
 
     if (isSurfAlphaPremult != webgl->mPixelStore_PremultiplyAlpha)
+        return false;
+
+    gl::OriginPos srcOrigin, dstOrigin;
+    OriginsForDOM(webgl, &srcOrigin, &dstOrigin);
+    if (srcOrigin != dstOrigin)
         return false;
 
     gl::GLContext* gl = webgl->gl;
@@ -491,13 +656,12 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
     }
     void* const dstBegin = dstBuffer.get();
 
-    const auto srcOrigin = gl::OriginPos::TopLeft; // As spec'd for DOM sources.
-    const auto dstOrigin = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
-                                                    : gl::OriginPos::TopLeft;
+    gl::OriginPos srcOrigin, dstOrigin;
+    OriginsForDOM(webgl, &srcOrigin, &dstOrigin);
+
     const bool dstPremultiplied = webgl->mPixelStore_PremultiplyAlpha;
 
     // And go!:
-
     if (!ConvertImage(width, height,
                       srcBegin, srcStride, srcOrigin, srcFormat, srcPremultiplied,
                       dstBegin, dstStride, dstOrigin, dstFormat, dstPremultiplied))
@@ -524,10 +688,10 @@ TexUnpackSurface::TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf,
 { }
 
 void
-TexUnpackSurface::TexOrSubImage(bool isSubImage, WebGLTexture* tex, TexImageTarget target,
-                                GLint level, const webgl::DriverUnpackInfo* dui,
-                                GLint xOffset, GLint yOffset, GLint zOffset,
-                                GLenum* const out_glError)
+TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
+                                TexImageTarget target, GLint level,
+                                const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                                GLint yOffset, GLint zOffset, GLenum* const out_glError)
 {
     *out_glError = 0;
 

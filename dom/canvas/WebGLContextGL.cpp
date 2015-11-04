@@ -1424,6 +1424,12 @@ WebGLContext::GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel
                           CheckedUint32* const out_startOffset,
                           CheckedUint32* const out_rowStride)
 {
+    if (!width || !height) {
+        *out_startOffset = 0;
+        *out_rowStride = 0;
+        return 0;
+    }
+
     const CheckedUint32 pixelsPerRow = (mPixelStore_PackRowLength ? mPixelStore_PackRowLength
                                                                   : width);
     const CheckedUint32 skipPixels = mPixelStore_PackSkipPixels;
@@ -1746,7 +1752,9 @@ WebGLContext::RenderbufferStorage_base(const char* funcName, GLenum target,
         return;
     }
 
-    if (width > mGLMaxRenderbufferSize || height > mGLMaxRenderbufferSize) {
+    if (uint32_t(width) > mImplMaxRenderbufferSize ||
+        uint32_t(height) > mImplMaxRenderbufferSize)
+    {
         ErrorInvalidValue("%s: Width or height exceeds maximum renderbuffer"
                           " size.", funcName);
         return;

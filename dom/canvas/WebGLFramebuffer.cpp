@@ -342,8 +342,15 @@ WebGLFBAttachPoint::GetParameter(WebGLContext* context, GLenum target, GLenum at
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
         isPNameValid = true;
+        break;
+
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
+        if (tex->mContext->IsWebGL2() ||
+            tex->mContext->IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
+        {
+            isPNameValid = true;
+        }
         break;
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
@@ -883,32 +890,27 @@ WebGLFramebuffer::FinalizeAttachments() const
 }
 
 bool
-WebGLFramebuffer::ValidateForRead(const char* info,
+WebGLFramebuffer::ValidateForRead(const char* funcName,
                                   const webgl::FormatUsageInfo** const out_format,
                                   uint32_t* const out_width, uint32_t* const out_height)
 {
+    if (!CheckAndInitializeAttachments()) {
+        mContext->ErrorInvalidFramebufferOperation("%s: Incomplete framebuffer.",
+                                                   funcName);
+        return false;
+    }
+
     if (mReadBufferMode == LOCAL_GL_NONE) {
         mContext->ErrorInvalidOperation("%s: Read buffer mode must not be"
-                                        " NONE.", info);
+                                        " NONE.", funcName);
         return false;
     }
 
     const auto& attachPoint = GetAttachPoint(mReadBufferMode);
 
-    if (!CheckAndInitializeAttachments()) {
-        mContext->ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
-        return false;
-    }
-
-    GLenum readPlaneBits = LOCAL_GL_COLOR_BUFFER_BIT;
-    if (!HasCompletePlanes(readPlaneBits)) {
-        mContext->ErrorInvalidOperation("readPixels: Read source attachment doesn't have the"
-                                        " correct color/depth/stencil type.");
-        return false;
-    }
-
     if (!attachPoint.IsDefined()) {
-        mContext->ErrorInvalidOperation("readPixels: ");
+        mContext->ErrorInvalidOperation("%s: THe attachment specified for reading is"
+                                        " null.", funcName);
         return false;
     }
 

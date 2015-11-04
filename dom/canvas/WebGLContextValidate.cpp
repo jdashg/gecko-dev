@@ -871,17 +871,30 @@ WebGLContext::InitAndValidateGL()
     mBound3DTextures.SetLength(mGLMaxTextureUnits);
     mBoundSamplers.SetLength(mGLMaxTextureUnits);
 
+    ////////////////
+
     if (MinCapabilityMode()) {
-        mGLMaxTextureSize = MINVALUE_GL_MAX_TEXTURE_SIZE;
-        mGLMaxCubeMapTextureSize = MINVALUE_GL_MAX_CUBE_MAP_TEXTURE_SIZE;
-        mGLMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
+        mImplMaxTextureSize = MINVALUE_GL_MAX_TEXTURE_SIZE;
+        mImplMaxCubeMapTextureSize = MINVALUE_GL_MAX_CUBE_MAP_TEXTURE_SIZE;
+        mImplMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
+
+        mImplMax3DTextureSize = MINVALUE_GL_MAX_3D_TEXTURE_SIZE;
+        mImplMaxArrayTextureLayers = MINVALUE_GL_MAX_ARRAY_TEXTURE_LAYERS;
+
         mGLMaxTextureImageUnits = MINVALUE_GL_MAX_TEXTURE_IMAGE_UNITS;
         mGLMaxVertexTextureImageUnits = MINVALUE_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
+
         mGLMaxSamples = 1;
     } else {
-        gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
-        gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
-        gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
+        gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, (GLint*)&mImplMaxTextureSize);
+        gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, (GLint*)&mImplMaxCubeMapTextureSize);
+        gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, (GLint*)&mImplMaxRenderbufferSize);
+
+        if (!gl->GetPotentialInteger(LOCAL_GL_MAX_3D_TEXTURE_SIZE, (GLint*)&mImplMax3DTextureSize))
+            mImplMax3DTextureSize = 0;
+        if (!gl->GetPotentialInteger(LOCAL_GL_MAX_ARRAY_TEXTURE_LAYERS, (GLint*)&mImplMaxArrayTextureLayers))
+            mImplMaxArrayTextureLayers = 0;
+
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
 
@@ -889,21 +902,23 @@ WebGLContext::InitAndValidateGL()
             mGLMaxSamples = 1;
     }
 
-    // Calculate log2 of mGLMaxTextureSize and mGLMaxCubeMapTextureSize
-    mGLMaxTextureSizeLog2 = 0;
-    int32_t tempSize = mGLMaxTextureSize;
-    while (tempSize >>= 1) {
-        ++mGLMaxTextureSizeLog2;
-    }
+    const auto fnFloor = [](uint32_t& val) {
+        if (val) {
+            val = FloorPOT(val);
+        }
+    };
 
-    mGLMaxCubeMapTextureSizeLog2 = 0;
-    tempSize = mGLMaxCubeMapTextureSize;
-    while (tempSize >>= 1) {
-        ++mGLMaxCubeMapTextureSizeLog2;
-    }
+    fnFloor(mImplMaxTextureSize);
+    fnFloor(mImplMaxCubeMapTextureSize);
+    fnFloor(mImplMaxRenderbufferSize);
 
-    mGLMaxTextureSize = FloorPOT(mGLMaxTextureSize);
-    mGLMaxRenderbufferSize = FloorPOT(mGLMaxRenderbufferSize);
+    fnFloor(mImplMax3DTextureSize);
+    fnFloor(mImplMaxArrayTextureLayers);
+
+    ////////////////
+
+    mGLMaxColorAttachments = 1;
+    mGLMaxDrawBuffers = 1;
 
     if (MinCapabilityMode()) {
         mGLMaxFragmentUniformVectors = MINVALUE_GL_MAX_FRAGMENT_UNIFORM_VECTORS;
