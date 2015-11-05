@@ -523,6 +523,10 @@ WebGLTexture::EnsureImageDataInitialized(const char* funcName, TexImageTarget ta
                                          uint32_t level)
 {
     auto& imageInfo = ImageInfoAt(target, level);
+    if (!imageInfo.IsDefined())
+        return true; // The driver should handle this for us?
+                     // (happens because ResolveFakeBlack plus incomplete mipchains)
+
     if (imageInfo.IsDataInitialized())
         return true;
 

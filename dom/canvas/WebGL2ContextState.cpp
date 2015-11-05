@@ -155,9 +155,7 @@ WebGL2Context::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
       return WebGLObjectAsJSValue(cx, mBoundSamplers[mActiveTexture].get(), rv);
 
     case LOCAL_GL_TEXTURE_BINDING_2D_ARRAY:
-      // TODO: Implement gl.TEXTURE_2D_ARRAY
-      // return WebGLObjectAsJSValue(cx, mBound2DTextureArrays[mActiveTexture].get(), rv);
-      return JS::NullValue();
+      return WebGLObjectAsJSValue(cx, mBound2DArrayTextures[mActiveTexture].get(), rv);
 
     case LOCAL_GL_TEXTURE_BINDING_3D:
       return WebGLObjectAsJSValue(cx, mBound3DTextures[mActiveTexture].get(), rv);
