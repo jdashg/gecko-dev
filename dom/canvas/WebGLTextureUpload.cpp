@@ -381,11 +381,13 @@ ValidateTexImage(WebGLContext* webgl, WebGLTexture* texture, const char* funcNam
         return false;
     }
 
-    if (level > 31) {
-        // Right-shift is only defined for bits-1, so 31 for GLsizei.
+    if (level > WebGLTexture::kMaxLevelCount) {
         webgl->ErrorInvalidValue("%s: `level` is too large.", funcName);
         return false;
     }
+
+    // Right-shift is only defined for bits-1, so 31 for GLsizei.
+    MOZ_ASSERT(level <= 31);
 
     WebGLTexture::ImageInfo& imageInfo = texture->ImageInfoAt(target, level);
 

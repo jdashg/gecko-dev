@@ -27,6 +27,14 @@ AlwaysInsert(std::map<K,V>& dest, const K2& key, const V2& val)
     return res.first;
 }
 
+template<typename K, typename V, typename K2, typename V2>
+static inline auto
+Insert(std::map<K,V>& dest, const K2& key, const V2& val)
+{
+    auto res = dest.insert({ key, val });
+    return res.first;
+}
+
 template<typename K, typename V, typename K2>
 static inline V*
 FindOrNull(const std::map<K,V*>& dest, const K2& key)
@@ -420,7 +428,8 @@ BytesPerPixel(const PackingInfo& packing)
 void
 FormatUsageInfo::AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value)
 {
-    auto itr = AlwaysInsert(validUnpacks, key, value);
+    // Don't AlwaysInsert here, since we'll see duplicates from sized and unsized formats.
+    auto itr = Insert(validUnpacks, key, value);
 
     if (!idealUnpack) {
         // First one!

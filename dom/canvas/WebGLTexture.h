@@ -76,17 +76,14 @@ protected:
 
     GLenum mTexCompareMode;
 
-    // ImageInfoArr
+public:
+    class ImageInfo;
 
     // numLevels = log2(size) + 1
     // numLevels(16k) = log2(16k) + 1 = 14 + 1 = 15
-    static const uint8_t kMaxLevelCount = 15;
-
-    // Unfortunately, since this is not dynamically allocated, we need this before the
-    // decl for `mImageInfoArr`.
-
-public:
-    class ImageInfo;
+    // numLevels(1M) = log2(1M) + 1 = 19.9 + 1 ~= 21
+    // Or we can just max this out to 31, which is the number of unsigned bits in GLsizei.
+    static const uint8_t kMaxLevelCount = 31;
 
     // And in turn, it needs these forwards:
 protected:

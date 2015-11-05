@@ -313,6 +313,8 @@ public:
             return mBoundCubeMapTextures[mActiveTexture];
         case LOCAL_GL_TEXTURE_3D:
             return mBound3DTextures[mActiveTexture];
+        case LOCAL_GL_TEXTURE_2D_ARRAY:
+            return mBound2DArrayTextures[mActiveTexture];
         default:
             MOZ_CRASH("bad target");
         }
@@ -1365,6 +1367,7 @@ protected:
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DTextures;
     nsTArray<WebGLRefPtr<WebGLTexture> > mBoundCubeMapTextures;
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound3DTextures;
+    nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DArrayTextures;
     nsTArray<WebGLRefPtr<WebGLSampler> > mBoundSamplers;
 
     void ResolveTexturesForDraw() const;

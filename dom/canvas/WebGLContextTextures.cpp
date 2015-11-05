@@ -192,24 +192,30 @@ WebGLContext::BindTexture(GLenum rawTarget, WebGLTexture* newTex)
     // newTex->Target() returns a TexTarget, which will assert on invalid value.
     WebGLRefPtr<WebGLTexture>* currentTexPtr = nullptr;
     switch (rawTarget) {
-        case LOCAL_GL_TEXTURE_2D:
-            currentTexPtr = &mBound2DTextures[mActiveTexture];
-            break;
+    case LOCAL_GL_TEXTURE_2D:
+        currentTexPtr = &mBound2DTextures[mActiveTexture];
+        break;
 
-       case LOCAL_GL_TEXTURE_CUBE_MAP:
-            currentTexPtr = &mBoundCubeMapTextures[mActiveTexture];
-            break;
+   case LOCAL_GL_TEXTURE_CUBE_MAP:
+        currentTexPtr = &mBoundCubeMapTextures[mActiveTexture];
+        break;
 
-       case LOCAL_GL_TEXTURE_3D:
-            if (!IsWebGL2())
-                return ErrorInvalidEnum("bindTexture: target TEXTURE_3D is only available in WebGL version 2.0 or newer");
-
+   case LOCAL_GL_TEXTURE_3D:
+        if (IsWebGL2())
             currentTexPtr = &mBound3DTextures[mActiveTexture];
-            break;
+        break;
 
-       default:
-            return ErrorInvalidEnumInfo("bindTexture: target", rawTarget);
+   case LOCAL_GL_TEXTURE_2D_ARRAY:
+        if (IsWebGL2())
+            currentTexPtr = &mBound2DArrayTextures[mActiveTexture];
+        break;
     }
+
+    if (!currentTexPtr) {
+        ErrorInvalidEnumInfo("bindTexture: target", rawTarget);
+        return;
+    }
+
     const TexTarget texTarget(rawTarget);
 
     MakeContextCurrent();
