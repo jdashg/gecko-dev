@@ -395,9 +395,10 @@ WebGLContext::DeleteTexture(WebGLTexture* tex)
 
     GLuint activeTexture = mActiveTexture;
     for (int32_t i = 0; i < mGLMaxTextureUnits; i++) {
-        if ((mBound2DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_2D) ||
-            (mBoundCubeMapTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_CUBE_MAP) ||
-            (mBound3DTextures[i] == tex && tex->Target() == LOCAL_GL_TEXTURE_3D))
+        if (mBound2DTextures[i] == tex ||
+            mBoundCubeMapTextures[i] == tex ||
+            mBound3DTextures[i] == tex ||
+            mBound2DArrayTextures[i] == tex)
         {
             ActiveTexture(LOCAL_GL_TEXTURE0 + i);
             BindTexture(tex->Target().get(), nullptr);
