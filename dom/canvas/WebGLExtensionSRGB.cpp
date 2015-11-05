@@ -47,7 +47,7 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
     fua->AddUnsizedTexFormat(pi, usage);
     usage->AddUnpack(pi, dui);
 
-    fua->AddRBFormat(LOCAL_GL_SRGB_ALPHA, usage);
+    fua->AddRBFormat(LOCAL_GL_SRGB8_ALPHA8, usage);
 }
 
 WebGLExtensionSRGB::~WebGLExtensionSRGB()

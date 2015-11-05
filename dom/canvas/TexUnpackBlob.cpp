@@ -335,7 +335,7 @@ TexUnpackSurface::OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_sr
     // WebGL specs the default as passing DOM elements top-left first.
     // Thus y-flip would give us bottom-left.
     *out_dst = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
-                                      : gl::OriginPos::TopLeft;
+                                        : gl::OriginPos::TopLeft;
 }
 
 /*static*/ bool
@@ -414,6 +414,8 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
                         &unpackAlignment))
     {
         return false;
+        // TODO: Consider using UNPACK_ settings to set the stride based on the too-large
+        // alignment used for many SourceSurfaces.
     }
 
     gl->MakeCurrent();
