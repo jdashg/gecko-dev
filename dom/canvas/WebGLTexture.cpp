@@ -400,7 +400,7 @@ WebGLTexture::IsComplete(const char** const out_reason) const
         if (!baseImageInfo.IsPowerOfTwo()) {
             // "either the texture wrap mode is not CLAMP_TO_EDGE"
             if (mWrapS != LOCAL_GL_CLAMP_TO_EDGE ||
-                mWrapS != LOCAL_GL_CLAMP_TO_EDGE)
+                mWrapT != LOCAL_GL_CLAMP_TO_EDGE)
             {
                 *out_reason = "Non-power-of-two textures must have a wrap mode of"
                               " CLAMP_TO_EDGE.";
@@ -639,14 +639,17 @@ WebGLTexture::BindTexture(TexTarget texTarget)
     if (isFirstBinding) {
         mFaceCount = IsCubeMap() ? 6 : 1;
 
+        gl::GLContext* gl = mContext->gl;
+
         // Thanks to the WebKit people for finding this out: GL_TEXTURE_WRAP_R
         // is not present in GLES 2, but is present in GL and it seems as if for
         // cube maps we need to set it to GL_CLAMP_TO_EDGE to get the expected
         // GLES behavior.
-        if (IsCubeMap() && !mContext->gl->IsGLES()) {
-            mContext->gl->fTexParameteri(texTarget.get(),
-                                         LOCAL_GL_TEXTURE_WRAP_R,
-                                         LOCAL_GL_CLAMP_TO_EDGE);
+        // If we are WebGL 2 though, we'll want to leave it as REPEAT.
+        const bool hasWrapR = gl->IsSupported(gl::GLFeature::texture_3D);
+        if (IsCubeMap() && hasWrapR && !mContext->IsWebGL2()) {
+            gl->fTexParameteri(texTarget.get(), LOCAL_GL_TEXTURE_WRAP_R,
+                               LOCAL_GL_CLAMP_TO_EDGE);
         }
     }
 
@@ -735,7 +738,6 @@ WebGLTexture::GetTexParameter(TexTarget texTarget, GLenum pname)
     case LOCAL_GL_TEXTURE_BASE_LEVEL:
     case LOCAL_GL_TEXTURE_COMPARE_FUNC:
     case LOCAL_GL_TEXTURE_COMPARE_MODE:
-    case LOCAL_GL_TEXTURE_IMMUTABLE_FORMAT:
     case LOCAL_GL_TEXTURE_IMMUTABLE_LEVELS:
     case LOCAL_GL_TEXTURE_MAX_LEVEL:
     case LOCAL_GL_TEXTURE_SWIZZLE_A:
@@ -745,6 +747,10 @@ WebGLTexture::GetTexParameter(TexTarget texTarget, GLenum pname)
     case LOCAL_GL_TEXTURE_WRAP_R:
         mContext->gl->fGetTexParameteriv(texTarget.get(), pname, &i);
         return JS::NumberValue(uint32_t(i));
+
+    case LOCAL_GL_TEXTURE_IMMUTABLE_FORMAT:
+        mContext->gl->fGetTexParameteriv(texTarget.get(), pname, &i);
+        return JS::BooleanValue(bool(i));
 
     case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
     case LOCAL_GL_TEXTURE_MAX_LOD:
@@ -775,47 +781,57 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
     GLint   intParam   = maybeIntParam   ? *maybeIntParam   : GLint(*maybeFloatParam);
     GLfloat floatParam = maybeFloatParam ? *maybeFloatParam : GLfloat(*maybeIntParam);
 
+    bool isPNameValid = false;
+    switch (pname) {
+    // GLES 2.0.25 p76:
+    case LOCAL_GL_TEXTURE_WRAP_S:
+    case LOCAL_GL_TEXTURE_WRAP_T:
+    case LOCAL_GL_TEXTURE_MIN_FILTER:
+    case LOCAL_GL_TEXTURE_MAG_FILTER:
+        isPNameValid = true;
+        break;
+
+    // GLES 3.0.4 p149-150:
+    case LOCAL_GL_TEXTURE_BASE_LEVEL:
+    case LOCAL_GL_TEXTURE_COMPARE_MODE:
+    case LOCAL_GL_TEXTURE_COMPARE_FUNC:
+    case LOCAL_GL_TEXTURE_MAX_LEVEL:
+    case LOCAL_GL_TEXTURE_MAX_LOD:
+    case LOCAL_GL_TEXTURE_MIN_LOD:
+    case LOCAL_GL_TEXTURE_WRAP_R:
+        if (mContext->IsWebGL2())
+            isPNameValid = true;
+        break;
+
+    case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
+        if (mContext->IsExtensionEnabled(WebGLExtensionID::EXT_texture_filter_anisotropic))
+            isPNameValid = false;
+        break;
+    }
+
+    if (!isPNameValid) {
+        mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
+        return;
+    }
+
+    ////////////////
+    // Validate params and invalidate if needed.
+
     bool paramBadEnum = false;
     bool paramBadValue = false;
 
     switch (pname) {
     case LOCAL_GL_TEXTURE_BASE_LEVEL:
     case LOCAL_GL_TEXTURE_MAX_LEVEL:
-        if (!mContext->IsWebGL2())
-            return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
-
-        if (intParam < 0) {
-            paramBadValue = true;
-            break;
-        }
-
-        InvalidateFakeBlackCache();
-
-        if (pname == LOCAL_GL_TEXTURE_BASE_LEVEL)
-            mBaseMipmapLevel = intParam;
-        else
-            mMaxMipmapLevel = intParam;
-
-        ClampLevelBaseAndMax();
-
+        paramBadValue = (intParam < 0);
         break;
 
     case LOCAL_GL_TEXTURE_COMPARE_MODE:
-        if (!mContext->IsWebGL2())
-            return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
-
-        InvalidateFakeBlackCache();
-
         paramBadValue = (intParam != LOCAL_GL_NONE &&
                          intParam != LOCAL_GL_COMPARE_REF_TO_TEXTURE);
         break;
 
     case LOCAL_GL_TEXTURE_COMPARE_FUNC:
-        if (!mContext->IsWebGL2())
-            return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
-
-        InvalidateFakeBlackCache();
-
         switch (intParam) {
         case LOCAL_GL_LEQUAL:
         case LOCAL_GL_GEQUAL:
@@ -829,6 +845,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
 
         default:
             paramBadValue = true;
+            break;
         }
         break;
 
@@ -840,12 +857,11 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         case LOCAL_GL_LINEAR_MIPMAP_NEAREST:
         case LOCAL_GL_NEAREST_MIPMAP_LINEAR:
         case LOCAL_GL_LINEAR_MIPMAP_LINEAR:
-            InvalidateFakeBlackCache();
-            mMinFilter = intParam;
             break;
 
         default:
             paramBadEnum = true;
+            break;
         }
         break;
 
@@ -853,56 +869,36 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         switch (intParam) {
         case LOCAL_GL_NEAREST:
         case LOCAL_GL_LINEAR:
-            InvalidateFakeBlackCache();
-            mMagFilter = intParam;
             break;
 
         default:
             paramBadEnum = true;
+            break;
         }
         break;
 
     case LOCAL_GL_TEXTURE_WRAP_S:
-        switch (intParam) {
-        case LOCAL_GL_CLAMP_TO_EDGE:
-        case LOCAL_GL_MIRRORED_REPEAT:
-        case LOCAL_GL_REPEAT:
-            InvalidateFakeBlackCache();
-            mWrapS = intParam;
-            break;
-
-        default:
-            paramBadEnum = true;
-        }
-        break;
-
     case LOCAL_GL_TEXTURE_WRAP_T:
+    case LOCAL_GL_TEXTURE_WRAP_R:
         switch (intParam) {
         case LOCAL_GL_CLAMP_TO_EDGE:
         case LOCAL_GL_MIRRORED_REPEAT:
         case LOCAL_GL_REPEAT:
-            InvalidateFakeBlackCache();
-            mWrapT = intParam;
             break;
 
         default:
             paramBadEnum = true;
+            break;
         }
         break;
 
     case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
-        if (!mContext->IsExtensionEnabled(WebGLExtensionID::EXT_texture_filter_anisotropic))
-            return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
-
         if (maybeFloatParam && floatParam < 1.0f)
             paramBadValue = true;
         else if (maybeIntParam && intParam < 1)
             paramBadValue = true;
 
         break;
-
-    default:
-        return mContext->ErrorInvalidEnumInfo("texParameter: pname", pname);
     }
 
     if (paramBadEnum) {
@@ -928,6 +924,48 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
         }
         return;
     }
+
+    ////////////////
+    // Store any needed values
+
+    switch (pname) {
+    case LOCAL_GL_TEXTURE_BASE_LEVEL:
+        mBaseMipmapLevel = intParam;
+        ClampLevelBaseAndMax();
+        break;
+
+    case LOCAL_GL_TEXTURE_MAX_LEVEL:
+        mMaxMipmapLevel = intParam;
+        ClampLevelBaseAndMax();
+        break;
+
+    case LOCAL_GL_TEXTURE_MIN_FILTER:
+        mMinFilter = intParam;
+        break;
+
+    case LOCAL_GL_TEXTURE_MAG_FILTER:
+        mMagFilter = intParam;
+        break;
+
+    case LOCAL_GL_TEXTURE_WRAP_S:
+        mWrapS = intParam;
+        break;
+
+    case LOCAL_GL_TEXTURE_WRAP_T:
+        mWrapT = intParam;
+        break;
+
+    // We don't actually need to store the WRAP_R, since it doesn't change texture
+    // completeness rules.
+    }
+
+    // The only pname that doesn't actually need fake-black invalidation is
+    // LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT.
+    if (pname != LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT) {
+        InvalidateFakeBlackCache();
+    }
+
+    ////////////////
 
     mContext->MakeContextCurrent();
     if (maybeIntParam)
