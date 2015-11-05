@@ -671,13 +671,7 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 
     // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
     fnAddES3TexFormat(FOO(STENCIL_INDEX8), true, false);
-/*
-    // GLES 3.0.4, p128, table 3.12.
-    // Unsized RGBA/RGB formats are renderable, other unsized are not.
-    fnAddES3TexFormat(FOO(Luminance8Alpha8, false, true);
-    fnAddES3TexFormat(FOO(Luminance8      , false, true);
-    fnAddES3TexFormat(FOO(Alpha8          , false, true);
-*/
+
     // GLES 3.0.4, p147, table 3.19
     // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
     // (jgilbert) I can't find where these are established as filterable.

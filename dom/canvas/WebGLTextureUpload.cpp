@@ -1083,8 +1083,6 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     MOZ_ASSERT(imageInfo);
 
     const webgl::PackingInfo srcPacking = { unpackFormat, unpackType };
-    if (!ValidateUnpackEnums(srcPacking, mContext, funcName))
-        return;
 
     auto dstUsage = mContext->mFormatUsage->GetSizedTexUsage(internalFormat);
     if (!dstUsage) {
@@ -1101,6 +1099,15 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     if (!dstUsage) {
         mContext->ErrorInvalidOperation("%s: Invalid internalformat/format/type:"
                                         " 0x%04x/0x%04x/0x%04x",
+                                        funcName, internalFormat, unpackFormat,
+                                        unpackType);
+        return;
+    }
+
+    const webgl::DriverUnpackInfo* driverUnpackInfo;
+    if (!dstUsage->IsUnpackValid(srcPacking, &driverUnpackInfo)) {
+        mContext->ErrorInvalidOperation("%s: Mismatched internalFormat and format/type:"
+                                        " 0x%04x and 0x%04x/0x%04x",
                                         funcName, internalFormat, unpackFormat,
                                         unpackType);
         return;
@@ -1127,15 +1134,6 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
                                             funcName, dstFormat->name);
             return;
         }
-    }
-
-    const webgl::DriverUnpackInfo* driverUnpackInfo;
-    if (!dstUsage->IsUnpackValid(srcPacking, &driverUnpackInfo)) {
-        mContext->ErrorInvalidOperation("%s: Mismatched internalFormat and format/type:"
-                                        " 0x%04x and 0x%04x/0x%04x",
-                                        funcName, internalFormat, unpackFormat,
-                                        unpackType);
-        return;
     }
 
     ////////////////////////////////////

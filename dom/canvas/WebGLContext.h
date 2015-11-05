@@ -1688,6 +1688,7 @@ GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
 
 class UniqueBuffer
 {
+    // Like UniquePtr<>, but for void* and malloc/calloc/free.
     void* mBuffer;
 
 public:
