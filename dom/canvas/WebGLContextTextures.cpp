@@ -61,6 +61,7 @@ IsValidTexTarget(WebGLContext* webgl, GLenum rawTexTarget,
         break;
 
     case LOCAL_GL_TEXTURE_3D:
+    case LOCAL_GL_TEXTURE_2D_ARRAY:
         if (!webgl->IsWebGL2())
             return false;
 
@@ -92,6 +93,7 @@ IsValidTexImageTarget(WebGLContext* webgl, uint8_t funcDims, GLenum rawTexImageT
         break;
 
     case LOCAL_GL_TEXTURE_3D:
+    case LOCAL_GL_TEXTURE_2D_ARRAY:
         if (!webgl->IsWebGL2())
             return false;
 
@@ -158,7 +160,7 @@ ValidateTexImageTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDi
     return true;
 }
 
-bool
+/*virtual*/ bool
 WebGLContext::IsTexParamValid(GLenum pname) const
 {
     switch (pname) {

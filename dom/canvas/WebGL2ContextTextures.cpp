@@ -232,7 +232,7 @@ WebGL2Context::CopyTexSubImage3D(GLenum rawTexImageTarget, GLint level, GLint xO
                          height);
 }
 
-bool
+/*virtual*/ bool
 WebGL2Context::IsTexParamValid(GLenum pname) const
 {
     switch (pname) {

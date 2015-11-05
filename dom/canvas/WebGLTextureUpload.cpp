@@ -14,6 +14,7 @@
 #include "mozilla/gfx/SourceSurfaceRawData.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Scoped.h"
+#include "mozilla/unused.h"
 #include "ScopedGLHelpers.h"
 #include "TexUnpackBlob.h"
 #include "WebGLContext.h"
@@ -952,7 +953,7 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
         return;
     }
     MOZ_ASSERT(testImageInfo);
-    mozilla::unused << testImageInfo;
+    mozilla::Unused << testImageInfo;
 
     auto dstUsage = mContext->mFormatUsage->GetSizedTexUsage(sizedFormat);
     if (!dstUsage) {
