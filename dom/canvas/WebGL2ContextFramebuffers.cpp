@@ -161,7 +161,9 @@ WebGL2Context::BlitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY
     }
 
     if (mask & LOCAL_GL_COLOR_BUFFER_BIT) {
-        const auto fnSignlessType = [](const webgl::FormatInfo* format) {
+        const auto fnSignlessType = [](const webgl::FormatInfo* format)
+                                    -> webgl::ComponentType
+        {
             if (!format)
                 return webgl::ComponentType::None;
 

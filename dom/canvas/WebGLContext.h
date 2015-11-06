@@ -1695,7 +1695,11 @@ public:
         : mBuffer(buffer)
     { }
 
-    explicit UniqueBuffer(UniqueBuffer&& other) {
+    ~UniqueBuffer() {
+        free(mBuffer);
+    }
+
+    UniqueBuffer(UniqueBuffer&& other) {
         this->mBuffer = other.mBuffer;
         other.mBuffer = nullptr;
     }

@@ -45,6 +45,7 @@ protected:
 public:
     void Unwrap() {
         MOZ_ASSERT(!mIsUnwrapped);
+        MOZ_ASSERT(IsContextCurrent(mGL));
 
         Derived* derived = static_cast<Derived*>(this);
         derived->UnwrapImpl();
