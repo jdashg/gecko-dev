@@ -559,7 +559,7 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
     FOO(RGB565           );
     FOO(DEPTH_COMPONENT16);
     FOO(STENCIL_INDEX8   );
-    //FOO(DEPTH24_STENCIL8 );
+    //FOO(DEPTH24_STENCIL8 ); // WebGL 1 uses DEPTH_STENCIL instead of DEPTH24_STENCIL8.
 
 #undef FOO
 

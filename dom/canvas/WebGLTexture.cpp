@@ -805,7 +805,7 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
 
     case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
         if (mContext->IsExtensionEnabled(WebGLExtensionID::EXT_texture_filter_anisotropic))
-            isPNameValid = false;
+            isPNameValid = true;
         break;
     }
 

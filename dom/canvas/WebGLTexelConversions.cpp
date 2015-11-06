@@ -377,7 +377,7 @@ ConvertImage(size_t width, size_t height,
         // needed, we still might have to flip vertically and/or to adjust to a different
         // stride.
 
-        MOZ_ASSERT(!shouldYFlip || srcStride != dstStride,
+        MOZ_ASSERT(shouldYFlip || srcStride != dstStride,
                    "Performance trap -- should handle this case earlier to avoid memcpy");
 
         const auto bytesPerPixel = TexelBytesForFormat(srcFormat);
