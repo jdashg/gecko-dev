@@ -853,7 +853,6 @@ ValidateCompressedTexImageRestrictions(const char* funcName, WebGLContext* webgl
         return (size == 0 || size == 1 || size == 2);
     };
 
-    bool supports2DArray = false;
     switch (format->compression->family) {
     case webgl::CompressionFamily::PVRTC:
         if (!IsPowerOfTwo(width) || !IsPowerOfTwo(height)) {
@@ -864,14 +863,7 @@ ValidateCompressedTexImageRestrictions(const char* funcName, WebGLContext* webgl
 
         break;
 
-    // Block-aligned:
-    case webgl::CompressionFamily::ES3:
-        supports2DArray = true;
-        break;
-
     case webgl::CompressionFamily::S3TC:
-        supports2DArray = true;
-
         if (!fnIsDimValid_S3TC(width, format->compression->blockWidth) ||
             !fnIsDimValid_S3TC(height, format->compression->blockHeight))
         {
@@ -885,25 +877,78 @@ ValidateCompressedTexImageRestrictions(const char* funcName, WebGLContext* webgl
         break;
 
     // Default: There are no restrictions on CompressedTexImage.
-    default: // ATC, ETC1
+    default: // ATC, ETC1, ES3
         break;
     }
 
-    bool targetSupported = true;
-    switch (target.get()) {
-    case LOCAL_GL_TEXTURE_3D:
-        targetSupported = false;
+    return true;
+}
+
+static bool
+ValidateTargetForFormat(const char* funcName, WebGLContext* webgl, TexImageTarget target,
+                        const webgl::FormatInfo* format)
+{
+    // GLES 3.0.4 p127:
+    // "Textures with a base internal format of DEPTH_COMPONENT or DEPTH_STENCIL are
+    //  supported by texture image specification commands only if `target` is TEXTURE_2D,
+    //  TEXTURE_2D_ARRAY, or TEXTURE_CUBE_MAP. Using these formats in conjunction with any
+    //  other `target` will result in an INVALID_OPERATION error."
+
+    switch (format->effectiveFormat) {
+    // TEXTURE_2D_ARRAY but not TEXTURE_3D:
+    // D and DS formats
+    case webgl::EffectiveFormat::DEPTH_COMPONENT16:
+    case webgl::EffectiveFormat::DEPTH_COMPONENT24:
+    case webgl::EffectiveFormat::DEPTH_COMPONENT32F:
+    case webgl::EffectiveFormat::DEPTH24_STENCIL8:
+    case webgl::EffectiveFormat::DEPTH32F_STENCIL8:
+    // CompressionFamily::ES3
+    case webgl::EffectiveFormat::COMPRESSED_R11_EAC:
+    case webgl::EffectiveFormat::COMPRESSED_SIGNED_R11_EAC:
+    case webgl::EffectiveFormat::COMPRESSED_RG11_EAC:
+    case webgl::EffectiveFormat::COMPRESSED_SIGNED_RG11_EAC:
+    case webgl::EffectiveFormat::COMPRESSED_RGB8_ETC2:
+    case webgl::EffectiveFormat::COMPRESSED_SRGB8_ETC2:
+    case webgl::EffectiveFormat::COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+    case webgl::EffectiveFormat::COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA8_ETC2_EAC:
+    case webgl::EffectiveFormat::COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
+    // CompressionFamily::S3TC
+    case webgl::EffectiveFormat::COMPRESSED_RGB_S3TC_DXT1_EXT:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT1_EXT:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT3_EXT:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA_S3TC_DXT5_EXT:
+        if (target == LOCAL_GL_TEXTURE_3D) {
+            webgl->ErrorInvalidOperation("%s: Format %s cannot be used with TEXTURE_3D.",
+                                         funcName, format->name);
+            return false;
+        }
         break;
 
-    case LOCAL_GL_TEXTURE_2D_ARRAY:
-        targetSupported = supports2DArray;
+    // No 3D targets:
+    // CompressionFamily::ATC
+    case webgl::EffectiveFormat::ATC_RGB_AMD:
+    case webgl::EffectiveFormat::ATC_RGBA_EXPLICIT_ALPHA_AMD:
+    case webgl::EffectiveFormat::ATC_RGBA_INTERPOLATED_ALPHA_AMD:
+    // CompressionFamily::PVRTC
+    case webgl::EffectiveFormat::COMPRESSED_RGB_PVRTC_4BPPV1:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA_PVRTC_4BPPV1:
+    case webgl::EffectiveFormat::COMPRESSED_RGB_PVRTC_2BPPV1:
+    case webgl::EffectiveFormat::COMPRESSED_RGBA_PVRTC_2BPPV1:
+    // CompressionFamily::ETC1
+    case webgl::EffectiveFormat::ETC1_RGB8_OES:
+        if (target == LOCAL_GL_TEXTURE_3D ||
+            target == LOCAL_GL_TEXTURE_2D_ARRAY)
+        {
+            webgl->ErrorInvalidOperation("%s: Format %s cannot be used with TEXTURE_3D or"
+                                         " TEXTURE_2D_ARRAY.",
+                                         funcName, format->name);
+            return false;
+        }
         break;
-    }
 
-    if (!targetSupported) {
-        webgl->ErrorInvalidOperation("%s: This target is not supported by this %s.",
-                                     funcName, format->name);
-        return false;
+    default:
+        break;
     }
 
     return true;
@@ -947,6 +992,9 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
         return;
     }
     auto dstFormat = dstUsage->format;
+
+    if (!ValidateTargetForFormat(funcName, mContext, testTarget, dstFormat))
+        return;
 
     if (dstFormat->compression) {
         if (!ValidateCompressedTexImageRestrictions(funcName, mContext, testTarget,
@@ -1108,6 +1156,9 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     ////////////////////////////////////
     // Check that source and dest info are compatible
     auto dstFormat = dstUsage->format;
+
+    if (!ValidateTargetForFormat(funcName, mContext, target, dstFormat))
+        return;
 
     if (!mContext->IsWebGL2() && dstFormat->hasDepth) {
         if (target != LOCAL_GL_TEXTURE_2D ||
@@ -1287,6 +1338,9 @@ WebGLTexture::CompressedTexImage(const char* funcName, TexImageTarget target, GL
                                    funcName);
         return;
     }
+
+    if (!ValidateTargetForFormat(funcName, mContext, target, format))
+        return;
 
     ////////////////////////////////////
     // Get source info
@@ -1582,6 +1636,9 @@ WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internal
         return;
     }
     auto dstFormat = dstUsage->format;
+
+    if (!ValidateTargetForFormat(funcName, mContext, target, dstFormat))
+        return;
 
     if (!mContext->IsWebGL2() && dstFormat->hasDepth) {
         mContext->ErrorInvalidOperation("%s: Function may not be called with format %s.",
