@@ -82,21 +82,6 @@ ImageFromVideo(dom::HTMLVideoElement* elem)
     return ret.forget();
 }
 
-static already_AddRefed<gfx::DataSourceSurface>
-DataFromElement(dom::Element* elem, WebGLContext* webgl)
-{
-    const auto sfeRes = webgl->SurfaceFromElement(elem);
-
-    RefPtr<gfx::DataSourceSurface> data;
-    WebGLTexelFormat srcFormat;
-    nsresult rv = webgl->SurfaceFromElementResultToImageSurface(sfeRes, &data,
-                                                                &srcFormat);
-    if (NS_FAILED(rv) || !data)
-        return nullptr;
-
-    return data.forget();
-}
-
 ////////////////////////////////////////
 // ArrayBufferView?
 
@@ -652,8 +637,8 @@ DoChannelsMatchForCopyTexImage(const webgl::FormatInfo* srcFormat,
 static bool
 EnsureImageDataInitializedForUpload(WebGLTexture* tex, const char* funcName,
                                     TexImageTarget target, GLint level, GLint xOffset,
-                                    GLint yOffset, GLint zOffset, GLsizei width,
-                                    GLsizei height, GLsizei depth,
+                                    GLint yOffset, GLint zOffset, uint32_t width,
+                                    uint32_t height, uint32_t depth,
                                     WebGLTexture::ImageInfo* imageInfo,
                                     bool* const out_uploadWillInitialize)
 {
@@ -1358,7 +1343,7 @@ WebGLTexture::CompressedTexImage(const char* funcName, TexImageTarget target, GL
 static inline bool
 IsSubImageBlockAligned(const webgl::CompressedFormatInfo* compression,
                        const WebGLTexture::ImageInfo* imageInfo, GLint xOffset,
-                       GLint yOffset, GLsizei width, GLsizei height)
+                       GLint yOffset, uint32_t width, uint32_t height)
 {
     if (xOffset % compression->blockWidth != 0 ||
         yOffset % compression->blockHeight != 0)
@@ -1453,8 +1438,8 @@ WebGLTexture::CompressedTexSubImage(const char* funcName, TexImageTarget target,
     // Full-only: (The ES3 default)
     default: // PVRTC
         if (xOffset || yOffset ||
-            width != imageInfo->mWidth ||
-            height != imageInfo->mHeight)
+            uint32_t(width) != imageInfo->mWidth ||
+            uint32_t(height) != imageInfo->mHeight)
         {
             mContext->ErrorInvalidOperation("%s: Format does not allow partial sub-image"
                                             " updates.",
@@ -1583,6 +1568,9 @@ WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internal
         case webgl::ComponentType::Float:
             pi.type = LOCAL_GL_FLOAT;
             break;
+
+        default:
+            break;
         }
 
         dstUsage = fua->GetUnsizedTexUsage(pi);
@@ -1617,7 +1605,7 @@ WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internal
     Intersect(srcHeight, y, height, &readY, &writeY, &rwHeight);
 
     GLenum error;
-    if (rwWidth == width && rwHeight == height) {
+    if (rwWidth == uint32_t(width) && rwHeight == uint32_t(height)) {
         error = DoCopyTexImage2D(gl, target, level, internalFormat, x, y, width, height,
                                  border);
     } else {

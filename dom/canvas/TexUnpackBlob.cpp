@@ -374,13 +374,12 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
 
     switch (surf->GetFormat()) {
     case gfx::SurfaceFormat::B8G8R8A8:
-        if (dui->internalFormat == LOCAL_GL_RGBA &&
+        if (SupportsBGRA(gl) &&
+            dui->internalFormat == LOCAL_GL_RGBA &&
             dui->unpackFormat == LOCAL_GL_RGBA &&
             dui->unpackType == LOCAL_GL_UNSIGNED_BYTE)
         {
-            if (gl->IsANGLE()) {
-                chosenDUI = &kInfoBGRA;
-            }
+            chosenDUI = &kInfoBGRA;
         }
         break;
 
@@ -398,6 +397,9 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
         {
             chosenDUI = dui;
         }
+        break;
+
+    default:
         break;
     }
 
@@ -477,9 +479,10 @@ GetFormatForSurf(gfx::SourceSurface* surf, WebGLTexelFormat* const out_texelForm
         // When we want to, check out gfx/ycbcr/YCbCrUtils.h. (specifically
         // GetYCbCrToRGBDestFormatAndSize and ConvertYCbCrToRGB)
         return false;
-    }
 
-    return false;
+    default:
+        return false;
+    }
 }
 
 static bool
