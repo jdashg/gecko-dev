@@ -409,19 +409,24 @@ WebGLTexture::ValidateTexImageSpecification(const char* funcName, TexImageTarget
         return false;
     }
 
+    // Do this early to validate `level`.
+    WebGLTexture::ImageInfo* imageInfo;
+    if (!ValidateTexImage(mContext, this, funcName, target, level, &imageInfo))
+        return false;
+
     // Check border
     if (border != 0) {
         mContext->ErrorInvalidValue("%s: `border` must be 0.", funcName);
         return false;
     }
 
-    if (level < 0 || width < 0 || height < 0 || depth < 0) {
+    if (width < 0 || height < 0 || depth < 0) {
         /* GL ES Version 2.0.25 - 3.7.1 Texture Image Specification
          *   "If wt and ht are the specified image width and height,
          *   and if either wt or ht are less than zero, then the error
          *   INVALID_VALUE is generated."
          */
-        mContext->ErrorInvalidValue("%s: `level`/`width`/`height`/`depth` must be >= 0.",
+        mContext->ErrorInvalidValue("%s: `width`/`height`/`depth` must be >= 0.",
                                     funcName);
         return false;
     }
@@ -443,31 +448,30 @@ WebGLTexture::ValidateTexImageSpecification(const char* funcName, TexImageTarget
     uint32_t maxWidthHeight = 0;
     uint32_t maxDepth = 0;
 
-    if (level <= 31) {
-        switch (target.get()) {
-        case LOCAL_GL_TEXTURE_2D:
-            maxWidthHeight = mContext->mImplMaxTextureSize >> level;
-            maxDepth = 1;
-            break;
+    MOZ_ASSERT(level <= 31);
+    switch (target.get()) {
+    case LOCAL_GL_TEXTURE_2D:
+        maxWidthHeight = mContext->mImplMaxTextureSize >> level;
+        maxDepth = 1;
+        break;
 
-        case LOCAL_GL_TEXTURE_3D:
-            maxWidthHeight = mContext->mImplMax3DTextureSize >> level;
-            maxDepth = maxWidthHeight;
-            break;
+    case LOCAL_GL_TEXTURE_3D:
+        maxWidthHeight = mContext->mImplMax3DTextureSize >> level;
+        maxDepth = maxWidthHeight;
+        break;
 
-        case LOCAL_GL_TEXTURE_2D_ARRAY:
-            maxWidthHeight = mContext->mImplMaxTextureSize >> level;
-            // "The maximum number of layers for two-dimensional array textures (depth)
-            //  must be at least MAX_ARRAY_TEXTURE_LAYERS for all levels."
-            maxDepth = mContext->mImplMaxArrayTextureLayers;
-            break;
+    case LOCAL_GL_TEXTURE_2D_ARRAY:
+        maxWidthHeight = mContext->mImplMaxTextureSize >> level;
+        // "The maximum number of layers for two-dimensional array textures (depth)
+        //  must be at least MAX_ARRAY_TEXTURE_LAYERS for all levels."
+        maxDepth = mContext->mImplMaxArrayTextureLayers;
+        break;
 
-        default: // cube maps
-            MOZ_ASSERT(IsCubeMap());
-            maxWidthHeight = mContext->mImplMaxCubeMapTextureSize >> level;
-            maxDepth = 1;
-            break;
-        }
+    default: // cube maps
+        MOZ_ASSERT(IsCubeMap());
+        maxWidthHeight = mContext->mImplMaxCubeMapTextureSize >> level;
+        maxDepth = 1;
+        break;
     }
 
     if (uint32_t(width) > maxWidthHeight ||
@@ -498,10 +502,6 @@ WebGLTexture::ValidateTexImageSpecification(const char* funcName, TexImageTarget
             }
         }
     }
-
-    WebGLTexture::ImageInfo* imageInfo;
-    if (!ValidateTexImage(mContext, this, funcName, target, level, &imageInfo))
-        return false;
 
     *out_imageInfo = imageInfo;
     return true;
