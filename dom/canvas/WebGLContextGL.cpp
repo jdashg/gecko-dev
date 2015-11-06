@@ -898,14 +898,11 @@ WebGLContext::GetRenderbufferParameter(GLenum target, GLenum pname)
         case LOCAL_GL_RENDERBUFFER_ALPHA_SIZE:
         case LOCAL_GL_RENDERBUFFER_DEPTH_SIZE:
         case LOCAL_GL_RENDERBUFFER_STENCIL_SIZE:
+        case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
         {
             // RB emulation means we have to ask the RB itself.
             GLint i = mBoundRenderbuffer->GetRenderbufferParameter(target, pname);
             return JS::Int32Value(i);
-        }
-        case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
-        {
-            return JS::NumberValue(mBoundRenderbuffer->GetInternalFormat());
         }
         default:
             ErrorInvalidEnumInfo("getRenderbufferParameter: parameter", pname);

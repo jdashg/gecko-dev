@@ -1681,11 +1681,6 @@ ValidateTexImageTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDi
                        GLenum rawTexImageTarget, TexImageTarget* const out_texImageTarget,
                        WebGLTexture** const out_tex);
 
-
-bool
-GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
-                         size_t* const out_alignment);
-
 class UniqueBuffer
 {
     // Like UniquePtr<>, but for void* and malloc/calloc/free.
