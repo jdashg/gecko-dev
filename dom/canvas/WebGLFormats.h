@@ -247,7 +247,7 @@ struct FormatUsageInfo
     const DriverUnpackInfo* idealUnpack;
     //const GLint* textureSwizzleRGBA;
 
-    FormatUsageInfo(const FormatInfo* _format)
+    explicit FormatUsageInfo(const FormatInfo* _format)
         : format(_format)
         , isRenderable(false)
         , isFilterable(false)

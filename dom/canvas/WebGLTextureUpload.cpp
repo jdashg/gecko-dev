@@ -1176,7 +1176,7 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     ////////////////////////////////////
     // Do the thing!
 
-    mContext->gl->MakeCurrent();
+    MOZ_ALWAYS_TRUE( mContext->gl->MakeCurrent() );
 
     // It's tempting to do allocation first, and TexSubImage second, but this is generally
     // slower.
