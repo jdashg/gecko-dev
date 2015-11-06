@@ -59,6 +59,8 @@ protected:
     { }
 
 public:
+    virtual ~TexUnpackBlob() {}
+
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) = 0;
 

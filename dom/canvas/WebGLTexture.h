@@ -321,7 +321,6 @@ public:
     void SetImageInfoAt(TexImageTarget texImageTarget, GLint level,
                         const ImageInfo& val)
     {
-        auto face = FaceForTarget(texImageTarget);
         ImageInfo* target = &ImageInfoAt(texImageTarget, level);
         SetImageInfo(target, val);
     }

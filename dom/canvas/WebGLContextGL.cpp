@@ -1623,7 +1623,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     Intersect(srcWidth, x, width, &readX, &writeX, &rwWidth);
     Intersect(srcHeight, y, height, &readY, &writeY, &rwHeight);
 
-    if (rwWidth == width && rwHeight == height) {
+    if (rwWidth == uint32_t(width) && rwHeight == uint32_t(height)) {
         DoReadPixelsAndConvert(x, y, width, height, format, type, data, auxReadFormat,
                                auxReadType);
         return;

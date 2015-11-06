@@ -15,24 +15,13 @@
 namespace mozilla {
 namespace webgl {
 
-// Returns an iterator to the in-place pair.
 template<typename K, typename V, typename K2, typename V2>
-static inline auto
+static inline void
 AlwaysInsert(std::map<K,V>& dest, const K2& key, const V2& val)
 {
     auto res = dest.insert({ key, val });
-    DebugOnly<bool> didInsert = res.second;
-    MOZ_ASSERT(didInsert);
-
-    return res.first;
-}
-
-template<typename K, typename V, typename K2, typename V2>
-static inline auto
-Insert(std::map<K,V>& dest, const K2& key, const V2& val)
-{
-    auto res = dest.insert({ key, val });
-    return res.first;
+    bool didInsert = res.second;
+    MOZ_ALWAYS_TRUE(didInsert);
 }
 
 template<typename K, typename V, typename K2>
@@ -181,7 +170,7 @@ AddFormatInfo(EffectiveFormat format, const char* name, GLenum sizedFormat,
     const FormatInfo info = { format, name, sizedFormat, unsizedFormat, componentType,
                               bytesPerPixel, isColorFormat, isSRGB, hasAlpha, hasDepth,
                               hasStencil, compressedFormatInfo };
-    const auto itr = AlwaysInsert(gFormatInfoMap, format, info);
+    AlwaysInsert(gFormatInfoMap, format, info);
 }
 
 static void
@@ -429,7 +418,8 @@ void
 FormatUsageInfo::AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value)
 {
     // Don't AlwaysInsert here, since we'll see duplicates from sized and unsized formats.
-    auto itr = Insert(validUnpacks, key, value);
+    auto res = validUnpacks.insert({ key, value });
+    auto itr = res.first;
 
     if (!idealUnpack) {
         // First one!
@@ -845,7 +835,12 @@ FormatUsageAuthority::EditUsage(EffectiveFormat format)
         MOZ_RELEASE_ASSERT(formatInfo);
 
         FormatUsageInfo usage(formatInfo);
-        itr = AlwaysInsert(mUsageMap, format, usage);
+
+        auto res = mUsageMap.insert({ format, usage });
+        DebugOnly<bool> didInsert = res.second;
+        MOZ_ASSERT(didInsert);
+
+        itr = res.first;
     }
 
     return &(itr->second);
