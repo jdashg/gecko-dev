@@ -270,20 +270,24 @@ WebGLRenderbuffer::GetRenderbufferParameter(RBTarget target,
             gl->fGetRenderbufferParameteriv(target.get(), pname.get(), &i);
             return i;
         }
+
+    case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
+        {
+            GLenum ret = 0;
+            if (mFormat) {
+                ret = mFormat->format->sizedFormat;
+
+                if (!mContext->IsWebGL2() && ret == LOCAL_GL_DEPTH24_STENCIL8) {
+                    ret = LOCAL_GL_DEPTH_STENCIL;
+                }
+            }
+            return ret;
+        }
     }
 
     MOZ_ASSERT(false,
                "This function should only be called with valid `pname`.");
     return 0;
-}
-
-GLenum
-WebGLRenderbuffer::GetInternalFormat() const
-{
-    if (!mFormat)
-        return 0;
-
-    return mFormat->format->sizedFormat;
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_0(WebGLRenderbuffer)

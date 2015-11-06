@@ -678,6 +678,36 @@ var glErrorShouldBe = function(gl, glError, opt_msg) {
 };
 
 /**
+ * Tests that the first error GL returns is the specified error.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {number} glError The expected gl error.
+ * @param {string} opt_msg
+ */
+var glErrorShouldBeIn = function(gl, expectedErrorList, opt_msg) {
+  opt_msg = opt_msg || "";
+
+  var expectedErrorStrList = [];
+  var expectedErrorSet = {};
+
+  for (var i in expectedErrorList) {
+    var cur = expectedErrorList[i];
+
+    expectedErrorStrList.push(getGLErrorAsString(gl, cur));
+    expectedErrorSet[cur] = true;
+  }
+
+  var expectedErrorStr = "[" + expectedErrorStrList.join(", ") + "]";
+
+  var actualError = gl.getError();
+  if (actualError in expectedErrorSet) {
+    testPassed("getError was in expected values: " + expectedErrorStr + " : " + opt_msg);
+  } else {
+    testFailed("getError expected: " + expectedErrorStr +
+               ". Was " + getGLErrorAsString(gl, actualError) + " : " + opt_msg);
+  }
+};
+
+/**
  * Links a WebGL program, throws if there are errors.
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {!WebGLProgram} program The WebGLProgram to link.
@@ -1365,6 +1395,7 @@ return {
   getUrlArguments: getUrlArguments,
   glEnumToString: glEnumToString,
   glErrorShouldBe: glErrorShouldBe,
+  glErrorShouldBeIn: glErrorShouldBeIn,
   fillTexture: fillTexture,
   insertImage: insertImage,
   loadImageAsync: loadImageAsync,

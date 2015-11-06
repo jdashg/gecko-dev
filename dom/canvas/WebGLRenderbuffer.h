@@ -50,8 +50,6 @@ public:
 
     const webgl::FormatUsageInfo* Format() const { return mFormat; }
 
-    GLenum GetInternalFormat() const;
-
     int64_t MemoryUsage() const;
 
     WebGLContext* GetParentObject() const {

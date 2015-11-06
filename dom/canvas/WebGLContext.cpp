@@ -1909,22 +1909,6 @@ ScopedUnpackReset::UnwrapImpl()
 
 ////////////////////////////////////////
 
-bool
-GuessAlignmentFromStride(size_t width, size_t stride, size_t maxAlignment,
-                         size_t* const out_alignment)
-{
-    size_t alignmentGuess = maxAlignment;
-    while (alignmentGuess) {
-        size_t guessStride = RoundUpToMultipleOf(width, alignmentGuess);
-        if (guessStride == stride) {
-            *out_alignment = alignmentGuess;
-            return true;
-        }
-        alignmentGuess /= 2;
-    }
-    return false;
-}
-
 void
 Intersect(uint32_t srcSize, int32_t dstStartInSrc, uint32_t dstSize,
           uint32_t* const out_intStartInSrc, uint32_t* const out_intStartInDst,

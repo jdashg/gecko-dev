@@ -299,12 +299,12 @@ TexUnpackBytes::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTextur
 // TexUnpackDataSurface
 
 static bool
-GuessAlignment(const void* data, size_t width, size_t stride, size_t maxAlignment,
+GuessAlignment(const void* data, size_t bytesPerRow, size_t stride, size_t maxAlignment,
                size_t* const out_alignment)
 {
     size_t alignmentGuess = maxAlignment;
     while (alignmentGuess) {
-        size_t guessStride = RoundUpToMultipleOf(width, alignmentGuess);
+        size_t guessStride = RoundUpToMultipleOf(bytesPerRow, alignmentGuess);
         if (guessStride == stride &&
             uintptr_t(data) % alignmentGuess == 0)
         {
@@ -408,14 +408,18 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
     if (!map.IsMapped())
         return false;
 
+    const webgl::PackingInfo pi = {chosenDUI->unpackFormat, chosenDUI->unpackType};
+    const auto bytesPerPixel = webgl::BytesPerPixel(pi);
+    const size_t bytesPerRow = width * bytesPerPixel;
+
     const GLint kMaxUnpackAlignment = 8;
     size_t unpackAlignment;
-    if (!GuessAlignment(map.GetData(), width, map.GetStride(), kMaxUnpackAlignment,
+    if (!GuessAlignment(map.GetData(), bytesPerRow, map.GetStride(), kMaxUnpackAlignment,
                         &unpackAlignment))
     {
         return false;
         // TODO: Consider using UNPACK_ settings to set the stride based on the too-large
-        // alignment used for many SourceSurfaces.
+        // alignment used for some SourceSurfaces. (D2D allegedy likes alignment=16)
     }
 
     gl->MakeCurrent();
