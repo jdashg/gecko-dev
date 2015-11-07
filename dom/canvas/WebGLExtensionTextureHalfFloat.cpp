@@ -15,45 +15,71 @@ WebGLExtensionTextureHalfFloat::WebGLExtensionTextureHalfFloat(WebGLContext* web
     : WebGLExtensionBase(webgl)
 {
     auto& fua = webgl->mFormatUsage;
+    gl::GLContext* gl = webgl->GL();
 
     webgl::PackingInfo pi;
     webgl::DriverUnpackInfo dui;
-
-    const auto fnAdd = [&fua, &pi, &dui](webgl::EffectiveFormat effFormat) {
-        auto usage = fua->EditUsage(effFormat);
-        fua->AddUnsizedTexFormat(pi, usage);
-        usage->AddUnpack(pi, dui);
-    };
+    const GLint* swizzle = nullptr;
 
     GLenum driverUnpackType = LOCAL_GL_HALF_FLOAT;
-    if (!webgl->GL()->IsSupported(gl::GLFeature::texture_half_float)) {
-        MOZ_ASSERT(webgl->GL()->IsExtensionSupported(gl::GLContext::OES_texture_half_float));
+    if (!gl->IsSupported(gl::GLFeature::texture_half_float)) {
+        MOZ_ASSERT(gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float));
         driverUnpackType = LOCAL_GL_HALF_FLOAT_OES;
     }
 
-    const bool isCore = webgl->GL()->IsCoreProfile();
+    const auto fnAdd = [&fua, &pi, &dui, &swizzle,
+                        driverUnpackType](webgl::EffectiveFormat effFormat)
+    {
+        MOZ_ASSERT(!pi.type && !dui.unpackType);
+        pi.type = LOCAL_GL_HALF_FLOAT_OES;
+        dui.unpackType = driverUnpackType;
 
-    pi = {LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES};
-    dui = {LOCAL_GL_RGBA, LOCAL_GL_RGBA, driverUnpackType};
+        auto usage = fua->EditUsage(effFormat);
+        fua->AddUnsizedTexFormat(pi, usage);
+        usage->AddUnpack(pi, dui);
+
+        usage->textureSwizzleRGBA = swizzle;
+    };
+
+    const bool isCore = gl->IsCoreProfile();
+
+    pi = {LOCAL_GL_RGBA, 0};
+    dui = {pi.format, pi.format, pi.type};
     fnAdd(webgl::EffectiveFormat::RGBA16F);
 
-    pi = {LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT_OES};
-    dui = {LOCAL_GL_RGB, LOCAL_GL_RGB, driverUnpackType};
+    pi = {LOCAL_GL_RGB, 0};
+    dui = {pi.format, pi.format, pi.type};
     fnAdd(webgl::EffectiveFormat::RGB16F);
 
-    pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_HALF_FLOAT_OES};
-    if (isCore) dui = {LOCAL_GL_R16F, LOCAL_GL_RED, driverUnpackType};
-    else        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, driverUnpackType};
+    pi = {LOCAL_GL_LUMINANCE, 0};
+    if (isCore) {
+        dui = {LOCAL_GL_R16F, LOCAL_GL_RED, 0};
+        swizzle = webgl::FormatUsageInfo::kLuminanceSwizzleRGBA;
+    } else {
+        dui = {pi.format, pi.format, pi.type};
+        swizzle = nullptr;
+    }
     fnAdd(webgl::EffectiveFormat::Luminance16F);
 
-    pi = {LOCAL_GL_ALPHA, LOCAL_GL_HALF_FLOAT_OES};
-    if (isCore) dui = {LOCAL_GL_R16F, LOCAL_GL_RED, driverUnpackType};
-    else        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, driverUnpackType};
+    pi = {LOCAL_GL_ALPHA, 0};
+    if (isCore) {
+        dui = {LOCAL_GL_R16F, LOCAL_GL_RED, 0};
+        swizzle = webgl::FormatUsageInfo::kAlphaSwizzleRGBA;
+    } else {
+        dui = {pi.format, pi.format, pi.type};
+        swizzle = nullptr;
+    }
     fnAdd(webgl::EffectiveFormat::Alpha16F);
 
-    pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_HALF_FLOAT_OES};
-    if (isCore) dui = {LOCAL_GL_RG16F, LOCAL_GL_RG, driverUnpackType};
-    else        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, driverUnpackType};
+    pi = {LOCAL_GL_LUMINANCE_ALPHA, 0};
+    dui = {pi.format, pi.format, pi.type};
+    if (isCore) {
+        dui = {LOCAL_GL_RG16F, LOCAL_GL_RG, 0};
+        swizzle = webgl::FormatUsageInfo::kLumAlphaSwizzleRGBA;
+    } else {
+        dui = {pi.format, pi.format, pi.type};
+        swizzle = nullptr;
+    }
     fnAdd(webgl::EffectiveFormat::Luminance16FAlpha16F);
 }
 

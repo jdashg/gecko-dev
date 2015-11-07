@@ -115,7 +115,7 @@ WebGLTexture::ImageInfo::SetIsDataInitialized(bool isDataInitialized, WebGLTextu
     MOZ_ASSERT(this < &tex->mImageInfoArr[kMaxLevelCount * kMaxFaceCount]);
 
     mIsDataInitialized = isDataInitialized;
-    tex->InvalidateFakeBlackCache();
+    tex->InvalidateResolveCache();
 }
 
 ////////////////////////////////////////
@@ -129,17 +129,18 @@ WebGLTexture::WebGLTexture(WebGLContext* webgl, GLuint tex)
     : WebGLContextBoundObject(webgl)
     , mGLName(tex)
     , mTarget(LOCAL_GL_NONE)
+    , mFaceCount(0)
     , mMinFilter(LOCAL_GL_NEAREST_MIPMAP_LINEAR)
     , mMagFilter(LOCAL_GL_LINEAR)
     , mWrapS(LOCAL_GL_REPEAT)
     , mWrapT(LOCAL_GL_REPEAT)
-    , mFaceCount(0)
     , mImmutable(false)
     , mImmutableLevelCount(0)
     , mBaseMipmapLevel(0)
     , mMaxMipmapLevel(1000)
-    , mFakeBlackStatus(WebGLTextureFakeBlackStatus::IncompleteTexture)
     , mTexCompareMode(LOCAL_GL_NONE)
+    , mIsResolved(false)
+    , mResolved_Swizzle(nullptr)
 {
     mContext->mTextures.insertBack(this);
 }
@@ -173,7 +174,7 @@ WebGLTexture::SetImageInfo(ImageInfo* target, const ImageInfo& newInfo)
 {
     *target = newInfo;
 
-    InvalidateFakeBlackCache();
+    InvalidateResolveCache();
 }
 
 void
@@ -183,7 +184,7 @@ WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& newInfo)
         ImageInfoAtFace(i, level) = newInfo;
     }
 
-    InvalidateFakeBlackCache();
+    InvalidateResolveCache();
 }
 
 static inline uint32_t
@@ -427,10 +428,12 @@ WebGLTexture::IsComplete(const char** const out_reason) const
 uint32_t
 WebGLTexture::MaxEffectiveMipmapLevel() const
 {
-    const bool requiresMipmap = (mMinFilter != LOCAL_GL_NEAREST &&
-                                 mMinFilter != LOCAL_GL_LINEAR);
-    if (!requiresMipmap)
+    if (mMinFilter == LOCAL_GL_NEAREST ||
+        mMinFilter == LOCAL_GL_LINEAR)
+    {
+        // No mips used.
         return mBaseMipmapLevel;
+    }
 
     const auto& imageInfo = BaseImageInfo();
     MOZ_ASSERT(imageInfo.IsDefined());
@@ -440,35 +443,23 @@ WebGLTexture::MaxEffectiveMipmapLevel() const
 }
 
 bool
-WebGLTexture::ResolveFakeBlackStatus(const char* funcName,
-                                     WebGLTextureFakeBlackStatus* const out)
+WebGLTexture::GetFakeBlackType(const char* funcName, uint32_t texUnit,
+                               FakeBlackType* const out_fakeBlack)
 {
-    if (!ResolveFakeBlackStatus(funcName))
-        return false;
-
-    *out = mFakeBlackStatus;
-    return true;
-}
-
-bool
-WebGLTexture::ResolveFakeBlackStatus(const char* funcName)
-{
-    if (MOZ_LIKELY(mFakeBlackStatus != WebGLTextureFakeBlackStatus::Unknown))
-        return true;
-
     const char* incompleteReason;
     if (!IsComplete(&incompleteReason)) {
         if (incompleteReason) {
-            mContext->GenerateWarning("An active texture is going to be rendered as if it"
-                                      " were black, as per the GLES 2.0.24 $3.8.2: %s",
+            mContext->GenerateWarning("%s: Active texture %u for target 0x%04x is"
+                                      " 'incomplete', and will be rendered as"
+                                      " RGBA(0,0,0,1), as per the GLES 2.0.24 $3.8.2: %s",
+                                      funcName, texUnit, mTarget.get(),
                                       incompleteReason);
         }
-        mFakeBlackStatus = WebGLTextureFakeBlackStatus::IncompleteTexture;
+        *out_fakeBlack = FakeBlackType::RGBA0001;
         return true;
     }
 
-    // We have exhausted all cases of incomplete textures, where we would need opaque black.
-    // We may still need transparent black in case of uninitialized image data.
+    // We may still want FakeBlack as an optimization for uninitialized image data.
     bool hasUninitializedData = false;
     bool hasInitializedData = false;
 
@@ -486,35 +477,92 @@ WebGLTexture::ResolveFakeBlackStatus(const char* funcName)
     MOZ_ASSERT(hasUninitializedData || hasInitializedData);
 
     if (!hasUninitializedData) {
-        mFakeBlackStatus = WebGLTextureFakeBlackStatus::NotNeeded;
+        *out_fakeBlack = FakeBlackType::None;
         return true;
     }
 
     if (!hasInitializedData) {
-        mFakeBlackStatus = WebGLTextureFakeBlackStatus::UninitializedImageData;
-        return true;
+        const auto format = ImageInfoAtFace(0, mBaseMipmapLevel).mFormat->format;
+        if (format->isColorFormat) {
+            *out_fakeBlack = (format->hasAlpha ? FakeBlackType::RGBA0000
+                                               : FakeBlackType::RGBA0001);
+            return true;
+        }
+
+        mContext->GenerateWarning("%s: Active texture %u for target 0x%04x is"
+                                  " uninitialized, and will be (perhaps slowly) cleared"
+                                  " by the implementation.",
+                                  funcName, texUnit, mTarget.get());
+    } else {
+        mContext->GenerateWarning("%s: Active texture %u for target 0x%04x contains"
+                                  " TexImages with uninitialized data along with"
+                                  " TexImages with initialized data, forcing the"
+                                  " implementation to (slowly) initialize the"
+                                  " uninitialized TexImages.",
+                                  funcName, texUnit, mTarget.get());
     }
 
-    // Alright, we have both initialized and uninitialized data, so we have to initialize
-    // the uninitialized images. Feel free to be slow.
-    mContext->GenerateWarning("An active texture contains TexImages with uninitialized"
-                              " data along with TexImages with initialized data, forcing"
-                              " the implementation to (slowly) initialize the"
-                              " uninitialized TexImages.");
-
-    GLenum baseTexImageTarget = mTarget.get();
-    if (baseTexImageTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
-        baseTexImageTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
+    GLenum baseImageTarget = mTarget.get();
+    if (baseImageTarget == LOCAL_GL_TEXTURE_CUBE_MAP)
+        baseImageTarget = LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X;
 
     for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         for (uint8_t face = 0; face < mFaceCount; face++) {
-            TexImageTarget target = baseTexImageTarget + face;
-            if (!EnsureImageDataInitialized(funcName, target, level))
+            TexImageTarget imageTarget = baseImageTarget + face;
+            if (!EnsureImageDataInitialized(funcName, imageTarget, level))
                 return false; // The world just exploded.
         }
     }
 
-    mFakeBlackStatus = WebGLTextureFakeBlackStatus::NotNeeded;
+    *out_fakeBlack = FakeBlackType::None;
+    return true;
+}
+
+static void
+SetSwizzle(gl::GLContext* gl, TexTarget target, const GLint* swizzle)
+{
+    static const GLint kNoSwizzle[4] = { LOCAL_GL_RED, LOCAL_GL_GREEN, LOCAL_GL_BLUE,
+                                         LOCAL_GL_ALPHA };
+    if (!swizzle) {
+        swizzle = kNoSwizzle;
+    }
+
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_R, swizzle[0]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_G, swizzle[1]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_B, swizzle[2]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_A, swizzle[3]);
+}
+
+bool
+WebGLTexture::ResolveForDraw(const char* funcName, uint32_t texUnit,
+                             FakeBlackType* const out_fakeBlack)
+{
+    if (!mIsResolved) {
+        if (!GetFakeBlackType(funcName, texUnit, &mResolved_FakeBlack))
+            return false;
+
+        // Check which swizzle we should use. Since the texture must be complete at this
+        // point, just grab the format off any valid image.
+        const GLint* newSwizzle = nullptr;
+        if (mResolved_FakeBlack == FakeBlackType::None) {
+            const auto& cur = ImageInfoAtFace(0, mBaseMipmapLevel);
+            newSwizzle = cur.mFormat->textureSwizzleRGBA;
+        }
+
+        // Only set the swizzle if it changed since last time we did it.
+        if (newSwizzle != mResolved_Swizzle) {
+            mResolved_Swizzle = newSwizzle;
+
+            // Set the new swizzle!
+            mContext->gl->fActiveTexture(LOCAL_GL_TEXTURE0 + texUnit);
+            SetSwizzle(mContext->gl, mTarget, mResolved_Swizzle);
+            mContext->gl->fActiveTexture(LOCAL_GL_TEXTURE0 + mContext->mActiveTexture);
+        }
+
+        mIsResolved = true;
+    }
+
+    *out_fakeBlack = mResolved_FakeBlack;
     return true;
 }
 
@@ -523,10 +571,12 @@ WebGLTexture::EnsureImageDataInitialized(const char* funcName, TexImageTarget ta
                                          uint32_t level)
 {
     auto& imageInfo = ImageInfoAt(target, level);
+    MOZ_ASSERT(imageInfo.IsDefined());
+    /*
     if (!imageInfo.IsDefined())
         return true; // The driver should handle this for us?
                      // (happens because ResolveFakeBlack plus incomplete mipchains)
-
+    */
     if (imageInfo.IsDataInitialized())
         return true;
 
@@ -608,13 +658,6 @@ WebGLTexture::PopulateMipChain(uint32_t firstLevel, uint32_t lastLevel)
     }
 }
 
-void
-WebGLTexture::InvalidateFakeBlackCache()
-{
-    mContext->InvalidateFakeBlackCache();
-    mFakeBlackStatus = WebGLTextureFakeBlackStatus::Unknown;
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
 // GL calls
 
@@ -651,10 +694,6 @@ WebGLTexture::BindTexture(TexTarget texTarget)
             gl->fTexParameteri(texTarget.get(), LOCAL_GL_TEXTURE_WRAP_R,
                                LOCAL_GL_CLAMP_TO_EDGE);
         }
-    }
-
-    if (mFakeBlackStatus != WebGLTextureFakeBlackStatus::NotNeeded) {
-        mContext->InvalidateFakeBlackCache();
     }
 
     return true;
@@ -959,10 +998,15 @@ WebGLTexture::TexParameter(TexTarget texTarget, GLenum pname, GLint* maybeIntPar
     // completeness rules.
     }
 
-    // The only pname that doesn't actually need fake-black invalidation is
-    // LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT.
-    if (pname != LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT) {
-        InvalidateFakeBlackCache();
+    // Only a couple of pnames don't need to invalidate our resolve status cache.
+    switch (pname) {
+    case LOCAL_GL_TEXTURE_MAX_ANISOTROPY_EXT:
+    case LOCAL_GL_TEXTURE_WRAP_R:
+        break;
+
+    default:
+        InvalidateResolveCache();
+        break;
     }
 
     ////////////////

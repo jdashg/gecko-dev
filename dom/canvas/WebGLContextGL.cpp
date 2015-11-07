@@ -1339,7 +1339,7 @@ WebGLContext::DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei he
             return false;
         }
 
-        UniqueBuffer readBuffer(malloc(readSize.value()));
+        UniqueBuffer readBuffer = malloc(readSize.value());
         if (!readBuffer) {
             ErrorOutOfMemory("readPixels: Failed to alloc temp buffer for conversion.");
             return false;

@@ -87,7 +87,8 @@ class nsIDocShell;
 #define LOCAL_GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL              0x9241
 
 namespace mozilla {
-
+class ScopedCopyTexImageSource;
+class ScopedResolveTexturesForDraw;
 class ScopedUnpackReset;
 class WebGLActiveInfo;
 class WebGLContextLossHandler;
@@ -1043,7 +1044,7 @@ private:
                             GLsizei primcount, const char* info,
                             GLuint* out_upperBound);
     bool DrawInstanced_check(const char* info);
-    void Draw_cleanup();
+    void Draw_cleanup(const char* funcName);
 
     void VertexAttrib1fv_base(GLuint index, uint32_t arrayLength,
                               const GLfloat* ptr);
@@ -1423,30 +1424,28 @@ protected:
     bool mPixelStore_FlipY;
     bool mPixelStore_PremultiplyAlpha;
 
-public:
-    // Fake-black
+    ////////////////////////////////////
     class FakeBlackTexture {
-        gl::GLContext* const mGL;
-        GLuint mGLName;
-
     public:
-        FakeBlackTexture(gl::GLContext* gl, TexTarget target, GLenum format);
+        gl::GLContext* const mGL;
+        const GLuint mGLName;
+
+        FakeBlackTexture(gl::GLContext* gl, TexTarget target, FakeBlackType type);
         ~FakeBlackTexture();
-        GLuint GLName() const { return mGLName; }
     };
 
-    void InvalidateFakeBlackCache() { mCanSkipFakeBlack = false; }
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_0000;
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_0001;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_0000;
+    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_0001;
+    UniquePtr<FakeBlackTexture> mFakeBlack_3D_0000;
+    UniquePtr<FakeBlackTexture> mFakeBlack_3D_0001;
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Array_0000;
+    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Array_0001;
 
-protected:
-    bool mCanSkipFakeBlack;
+    void BindFakeBlack(uint32_t texUnit, TexTarget target, FakeBlackType fakeBlack);
 
-    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Opaque;
-    UniquePtr<FakeBlackTexture> mFakeBlack_2D_Alpha;
-    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Opaque;
-    UniquePtr<FakeBlackTexture> mFakeBlack_CubeMap_Alpha;
-
-    bool BindFakeBlackTextures(const char* funcName);
-    void UnbindFakeBlackTextures();
+    ////////////////////////////////////
 
     // Generic Vertex Attributes
     UniquePtr<GLenum[]> mVertexAttribType;
@@ -1567,6 +1566,8 @@ public:
     CreateFormatUsage(gl::GLContext* gl) const = 0;
 
     // Friend list
+    friend class ScopedCopyTexImageSource;
+    friend class ScopedResolveTexturesForDraw;
     friend class ScopedUnpackReset;
     friend class webgl::TexUnpackBytes;
     friend class webgl::TexUnpackSurface;
@@ -1691,7 +1692,7 @@ public:
         : mBuffer(nullptr)
     { }
 
-    explicit UniqueBuffer(void* buffer)
+    UniqueBuffer(void* buffer)
         : mBuffer(buffer)
     { }
 

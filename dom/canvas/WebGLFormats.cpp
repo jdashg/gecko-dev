@@ -453,57 +453,75 @@ SetUsage(FormatUsageAuthority* fua, EffectiveFormat effFormat, bool isRenderable
 }
 
 static void
+AddSimpleUnsized(FormatUsageAuthority* fua, GLenum unpackFormat, GLenum unpackType,
+                 EffectiveFormat effFormat)
+{
+    auto usage = fua->EditUsage(effFormat);
+
+    const PackingInfo pi = {unpackFormat, unpackType};
+    fua->AddUnsizedTexFormat(pi, usage);
+
+    const DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
+    usage->AddUnpack(pi, dui);
+};
+
+
+/*static*/ const GLint FormatUsageInfo::kLuminanceSwizzleRGBA[4] = { LOCAL_GL_RED,
+                                                                     LOCAL_GL_RED,
+                                                                     LOCAL_GL_RED,
+                                                                     LOCAL_GL_ONE };
+/*static*/ const GLint FormatUsageInfo::kAlphaSwizzleRGBA[4] = { LOCAL_GL_ZERO,
+                                                                 LOCAL_GL_ZERO,
+                                                                 LOCAL_GL_ZERO,
+                                                                 LOCAL_GL_RED };
+/*static*/ const GLint FormatUsageInfo::kLumAlphaSwizzleRGBA[4] = { LOCAL_GL_RED,
+                                                                    LOCAL_GL_RED,
+                                                                    LOCAL_GL_RED,
+                                                                    LOCAL_GL_GREEN };
+
+static void
 AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
-    PackingInfo pi;
-    DriverUnpackInfo dui;
+    if (gl->IsCoreProfile()) {
+        PackingInfo pi;
+        DriverUnpackInfo dui;
 
-    const auto fnAdd = [fua, &pi, &dui](EffectiveFormat effFormat) {
-        auto usage = fua->EditUsage(effFormat);
-        fua->AddUnsizedTexFormat(pi, usage);
-        usage->AddUnpack(pi, dui);
-    };
+        const auto fnAdd = [fua, &pi, &dui](EffectiveFormat effFormat,
+                                            const GLint* swizzle)
+        {
+            auto usage = fua->EditUsage(effFormat);
+            fua->AddUnsizedTexFormat(pi, usage);
+            usage->AddUnpack(pi, dui);
+            usage->textureSwizzleRGBA = swizzle;
+        };
 
-    const bool isCore = gl->IsCoreProfile();
+        pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
+        dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
+        fnAdd(EffectiveFormat::Luminance8, FormatUsageInfo::kLuminanceSwizzleRGBA);
 
-    pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
-    if (isCore) dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
-    else        dui = {LOCAL_GL_LUMINANCE, LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
-    fnAdd(EffectiveFormat::Luminance8);
+        pi = {LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+        dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
+        fnAdd(EffectiveFormat::Luminance8, FormatUsageInfo::kAlphaSwizzleRGBA);
 
-    pi = {LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    if (isCore) dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
-    else        dui = {LOCAL_GL_ALPHA, LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    fnAdd(EffectiveFormat::Alpha8);
-
-    pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    if (isCore) dui = {LOCAL_GL_RG8, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE};
-    else        dui = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    fnAdd(EffectiveFormat::Luminance8Alpha8);
+        pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
+        dui = {LOCAL_GL_RG8, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE};
+        fnAdd(EffectiveFormat::Luminance8Alpha8, FormatUsageInfo::kLumAlphaSwizzleRGBA);
+    } else {
+        AddSimpleUnsized(fua, LOCAL_GL_LUMINANCE      , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8      );
+        AddSimpleUnsized(fua, LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Alpha8          );
+        AddSimpleUnsized(fua, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8Alpha8);
+    }
 }
 
 static void
 AddBasicUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
-    const auto fnAddSimpleUnsized = [fua](GLenum unpackFormat, GLenum unpackType,
-                                          EffectiveFormat effFormat)
-    {
-        auto usage = fua->EditUsage(effFormat);
-
-        const PackingInfo pi = {unpackFormat, unpackType};
-        fua->AddUnsizedTexFormat(pi, usage);
-
-        const DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
-        usage->AddUnpack(pi, dui);
-    };
-
     // GLES 2.0.25, p63, Table 3.4
-
-    fnAddSimpleUnsized(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGBA8  );
-    fnAddSimpleUnsized(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4, EffectiveFormat::RGBA4  );
-    fnAddSimpleUnsized(LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1, EffectiveFormat::RGB5_A1);
-    fnAddSimpleUnsized(LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGB8   );
-    fnAddSimpleUnsized(LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  , EffectiveFormat::RGB565 );
+    AddSimpleUnsized(fua, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGBA8  );
+    AddSimpleUnsized(fua, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4, EffectiveFormat::RGBA4  );
+    AddSimpleUnsized(fua, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_5_5_5_1, EffectiveFormat::RGB5_A1);
+    AddSimpleUnsized(fua, LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGB8   );
+    AddSimpleUnsized(fua, LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  , EffectiveFormat::RGB565 );
 
     // L, A, LA
     AddLegacyFormats_LA8(fua, gl);

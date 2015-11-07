@@ -59,12 +59,12 @@ public:
 protected:
     TexTarget mTarget;
 
+    static const uint8_t kMaxFaceCount = 6;
+    uint8_t mFaceCount; // 6 for cube maps, 1 otherwise.
+
     TexMinFilter mMinFilter;
     TexMagFilter mMagFilter;
     TexWrap mWrapS, mWrapT;
-
-    static const uint8_t kMaxFaceCount = 6;
-    uint8_t mFaceCount; // 6 for cube maps, 1 otherwise.
 
     bool mImmutable; // Set by texStorage*
     uint8_t mImmutableLevelCount;
@@ -72,9 +72,12 @@ protected:
     uint32_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
     uint32_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
 
-    WebGLTextureFakeBlackStatus mFakeBlackStatus;
-
     GLenum mTexCompareMode;
+
+    // Resolvable optimizations:
+    bool mIsResolved;
+    FakeBlackType mResolved_FakeBlack;
+    const GLint* mResolved_Swizzle; // nullptr means 'default swizzle'.
 
 public:
     class ImageInfo;
@@ -374,16 +377,15 @@ public:
 
     bool IsCubeMap() const { return (mTarget == LOCAL_GL_TEXTURE_CUBE_MAP); }
 
-    // Fake black status
+    // Resolve cache optimizations
 protected:
-    bool ResolveFakeBlackStatus(const char* funcName);
+    bool GetFakeBlackType(const char* funcName, uint32_t texUnit,
+                          FakeBlackType* const out_fakeBlack);
 public:
-    bool ResolveFakeBlackStatus(const char* funcName,
-                                WebGLTextureFakeBlackStatus* const out);
+    bool ResolveForDraw(const char* funcName, uint32_t texUnit,
+                        FakeBlackType* const out_fakeBlack);
 
-    WebGLTextureFakeBlackStatus FakeBlackStatus() const { return mFakeBlackStatus; }
-
-    void InvalidateFakeBlackCache();
+    void InvalidateResolveCache() { mIsResolved = false; }
 };
 
 inline TexImageTarget

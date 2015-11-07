@@ -38,11 +38,10 @@ namespace mozilla {
  *       depending on whether the image format has alpha.
  */
 
-enum class WebGLTextureFakeBlackStatus : uint8_t {
-  Unknown,
-  NotNeeded,
-  IncompleteTexture,
-  UninitializedImageData
+enum class FakeBlackType : uint8_t {
+    None,
+    RGBA0001, // Incomplete textures and uninitialized no-alpha color textures.
+    RGBA0000, // Uninitialized with-alpha color textures.
 };
 
 /*
