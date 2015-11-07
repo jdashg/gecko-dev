@@ -1862,33 +1862,28 @@ WebGLContext::ScopedMaskWorkaround::~ScopedMaskWorkaround()
     }
 }
 
-////////////////////
+////////////////////////////////////////
 
 ScopedUnpackReset::ScopedUnpackReset(WebGLContext* webgl)
     : ScopedGLWrapper<ScopedUnpackReset>(webgl->gl)
     , mWebGL(webgl)
 {
-    gl::GLContext* gl = mWebGL->gl;
-
-    if (mWebGL->mPixelStore_UnpackAlignment != 4) gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT   , 4);
+    if (mWebGL->mPixelStore_UnpackAlignment != 4) mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
 
     if (mWebGL->IsWebGL2()) {
-        if (mWebGL->mPixelStore_UnpackRowLength   != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
-        if (mWebGL->mPixelStore_UnpackImageHeight != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
-        if (mWebGL->mPixelStore_UnpackSkipPixels  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
-        if (mWebGL->mPixelStore_UnpackSkipRows    != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
-        if (mWebGL->mPixelStore_UnpackSkipImages  != 0) gl->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
+        if (mWebGL->mPixelStore_UnpackRowLength   != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_ROW_LENGTH  , 0);
+        if (mWebGL->mPixelStore_UnpackImageHeight != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_IMAGE_HEIGHT, 0);
+        if (mWebGL->mPixelStore_UnpackSkipPixels  != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_PIXELS , 0);
+        if (mWebGL->mPixelStore_UnpackSkipRows    != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_ROWS   , 0);
+        if (mWebGL->mPixelStore_UnpackSkipImages  != 0) mGL->fPixelStorei(LOCAL_GL_UNPACK_SKIP_IMAGES , 0);
 
-        if (mWebGL->mBoundPixelUnpackBuffer) gl->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
+        if (mWebGL->mBoundPixelUnpackBuffer) mGL->fBindBuffer(LOCAL_GL_PIXEL_UNPACK_BUFFER, 0);
     }
 }
 
 void
 ScopedUnpackReset::UnwrapImpl()
 {
-    // Check that we're not falling out of scope after the current context changed.
-    MOZ_ASSERT(mGL->IsCurrent());
-
     mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mWebGL->mPixelStore_UnpackAlignment);
 
     if (mWebGL->IsWebGL2()) {
