@@ -124,8 +124,6 @@ WebGLContext::WebGLContext()
     mFakeVertexAttrib0BufferObject = 0;
     mFakeVertexAttrib0BufferStatus = WebGLVertexAttrib0Status::Default;
 
-    mCanSkipFakeBlack = false;
-
     mViewportX = 0;
     mViewportY = 0;
     mViewportWidth = 0;
@@ -240,10 +238,14 @@ WebGLContext::DestroyResourcesAndContext()
     while (!mTransformFeedbacks.isEmpty())
         mTransformFeedbacks.getLast()->DeleteOnce();
 
-    mFakeBlack_2D_Opaque      = nullptr;
-    mFakeBlack_2D_Alpha       = nullptr;
-    mFakeBlack_CubeMap_Opaque = nullptr;
-    mFakeBlack_CubeMap_Alpha  = nullptr;
+    mFakeBlack_2D_0000       = nullptr;
+    mFakeBlack_2D_0001       = nullptr;
+    mFakeBlack_CubeMap_0000  = nullptr;
+    mFakeBlack_CubeMap_0001  = nullptr;
+    mFakeBlack_3D_0000       = nullptr;
+    mFakeBlack_3D_0001       = nullptr;
+    mFakeBlack_2D_Array_0000 = nullptr;
+    mFakeBlack_2D_Array_0001 = nullptr;
 
     if (mFakeVertexAttrib0BufferObject)
         gl->fDeleteBuffers(1, &mFakeVertexAttrib0BufferObject);
@@ -1980,7 +1982,7 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
 
         const size_t byteCount = checkedByteCount.value();
 
-        UniqueBuffer zeros(calloc(1, byteCount));
+        UniqueBuffer zeros = calloc(1, byteCount);
         if (!zeros)
             return false;
 
@@ -2012,7 +2014,7 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
 
     const size_t byteCount = checkedByteCount.value();
 
-    UniqueBuffer zeros(calloc(1, byteCount));
+    UniqueBuffer zeros = calloc(1, byteCount);
     if (!zeros)
         return false;
 

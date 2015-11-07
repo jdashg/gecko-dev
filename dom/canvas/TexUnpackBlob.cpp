@@ -658,7 +658,7 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
 
     const size_t dstSize = checkedDstSize.value();
 
-    UniqueBuffer dstBuffer(malloc(dstSize));
+    UniqueBuffer dstBuffer = malloc(dstSize);
     if (!dstBuffer) {
         *out_outOfMemory = true;
         return false;

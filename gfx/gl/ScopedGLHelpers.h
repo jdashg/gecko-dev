@@ -169,11 +169,8 @@ struct ScopedBindTexture
     friend struct ScopedGLWrapper<ScopedBindTexture>;
 
 protected:
-    GLuint mOldTex;
-    GLenum mTarget;
-
-private:
-    void Init(GLenum aTarget);
+    const GLenum mTarget;
+    const GLuint mOldTex;
 
 public:
     ScopedBindTexture(GLContext* aGL, GLuint aNewTex,

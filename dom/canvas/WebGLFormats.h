@@ -245,13 +245,18 @@ struct FormatUsageInfo
     bool isFilterable;
     std::map<PackingInfo, DriverUnpackInfo> validUnpacks;
     const DriverUnpackInfo* idealUnpack;
-    //const GLint* textureSwizzleRGBA;
+    const GLint* textureSwizzleRGBA;
+
+    static const GLint kLuminanceSwizzleRGBA[4];
+    static const GLint kAlphaSwizzleRGBA[4];
+    static const GLint kLumAlphaSwizzleRGBA[4];
 
     explicit FormatUsageInfo(const FormatInfo* _format)
         : format(_format)
         , isRenderable(false)
         , isFilterable(false)
         , idealUnpack(nullptr)
+        , textureSwizzleRGBA(nullptr)
     { }
 
     void AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value);

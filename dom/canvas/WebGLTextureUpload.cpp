@@ -308,54 +308,6 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
 
-
-/* This needs to be done (but cached) per texture per draw call.
-
-// Map R to A
-static const GLenum kLegacyAlphaSwizzle[4] = {
-    LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_ZERO, LOCAL_GL_RED
-};
-// Map R to RGB
-static const GLenum kLegacyLuminanceSwizzle[4] = {
-    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_ONE
-};
-// Map R to RGB, G to A
-static const GLenum kLegacyLuminanceAlphaSwizzle[4] = {
-    LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_RED, LOCAL_GL_GREEN
-};
-
-static void
-SetLegacyTextureSwizzle(gl::GLContext* gl, GLenum target, GLenum internalformat)
-{
-    if (!gl->IsCoreProfile())
-        return;
-
-    // Only support swizzling on core profiles.
-    // Bug 1159117: Fix this.
-    // MOZ_RELEASE_ASSERT(gl->IsSupported(gl::GLFeature::texture_swizzle));
-
-    switch (internalformat) {
-    case LOCAL_GL_ALPHA:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyAlphaSwizzle);
-        break;
-
-    case LOCAL_GL_LUMINANCE:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyLuminanceSwizzle);
-        break;
-
-    case LOCAL_GL_LUMINANCE_ALPHA:
-        gl->fTexParameteriv(target, LOCAL_GL_TEXTURE_SWIZZLE_RGBA,
-                            (GLint*) kLegacyLuminanceAlphaSwizzle);
-        break;
-    }
-}
-*/
-
-//////////////////////////////////////////////////////////////////////////////////////////
-// Utils
-
 static bool
 ValidateTexImage(WebGLContext* webgl, WebGLTexture* texture, const char* funcName,
                  TexImageTarget target, GLint level,
@@ -1573,6 +1525,165 @@ ValidateCopyTexImageFormats(WebGLContext* webgl, const char* funcName,
     return true;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class ScopedCopyTexImageSource
+{
+    WebGLContext* const mWebGL;
+    GLuint mRB;
+    GLuint mFB;
+
+public:
+    ScopedCopyTexImageSource(WebGLContext* webgl, const char* funcName, uint32_t srcWidth,
+                             uint32_t srcHeight, const webgl::FormatInfo* srcFormat,
+                             const webgl::FormatUsageInfo* dstUsage);
+    ~ScopedCopyTexImageSource();
+};
+
+ScopedCopyTexImageSource::ScopedCopyTexImageSource(WebGLContext* webgl,
+                                                   const char* funcName,
+                                                   uint32_t srcWidth, uint32_t srcHeight,
+                                                   const webgl::FormatInfo* srcFormat,
+                                                   const webgl::FormatUsageInfo* dstUsage)
+    : mWebGL(webgl)
+    , mRB(0)
+    , mFB(0)
+{
+    switch (dstUsage->format->unsizedFormat) {
+    case webgl::UnsizedFormat::L:
+    case webgl::UnsizedFormat::A:
+    case webgl::UnsizedFormat::LA:
+        webgl->GenerateWarning("%s: Copying to a LUMINANCE, ALPHA, or LUMINANCE_ALPHA"
+                               " is deprecated, and has severely reduced performance"
+                               " on some platforms.",
+                               funcName);
+        break;
+
+    default:
+        MOZ_ASSERT(!dstUsage->textureSwizzleRGBA);
+        return;
+    }
+
+    if (!dstUsage->textureSwizzleRGBA)
+        return;
+
+    gl::GLContext* gl = webgl->gl;
+
+    GLenum sizedFormat;
+
+    switch (srcFormat->componentType) {
+    case webgl::ComponentType::NormUInt:
+        sizedFormat = LOCAL_GL_RGBA8;
+        break;
+
+    case webgl::ComponentType::Float:
+        if (webgl->IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float)) {
+            sizedFormat = LOCAL_GL_RGBA32F;
+            break;
+        }
+
+        if (webgl->IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float)) {
+            sizedFormat = LOCAL_GL_RGBA16F;
+            break;
+        }
+        MOZ_CRASH("Should be able to request CopyTexImage from Float.");
+
+    default:
+        MOZ_CRASH("Should be able to request CopyTexImage from this type.");
+    }
+
+    gl::ScopedTexture scopedTex(gl);
+    gl::ScopedBindTexture scopedBindTex(gl, scopedTex.Texture(), LOCAL_GL_TEXTURE_2D);
+
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
+
+    GLint blitSwizzle[4] = {LOCAL_GL_ZERO};
+    switch (dstUsage->format->unsizedFormat) {
+    case webgl::UnsizedFormat::L:
+        blitSwizzle[0] = LOCAL_GL_RED;
+        break;
+
+    case webgl::UnsizedFormat::A:
+        blitSwizzle[0] = LOCAL_GL_ALPHA;
+        break;
+
+    case webgl::UnsizedFormat::LA:
+        blitSwizzle[0] = LOCAL_GL_RED;
+        blitSwizzle[1] = LOCAL_GL_ALPHA;
+        break;
+
+    default:
+        MOZ_CRASH("Unhandled unsizedFormat.");
+    }
+
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_R, blitSwizzle[0]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_G, blitSwizzle[1]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_B, blitSwizzle[2]);
+    gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_A, blitSwizzle[3]);
+
+    gl->fCopyTexImage2D(LOCAL_GL_TEXTURE_2D, 0, sizedFormat, 0, 0, srcWidth,
+                        srcHeight, 0);
+
+    // Now create the swizzled FB we'll be exposing.
+
+    GLuint rgbaRB = 0;
+    gl->fGenRenderbuffers(1, &rgbaRB);
+    gl::ScopedBindRenderbuffer scopedRB(gl, rgbaRB);
+    gl->fRenderbufferStorage(LOCAL_GL_RENDERBUFFER, sizedFormat, srcWidth, srcHeight);
+
+    GLuint rgbaFB = 0;
+    gl->fGenFramebuffers(1, &rgbaFB);
+    gl->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, rgbaFB);
+    gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                                 LOCAL_GL_RENDERBUFFER, rgbaRB);
+
+    const GLenum status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+        MOZ_CRASH("Temp framebuffer is not Complete.");
+    }
+
+    // Restore RB binding.
+    scopedRB.Unwrap(); // This function should really have a better name.
+
+    // Draw-blit rgbaTex into rgbaFB.
+    const gfx::IntSize srcSize(srcWidth, srcHeight);
+    gl->BlitHelper()->DrawBlitTextureToFramebuffer(scopedTex.Texture(), rgbaFB,
+                                                   srcSize, srcSize);
+
+    // Restore Tex2D binding and destroy the temp tex.
+    scopedBindTex.Unwrap();
+    scopedTex.Unwrap();
+
+    // Leave RB and FB alive, and FB bound.
+    mRB = rgbaRB;
+    mFB = rgbaFB;
+}
+
+template<typename T>
+static inline GLenum
+ToGLHandle(const T& obj)
+{
+    return (obj ? obj->mGLName : 0);
+}
+
+ScopedCopyTexImageSource::~ScopedCopyTexImageSource()
+{
+    gl::GLContext* gl = mWebGL->gl;
+
+    // If we're swizzling, it's because we're on a GL core (3.2+) profile, which has
+    // split framebuffer support.
+    gl->fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER,
+                         ToGLHandle(mWebGL->mBoundDrawFramebuffer));
+    gl->fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER,
+                         ToGLHandle(mWebGL->mBoundReadFramebuffer));
+
+    gl->fDeleteFramebuffers(1, &mFB);
+    gl->fDeleteRenderbuffers(1, &mRB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // There is no CopyTexImage3D.
 void
 WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internalFormat,
@@ -1654,6 +1765,9 @@ WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internal
 
     gl::GLContext* gl = mContext->gl;
     gl->MakeCurrent();
+
+    ScopedCopyTexImageSource maybeSwizzle(mContext, funcName, srcWidth, srcHeight,
+                                          srcFormat, dstUsage);
 
     uint32_t readX, readY;
     uint32_t writeX, writeY;
@@ -1760,6 +1874,9 @@ WebGLTexture::CopyTexSubImage(const char* funcName, TexImageTarget target, GLint
     // Do the thing!
 
     mContext->gl->MakeCurrent();
+
+    ScopedCopyTexImageSource maybeSwizzle(mContext, funcName, srcWidth, srcHeight,
+                                          srcFormat, dstUsage);
 
     uint32_t readX, readY;
     uint32_t writeX, writeY;

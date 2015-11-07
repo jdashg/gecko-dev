@@ -174,34 +174,56 @@ ScopedRenderbuffer::UnwrapImpl()
 }
 
 /* ScopedBindTexture **********************************************************/
-void
-ScopedBindTexture::Init(GLenum aTarget)
+
+static GLuint
+GetBoundTexture(GLContext* gl, GLenum texTarget)
 {
-    mTarget = aTarget;
-    mOldTex = 0;
-    GLenum bindingTarget = (aTarget == LOCAL_GL_TEXTURE_2D) ? LOCAL_GL_TEXTURE_BINDING_2D
-                         : (aTarget == LOCAL_GL_TEXTURE_3D) ? LOCAL_GL_TEXTURE_BINDING_3D
-                         : (aTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) ? LOCAL_GL_TEXTURE_BINDING_RECTANGLE_ARB
-                         : (aTarget == LOCAL_GL_TEXTURE_CUBE_MAP) ? LOCAL_GL_TEXTURE_BINDING_CUBE_MAP
-                         : (aTarget == LOCAL_GL_TEXTURE_EXTERNAL) ? LOCAL_GL_TEXTURE_BINDING_EXTERNAL
-                         : LOCAL_GL_NONE;
-    MOZ_ASSERT(bindingTarget != LOCAL_GL_NONE);
-    mGL->GetUIntegerv(bindingTarget, &mOldTex);
+    GLenum bindingTarget;
+    switch (texTarget) {
+    case LOCAL_GL_TEXTURE_2D:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_2D;
+        break;
+
+    case LOCAL_GL_TEXTURE_CUBE_MAP:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_CUBE_MAP;
+        break;
+
+    case LOCAL_GL_TEXTURE_3D:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_3D;
+        break;
+
+    case LOCAL_GL_TEXTURE_2D_ARRAY:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_2D_ARRAY;
+        break;
+
+    case LOCAL_GL_TEXTURE_RECTANGLE_ARB:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_RECTANGLE_ARB;
+        break;
+
+    case LOCAL_GL_TEXTURE_EXTERNAL:
+        bindingTarget = LOCAL_GL_TEXTURE_BINDING_EXTERNAL;
+        break;
+
+    default:
+        MOZ_CRASH("bad texTarget");
+    }
+
+    GLuint ret = 0;
+    gl->GetUIntegerv(bindingTarget, &ret);
+    return ret;
 }
 
 ScopedBindTexture::ScopedBindTexture(GLContext* aGL, GLuint aNewTex, GLenum aTarget)
         : ScopedGLWrapper<ScopedBindTexture>(aGL)
-    {
-        Init(aTarget);
-        mGL->fBindTexture(aTarget, aNewTex);
-    }
+        , mTarget(aTarget)
+        , mOldTex(GetBoundTexture(aGL, aTarget))
+{
+    mGL->fBindTexture(mTarget, aNewTex);
+}
 
 void
 ScopedBindTexture::UnwrapImpl()
 {
-    // Check that we're not falling out of scope after the current context changed.
-    MOZ_ASSERT(mGL->IsCurrent());
-
     mGL->fBindTexture(mTarget, mOldTex);
 }
 
