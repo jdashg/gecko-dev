@@ -16,7 +16,7 @@ namespace mozilla {
 WebGLExtensionCompressedTextureS3TC::WebGLExtensionCompressedTextureS3TC(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    const auto fnAdd = [webgl](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+    const auto fnAdd = [&webgl](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
         auto& fua = webgl->mFormatUsage;
 
         auto usage = fua->EditUsage(effFormat);
