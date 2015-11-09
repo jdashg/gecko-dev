@@ -1669,6 +1669,12 @@ ToGLHandle(const T& obj)
 
 ScopedCopyTexImageSource::~ScopedCopyTexImageSource()
 {
+    if (!mFB) {
+        MOZ_ASSERT(!mRB);
+        return;
+    }
+    MOZ_ASSERT(mRB);
+
     gl::GLContext* gl = mWebGL->gl;
 
     // If we're swizzling, it's because we're on a GL core (3.2+) profile, which has
