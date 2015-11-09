@@ -28,8 +28,8 @@ class ScopedResolveTexturesForDraw
 {
     struct TexRebindRequest
     {
-        const uint32_t texUnit;
-        WebGLTexture* const tex;
+        uint32_t texUnit;
+        WebGLTexture* tex;
     };
 
     WebGLContext* const mWebGL;
