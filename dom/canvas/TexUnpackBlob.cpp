@@ -23,73 +23,16 @@ DoTexOrSubImage(bool isSubImage, gl::GLContext* gl, TexImageTarget target, GLint
                 const DriverUnpackInfo* dui, GLint xOffset, GLint yOffset, GLint zOffset,
                 GLsizei width, GLsizei height, GLsizei depth, const void* data)
 {
-    auto internalFormat = dui->internalFormat;
-    auto unpackFormat = dui->unpackFormat;
-    auto unpackType = dui->unpackType;
-
     if (isSubImage) {
         return DoTexSubImage(gl, target, level, xOffset, yOffset, zOffset, width, height,
-                             depth, unpackFormat, unpackType, data);
+                             depth, dui->ToPacking(), data);
     } else {
-        return DoTexImage(gl, target, level, internalFormat, width, height, depth,
-                          unpackFormat, unpackType, data);
+        return DoTexImage(gl, target, level, dui, width, height, depth, data);
     }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // TexUnpackBuffer
-
-static bool
-GetPackedSizeForUnpack(uint32_t bytesPerPixel, uint8_t rowByteAlignment,
-                       uint32_t maybeStridePixelsPerRow, uint32_t maybeStrideRowsPerImage,
-                       uint32_t skipPixelsPerRow, uint32_t skipRowsPerImage,
-                       uint32_t skipImages, uint32_t usedPixelsPerRow,
-                       uint32_t usedRowsPerImage, uint32_t usedImages,
-                       uint32_t* const out_packedBytes)
-{
-    MOZ_RELEASE_ASSERT(rowByteAlignment != 0);
-
-    if (!usedPixelsPerRow || !usedRowsPerImage || !usedImages) {
-        *out_packedBytes = 0;
-        return true;
-    }
-    // Now we know there's at least one image.
-
-    CheckedUint32 pixelsPerRow = CheckedUint32(skipPixelsPerRow) + usedPixelsPerRow;
-    CheckedUint32 rowsPerImage = CheckedUint32(skipRowsPerImage) + usedRowsPerImage;
-    CheckedUint32 images = CheckedUint32(skipImages) + usedImages;
-
-    MOZ_ASSERT_IF(maybeStridePixelsPerRow,
-                  (pixelsPerRow.isValid() &&
-                   maybeStridePixelsPerRow >= pixelsPerRow.value()));
-
-    MOZ_ASSERT_IF(maybeStrideRowsPerImage,
-                  (rowsPerImage.isValid() &&
-                   maybeStrideRowsPerImage >= rowsPerImage.value()));
-
-    CheckedUint32 stridePixelsPerRow = maybeStridePixelsPerRow ? maybeStridePixelsPerRow
-                                                               : pixelsPerRow;
-    CheckedUint32 strideRowsPerImage = maybeStrideRowsPerImage ? maybeStrideRowsPerImage
-                                                               : rowsPerImage;
-
-    CheckedUint32 strideBytesPerRow = bytesPerPixel * stridePixelsPerRow;
-    strideBytesPerRow = RoundUpToMultipleOf(strideBytesPerRow, rowByteAlignment);
-
-    CheckedUint32 strideBytesPerImage = strideBytesPerRow * strideRowsPerImage;
-
-    CheckedUint32 lastRowBytes = CheckedUint32(bytesPerPixel) * pixelsPerRow;
-    CheckedUint32 lastImageBytes = strideBytesPerRow * (rowsPerImage - 1) + lastRowBytes;
-
-    CheckedUint32 packedBytes = strideBytesPerImage * (images - 1) + lastImageBytes;
-
-    if (!packedBytes.isValid())
-        return false;
-
-    *out_packedBytes = packedBytes.value();
-    return true;
-}
-
-////////////////////
 
 bool
 TexUnpackBytes::ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
@@ -98,35 +41,20 @@ TexUnpackBytes::ValidateUnpack(WebGLContext* webgl, const char* funcName, bool i
     if (!mBytes)
         return true;
 
-    const auto bytesPerPixel           = webgl::BytesPerPixel(pi);
-    const auto rowByteAlignment        = webgl->mPixelStore_UnpackAlignment;
-    const auto maybeStridePixelsPerRow = webgl->mPixelStore_UnpackRowLength;
-    const auto maybeStrideRowsPerImage = webgl->mPixelStore_UnpackImageHeight;
-    const auto skipPixelsPerRow        = webgl->mPixelStore_UnpackSkipPixels;
-    const auto skipRowsPerImage        = webgl->mPixelStore_UnpackSkipRows;
-    const auto skipImages              = isFunc3D ? webgl->mPixelStore_UnpackSkipImages
-                                                  : 0;
-    const auto usedPixelsPerRow = mWidth;
-    const auto usedRowsPerImage = mHeight;
-    const auto usedImages       = mDepth;
-
-    uint32_t bytesNeeded;
-    if (!GetPackedSizeForUnpack(bytesPerPixel, rowByteAlignment,
-                                maybeStridePixelsPerRow, maybeStrideRowsPerImage,
-                                skipPixelsPerRow, skipRowsPerImage, skipImages,
-                                usedPixelsPerRow, usedRowsPerImage, usedImages,
-                                &bytesNeeded))
-    {
+    const auto bytesPerPixel = webgl::BytesPerPixel(pi);
+    const auto bytesNeeded = webgl->GetUnpackSize(isFunc3D, mWidth, mHeight, mDepth,
+                                                  bytesPerPixel);
+    if (!bytesNeeded.isValid()) {
         webgl->ErrorInvalidOperation("%s: Overflow while computing the needed buffer"
                                      " size.",
                                      funcName);
         return false;
     }
 
-    if (bytesNeeded > mByteCount) {
+    if (mByteCount < bytesNeeded.value()) {
         webgl->ErrorInvalidOperation("%s: Provided buffer is too small. (needs %u, has"
                                      " %u)",
-                                     funcName, bytesNeeded, mByteCount);
+                                     funcName, bytesNeeded.value(), mByteCount);
         return false;
     }
 
@@ -286,7 +214,6 @@ TexUnpackBytes::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTextur
         }
 
         uploadBytes = tempBuffer.get();
-        break;
     } while (false);
 
     GLenum error = DoTexOrSubImage(isSubImage, gl, target, level, dui, xOffset, yOffset,

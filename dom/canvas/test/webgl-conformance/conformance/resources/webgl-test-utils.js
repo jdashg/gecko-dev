@@ -635,31 +635,6 @@ function create3DContextWithWrapperThatThrowsOnGLError(canvas) {
 };
 
 /**
- * Tests that an evaluated expression generates a specific GL error.
- * @param {!WebGLContext} gl The WebGLContext to use.
- * @param {number} glError The expected gl error.
- * @param {string} evalSTr The string to evaluate.
- */
-var shouldGenerateGLError = function(gl, glError, evalStr) {
-  var exception;
-  try {
-    eval(evalStr);
-  } catch (e) {
-    exception = e;
-  }
-  if (exception) {
-    testFailed(evalStr + " threw exception " + exception);
-  } else {
-    var err = gl.getError();
-    if (err != glError) {
-      testFailed(evalStr + " expected: " + getGLErrorAsString(gl, glError) + ". Was " + getGLErrorAsString(gl, err) + ".");
-    } else {
-      testPassed(evalStr + " was expected value: " + getGLErrorAsString(gl, glError) + ".");
-    }
-  }
-};
-
-/**
  * Tests that the first error GL returns is the specified error.
  * @param {!WebGLContext} gl The WebGLContext to use.
  * @param {number} glError The expected gl error.
@@ -678,9 +653,9 @@ var glErrorShouldBe = function(gl, glError, opt_msg) {
 };
 
 /**
- * Tests that the first error GL returns is the specified error.
+ * Tests that the first error GL returns is in the specified error list.
  * @param {!WebGLContext} gl The WebGLContext to use.
- * @param {number} glError The expected gl error.
+ * @param {!Array.<number>} expectedErrorList The list of expected gl errors.
  * @param {string} opt_msg
  */
 var glErrorShouldBeIn = function(gl, expectedErrorList, opt_msg) {
@@ -704,6 +679,46 @@ var glErrorShouldBeIn = function(gl, expectedErrorList, opt_msg) {
   } else {
     testFailed("getError expected: " + expectedErrorStr +
                ". Was " + getGLErrorAsString(gl, actualError) + " : " + opt_msg);
+  }
+};
+
+/**
+ * Tests that an evaluated expression generates a specific GL error.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {number} glError The expected gl error.
+ * @param {string} evalSTr The string to evaluate.
+ */
+var shouldGenerateGLError = function(gl, glError, evalStr) {
+  var exception;
+  try {
+    eval(evalStr);
+  } catch (e) {
+    exception = e;
+  }
+  if (exception) {
+    testFailed(evalStr + " threw exception " + exception);
+  } else {
+    glErrorShouldBe(gl, glError, evalStr);
+  }
+};
+
+/**
+ * Tests that an evaluated expression generates a GL error from a list.
+ * @param {!WebGLContext} gl The WebGLContext to use.
+ * @param {!Array.<number>} expectedErrorList The list of expected gl errors.
+ * @param {string} evalSTr The string to evaluate.
+ */
+var shouldGenerateGLErrorIn = function(gl, expectedErrorList, evalStr) {
+  var exception;
+  try {
+    eval(evalStr);
+  } catch (e) {
+    exception = e;
+  }
+  if (exception) {
+    testFailed(evalStr + " threw exception " + exception);
+  } else {
+    glErrorShouldBeIn(gl, expectedErrorList, evalStr);
   }
 };
 

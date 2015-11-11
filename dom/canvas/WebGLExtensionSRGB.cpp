@@ -27,26 +27,23 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
 
     auto& fua = webgl->mFormatUsage;
 
-    webgl::FormatUsageInfo* usage;
-    webgl::PackingInfo pi;
-    webgl::DriverUnpackInfo dui;
+    const auto fnAdd = [&fua](webgl::EffectiveFormat effFormat, GLenum unpackFormat)
+    {
+        auto usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8);
+        usage->isFilterable = true;
 
-    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8);
-    usage->isRenderable = false;
-    usage->isFilterable = true;
-    pi = {LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
-    dui = {LOCAL_GL_SRGB, LOCAL_GL_SRGB, LOCAL_GL_UNSIGNED_BYTE};
-    fua->AddUnsizedTexFormat(pi, usage);
-    usage->AddUnpack(pi, dui);
+        const webgl::DriverUnpackInfo dui = {unpackFormat, unpackFormat,
+                                             LOCAL_GL_UNSIGNED_BYTE};
+        const auto pi = dui.ToPacking();
+        fua->AddUnsizedTexFormat(pi, usage);
+        usage->AddUnpack(pi, dui);
+    };
 
-    usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8_ALPHA8);
+    fnAdd(webgl::EffectiveFormat::SRGB8, LOCAL_GL_SRGB);
+    fnAdd(webgl::EffectiveFormat::SRGB8_ALPHA8, LOCAL_GL_SRGB_ALPHA);
+
+    auto usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8_ALPHA8);
     usage->isRenderable = true;
-    usage->isFilterable = true;
-    pi = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    dui = {LOCAL_GL_SRGB_ALPHA, LOCAL_GL_SRGB_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
-    fua->AddUnsizedTexFormat(pi, usage);
-    usage->AddUnpack(pi, dui);
-
     fua->AddRBFormat(LOCAL_GL_SRGB8_ALPHA8, usage);
 }
 

@@ -220,11 +220,11 @@ WebGLRenderbuffer::RenderbufferStorage(GLsizei samples,
 }
 
 void
-WebGLRenderbuffer::FramebufferRenderbuffer(FBAttachment attachment) const
+WebGLRenderbuffer::FramebufferRenderbuffer(GLenum attachment) const
 {
     gl::GLContext* gl = mContext->gl;
     if (attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-        gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, attachment.get(),
+        gl->fFramebufferRenderbuffer(LOCAL_GL_FRAMEBUFFER, attachment,
                                      LOCAL_GL_RENDERBUFFER, mPrimaryRB);
         return;
     }

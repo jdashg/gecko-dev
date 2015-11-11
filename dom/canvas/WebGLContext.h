@@ -214,6 +214,9 @@ class WebGLContext
         UNMASKED_RENDERER_WEBGL = 0x9246
     };
 
+    static const uint32_t kMinMaxColorAttachments = 4;
+    static const uint32_t kMinMaxDrawBuffers = 4;
+
 public:
     WebGLContext();
 
@@ -356,14 +359,11 @@ public:
     // all context resources to be lost.
     uint32_t Generation() { return mGeneration.value(); }
 
-    static const size_t kMaxColorAttachments = 16;
-
     // This is similar to GLContext::ClearSafely, but tries to minimize the
     // amount of work it does.
     // It only clears the buffers we specify, and can reset its state without
     // first having to query anything, as WebGL knows its state at all times.
-    void ForceClearFramebufferWithDefaultValues(bool fakeNoAlpha, GLbitfield mask,
-                                                const bool colorAttachmentsMask[kMaxColorAttachments]);
+    void ForceClearFramebufferWithDefaultValues(GLbitfield bufferBits, bool fakeNoAlpha);
 
     // Calls ForceClearFramebufferWithDefaultValues() for the Context's 'screen'.
     void ClearScreen();
@@ -1095,6 +1095,7 @@ protected:
     void DeleteWebGLObjectsArray(nsTArray<WebGLObjectType>& array);
 
     GLuint mActiveTexture;
+    GLenum mDefaultFB_DrawBuffer0;
 
     // glGetError sources:
     bool mEmitContextLostErrorOnce;
@@ -1114,11 +1115,23 @@ protected:
     int32_t mGLMaxVaryingVectors;
     int32_t mGLMaxFragmentUniformVectors;
     int32_t mGLMaxVertexUniformVectors;
-    int32_t mGLMaxColorAttachments;
-    int32_t mGLMaxDrawBuffers;
     uint32_t  mGLMaxTransformFeedbackSeparateAttribs;
     GLuint  mGLMaxUniformBufferBindings;
     GLsizei mGLMaxSamples;
+
+    // What is supported:
+    uint32_t mGLMaxColorAttachments;
+    uint32_t mGLMaxDrawBuffers;
+    // What we're allowing:
+    uint32_t mImplMaxColorAttachments;
+    uint32_t mImplMaxDrawBuffers;
+
+public:
+    GLenum LastColorAttachmentEnum() const {
+        return LOCAL_GL_COLOR_ATTACHMENT0 + mImplMaxColorAttachments - 1;
+    }
+
+protected:
 
     // Texture sizes are often not actually the GL values. Let's be explicit that these
     // are implementation limits.
@@ -1376,10 +1389,6 @@ protected:
     WebGLRefPtr<WebGLProgram> mCurrentProgram;
     RefPtr<const webgl::LinkedProgramInfo> mActiveProgramLinkInfo;
 
-    GLenum LastColorAttachment() const {
-        return LOCAL_GL_COLOR_ATTACHMENT0 + mGLMaxColorAttachments - 1;
-    }
-
     bool ValidateFramebufferTarget(GLenum target, const char* const info);
 
     WebGLRefPtr<WebGLFramebuffer> mBoundDrawFramebuffer;
@@ -1415,6 +1424,9 @@ protected:
     uint32_t mPixelStore_PackSkipRows;
     uint32_t mPixelStore_PackSkipPixels;
     uint32_t mPixelStore_PackAlignment;
+
+    CheckedUint32 GetUnpackSize(bool isFunc3D, uint32_t width, uint32_t height,
+                                uint32_t depth, uint8_t bytesPerPixel);
 
     CheckedUint32 GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel,
                               CheckedUint32* const out_startOffset,
@@ -1572,6 +1584,7 @@ public:
     friend class webgl::TexUnpackBytes;
     friend class webgl::TexUnpackSurface;
     friend class WebGLTexture;
+    friend class WebGLFBAttachPoint;
     friend class WebGLFramebuffer;
     friend class WebGLRenderbuffer;
     friend class WebGLProgram;

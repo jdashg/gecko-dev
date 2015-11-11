@@ -31,8 +31,8 @@ WebGLExtensionColorBufferFloat::WebGLExtensionColorBufferFloat(WebGLContext* web
 
 #define FOO(x) fnUpdateUsage(LOCAL_GL_ ## x, webgl::EffectiveFormat::x)
 
+    // The extension doesn't actually add RGB32F; only RGBA32F.
     FOO(RGBA32F);
-    FOO(RGB32F);
 
 #undef FOO
 }

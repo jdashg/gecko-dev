@@ -336,16 +336,16 @@ ScopedViewportRect::ScopedViewportRect(GLContext* aGL,
                                        GLsizei width, GLsizei height)
   : ScopedGLWrapper<ScopedViewportRect>(aGL)
 {
-  mGL->fGetIntegerv(LOCAL_GL_VIEWPORT, mSavedViewportRect);
-  mGL->fViewport(x, y, width, height);
+    mGL->fGetIntegerv(LOCAL_GL_VIEWPORT, mSavedViewportRect);
+    mGL->fViewport(x, y, width, height);
 }
 
 void ScopedViewportRect::UnwrapImpl()
 {
-  mGL->fViewport(mSavedViewportRect[0],
-                 mSavedViewportRect[1],
-                 mSavedViewportRect[2],
-                 mSavedViewportRect[3]);
+    mGL->fViewport(mSavedViewportRect[0],
+                   mSavedViewportRect[1],
+                   mSavedViewportRect[2],
+                   mSavedViewportRect[3]);
 }
 
 /* ScopedScissorRect **********************************************************/
@@ -355,22 +355,22 @@ ScopedScissorRect::ScopedScissorRect(GLContext* aGL,
                                      GLsizei width, GLsizei height)
   : ScopedGLWrapper<ScopedScissorRect>(aGL)
 {
-  mGL->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mSavedScissorRect);
-  mGL->fScissor(x, y, width, height);
+    mGL->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mSavedScissorRect);
+    mGL->fScissor(x, y, width, height);
 }
 
 ScopedScissorRect::ScopedScissorRect(GLContext* aGL)
   : ScopedGLWrapper<ScopedScissorRect>(aGL)
 {
-  mGL->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mSavedScissorRect);
+    mGL->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, mSavedScissorRect);
 }
 
 void ScopedScissorRect::UnwrapImpl()
 {
-  mGL->fScissor(mSavedScissorRect[0],
-                mSavedScissorRect[1],
-                mSavedScissorRect[2],
-                mSavedScissorRect[3]);
+    mGL->fScissor(mSavedScissorRect[0],
+                  mSavedScissorRect[1],
+                  mSavedScissorRect[2],
+                  mSavedScissorRect[3]);
 }
 
 /* ScopedVertexAttribPointer **************************************************/
@@ -562,7 +562,7 @@ ScopedUnpackAlignment::ScopedUnpackAlignment(GLContext* gl, GLint scopedVal)
     if (scopedVal != mOldVal) {
         gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, scopedVal);
     } else {
-      // Don't try to re-set it during unwrap.
+        // Don't try to re-set it during unwrap.
         mOldVal = 0;
     }
 }

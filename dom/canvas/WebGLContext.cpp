@@ -1268,37 +1268,37 @@ WebGLContext::MozGetUnderlyingParamString(uint32_t pname, nsAString& retval)
 void
 WebGLContext::ClearScreen()
 {
-    bool colorAttachmentsMask[WebGLContext::kMaxColorAttachments] = {false};
-
     MakeContextCurrent();
     ScopedBindFramebuffer autoFB(gl, 0);
 
-    GLbitfield clearMask = LOCAL_GL_COLOR_BUFFER_BIT;
+    const bool changeDrawBuffers = (mDefaultFB_DrawBuffer0 != LOCAL_GL_BACK);
+    if (changeDrawBuffers) {
+        const GLenum back = LOCAL_GL_BACK;
+        gl->fDrawBuffers(1, &back);
+    }
+
+    GLbitfield bufferBits = LOCAL_GL_COLOR_BUFFER_BIT;
     if (mOptions.depth)
-        clearMask |= LOCAL_GL_DEPTH_BUFFER_BIT;
+        bufferBits |= LOCAL_GL_DEPTH_BUFFER_BIT;
     if (mOptions.stencil)
-        clearMask |= LOCAL_GL_STENCIL_BUFFER_BIT;
+        bufferBits |= LOCAL_GL_STENCIL_BUFFER_BIT;
 
-    colorAttachmentsMask[0] = true;
+    ForceClearFramebufferWithDefaultValues(bufferBits, mNeedsFakeNoAlpha);
 
-    ForceClearFramebufferWithDefaultValues(mNeedsFakeNoAlpha, clearMask,
-                                           colorAttachmentsMask);
+    if (changeDrawBuffers) {
+        gl->fDrawBuffers(1, &mDefaultFB_DrawBuffer0);
+    }
 }
 
 void
-WebGLContext::ForceClearFramebufferWithDefaultValues(bool fakeNoAlpha, GLbitfield mask,
-                                                     const bool colorAttachmentsMask[kMaxColorAttachments])
+WebGLContext::ForceClearFramebufferWithDefaultValues(GLbitfield clearBits,
+                                                     bool fakeNoAlpha)
 {
     MakeContextCurrent();
 
-    bool initializeColorBuffer = 0 != (mask & LOCAL_GL_COLOR_BUFFER_BIT);
-    bool initializeDepthBuffer = 0 != (mask & LOCAL_GL_DEPTH_BUFFER_BIT);
-    bool initializeStencilBuffer = 0 != (mask & LOCAL_GL_STENCIL_BUFFER_BIT);
-    bool drawBuffersIsEnabled = IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers);
-    bool shouldOverrideDrawBuffers = false;
-    bool usingDefaultFrameBuffer = !mBoundDrawFramebuffer;
-
-    GLenum currentDrawBuffers[WebGLContext::kMaxColorAttachments];
+    const bool initializeColorBuffer = bool(clearBits & LOCAL_GL_COLOR_BUFFER_BIT);
+    const bool initializeDepthBuffer = bool(clearBits & LOCAL_GL_DEPTH_BUFFER_BIT);
+    const bool initializeStencilBuffer = bool(clearBits & LOCAL_GL_STENCIL_BUFFER_BIT);
 
     // Fun GL fact: No need to worry about the viewport here, glViewport is just
     // setting up a coordinates transformation, it doesn't affect glClear at all.
@@ -1309,38 +1309,6 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(bool fakeNoAlpha, GLbitfiel
     gl->fDisable(LOCAL_GL_SCISSOR_TEST);
 
     if (initializeColorBuffer) {
-
-        if (drawBuffersIsEnabled) {
-
-            GLenum drawBuffersCommand[WebGLContext::kMaxColorAttachments] = { LOCAL_GL_NONE };
-
-            for (int32_t i = 0; i < mGLMaxDrawBuffers; i++) {
-                GLint temp;
-                gl->fGetIntegerv(LOCAL_GL_DRAW_BUFFER0 + i, &temp);
-                currentDrawBuffers[i] = temp;
-
-                if (colorAttachmentsMask[i]) {
-                    drawBuffersCommand[i] = LOCAL_GL_COLOR_ATTACHMENT0 + i;
-                }
-                if (currentDrawBuffers[i] != drawBuffersCommand[i])
-                    shouldOverrideDrawBuffers = true;
-            }
-
-            // When clearing the default framebuffer, we must be clearing only
-            // GL_BACK, and nothing else, or else gl may return an error. We will
-            // only use the first element of currentDrawBuffers in this case.
-            if (usingDefaultFrameBuffer) {
-                gl->Screen()->SetDrawBuffer(LOCAL_GL_BACK);
-                if (currentDrawBuffers[0] == LOCAL_GL_COLOR_ATTACHMENT0)
-                    currentDrawBuffers[0] = LOCAL_GL_BACK;
-                shouldOverrideDrawBuffers = false;
-            }
-            // calling draw buffers can cause resolves on adreno drivers so
-            // we try to avoid calling it
-            if (shouldOverrideDrawBuffers)
-                gl->fDrawBuffers(mGLMaxDrawBuffers, drawBuffersCommand);
-        }
-
         gl->fColorMask(1, 1, 1, 1);
 
         if (fakeNoAlpha) {
@@ -1368,7 +1336,7 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(bool fakeNoAlpha, GLbitfiel
     }
 
     // Do the clear!
-    gl->fClear(mask);
+    gl->fClear(clearBits);
 
     // And reset!
     if (mScissorTestEnabled)
@@ -1380,15 +1348,6 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(bool fakeNoAlpha, GLbitfiel
 
     // Restore GL state after clearing.
     if (initializeColorBuffer) {
-
-        if (drawBuffersIsEnabled) {
-            if (usingDefaultFrameBuffer) {
-                gl->Screen()->SetDrawBuffer(currentDrawBuffers[0]);
-            } else if (shouldOverrideDrawBuffers) {
-                gl->fDrawBuffers(mGLMaxDrawBuffers, currentDrawBuffers);
-            }
-        }
-
         gl->fColorMask(mColorWriteMask[0],
                        mColorWriteMask[1],
                        mColorWriteMask[2],
@@ -1788,18 +1747,6 @@ WebGLContext::DidRefresh()
     }
 }
 
-size_t
-RoundUpToMultipleOf(size_t value, size_t multiple)
-{
-    return ((value + multiple - 1) / multiple) * multiple;
-}
-
-CheckedUint32
-RoundedToNextMultipleOf(CheckedUint32 value, CheckedUint32 multiple)
-{
-    return ((value + multiple - 1) / multiple) * multiple;
-}
-
 bool
 WebGLContext::ValidateCurFBForRead(const char* funcName,
                                    const webgl::FormatUsageInfo** const out_format,
@@ -1993,9 +1940,7 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
     const auto driverUnpackInfo = usage->idealUnpack;
     MOZ_RELEASE_ASSERT(driverUnpackInfo);
 
-    const auto unpackFormat = driverUnpackInfo->unpackFormat;
-    const auto unpackType = driverUnpackInfo->unpackType;
-    const webgl::PackingInfo packing = { unpackFormat, unpackType };
+    const webgl::PackingInfo packing = driverUnpackInfo->ToPacking();
 
     const auto bytesPerPixel = webgl::BytesPerPixel(packing);
 
@@ -2016,18 +1961,63 @@ ZeroTextureData(WebGLContext* webgl, const char* funcName, bool respecifyTexture
     GLenum error;
     if (respecifyTexture) {
         MOZ_RELEASE_ASSERT(!xOffset && !yOffset && !zOffset);
-
-        const auto internalFormat = driverUnpackInfo->internalFormat;
-        error = DoTexImage(gl, target, level, internalFormat, width, height, depth,
-                           unpackFormat, unpackType, zeros.get());
+        error = DoTexImage(gl, target, level, driverUnpackInfo, width, height, depth,
+                           zeros.get());
     } else {
         error = DoTexSubImage(gl, target, level, xOffset, yOffset, zOffset, width, height,
-                              depth, unpackFormat, unpackType, zeros.get());
+                              depth, packing, zeros.get());
     }
     if (error)
         return false;
 
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+CheckedUint32
+WebGLContext::GetUnpackSize(bool isFunc3D, uint32_t width, uint32_t height,
+                            uint32_t depth, uint8_t bytesPerPixel)
+{
+    if (!width || !height || !depth)
+        return 0;
+
+    ////////////////
+
+    const auto& maybeRowLength = mPixelStore_UnpackRowLength;
+    const auto& maybeImageHeight = mPixelStore_UnpackImageHeight;
+
+    const auto usedPixelsPerRow = CheckedUint32(mPixelStore_UnpackSkipPixels) + width;
+    const auto stridePixelsPerRow = (maybeRowLength ? CheckedUint32(maybeRowLength)
+                                                    : usedPixelsPerRow);
+
+    const auto usedRowsPerImage = CheckedUint32(mPixelStore_UnpackSkipRows) + height;
+    const auto strideRowsPerImage = (maybeImageHeight ? CheckedUint32(maybeImageHeight)
+                                                      : usedRowsPerImage);
+
+    const uint32_t skipImages = (isFunc3D ? mPixelStore_UnpackSkipImages
+                                          : 0);
+    const CheckedUint32 usedImages = CheckedUint32(skipImages) + depth;
+
+    ////////////////
+
+    CheckedUint32 strideBytesPerRow = bytesPerPixel * stridePixelsPerRow;
+    strideBytesPerRow = RoundUpToMultipleOf(strideBytesPerRow,
+                                            mPixelStore_UnpackAlignment);
+
+    const CheckedUint32 strideBytesPerImage = strideBytesPerRow * strideRowsPerImage;
+
+    ////////////////
+
+    CheckedUint32 usedBytesPerRow = bytesPerPixel * usedPixelsPerRow;
+    // Don't round this to the alignment, since alignment here is really just used for
+    // establishing stride, particularly in WebGL 1, where you can't set ROW_LENGTH.
+
+    CheckedUint32 totalBytes = strideBytesPerImage * (usedImages - 1);
+    totalBytes += strideBytesPerRow * (usedRowsPerImage - 1);
+    totalBytes += usedBytesPerRow;
+
+    return totalBytes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

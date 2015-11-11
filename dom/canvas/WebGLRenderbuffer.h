@@ -59,7 +59,7 @@ public:
     void BindRenderbuffer() const;
     void RenderbufferStorage(GLsizei samples, const webgl::FormatUsageInfo* format,
                              GLsizei width, GLsizei height);
-    void FramebufferRenderbuffer(FBAttachment attachment) const;
+    void FramebufferRenderbuffer(GLenum attachment) const;
     // Only handles a subset of `pname`s.
     GLint GetRenderbufferParameter(RBTarget target, RBParam pname) const;
 
