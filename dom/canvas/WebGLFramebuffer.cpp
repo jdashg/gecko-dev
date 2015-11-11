@@ -436,6 +436,7 @@ WebGLFramebuffer::WebGLFramebuffer(WebGLContext* webgl, GLuint fbo)
     , mDepthAttachment(this, LOCAL_GL_DEPTH_ATTACHMENT)
     , mStencilAttachment(this, LOCAL_GL_STENCIL_ATTACHMENT)
     , mDepthStencilAttachment(this, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+    , mMoreColorAttachments(webgl->mGLMaxColorAttachments)
     , mDrawBuffers(1, LOCAL_GL_COLOR_ATTACHMENT0)
 #ifdef ANDROID
     , mIsFB(false)
@@ -586,15 +587,15 @@ WebGLFramebuffer::GetAttachPoint(GLenum attachPoint)
         return nullptr;
     }
 
-    if (!mMoreColorAttachments.size()) {
+    if (!mMoreColorAttachments.Size()) {
         for (GLenum cur = LOCAL_GL_COLOR_ATTACHMENT1; cur <= lastCAEnum; cur++) {
-            mMoreColorAttachments.push_back(WebGLFBAttachPoint(this, cur));
+            mMoreColorAttachments.AppendNew(this, cur);
         }
     }
-    MOZ_ASSERT(LOCAL_GL_COLOR_ATTACHMENT0 + mMoreColorAttachments.size() == lastCAEnum);
+    MOZ_ASSERT(LOCAL_GL_COLOR_ATTACHMENT0 + mMoreColorAttachments.Size() == lastCAEnum);
 
     const size_t offset = attachPoint - LOCAL_GL_COLOR_ATTACHMENT1;
-    MOZ_ASSERT(offset <= mMoreColorAttachments.size());
+    MOZ_ASSERT(offset <= mMoreColorAttachments.Size());
     return &mMoreColorAttachments[offset];
 }
 
@@ -660,7 +661,7 @@ WebGLFramebuffer::HasDefinedAttachments() const
 bool
 WebGLFramebuffer::HasIncompleteAttachments() const
 {
-    const auto fnIsIncomplete = [](const auto& cur) {
+    const auto fnIsIncomplete = [](const WebGLFBAttachPoint& cur) {
         if (!cur.IsDefined())
             return false; // Not defined, so can't count as incomplete.
 
@@ -837,7 +838,7 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
 
     // Get buffer-bit-mask and color-attachment-mask-list
     uint32_t clearBits = 0;
-    std::vector<GLenum> tempDrawBuffers(1 + mMoreColorAttachments.size(), LOCAL_GL_NONE);
+    std::vector<GLenum> tempDrawBuffers(1 + mMoreColorAttachments.Size(), LOCAL_GL_NONE);
 
     if (mColorAttachment0.HasUninitializedImageData() && IsDrawBuffer(0)) {
         clearBits |= LOCAL_GL_COLOR_BUFFER_BIT;
@@ -868,12 +869,12 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
 
     mContext->MakeContextCurrent();
 
-    mContext->gl->fDrawBuffers(tempDrawBuffers.size(), tempDrawBuffers.data());
+    mContext->gl->fDrawBuffers(tempDrawBuffers.size(), &(tempDrawBuffers[0]));
 
     // Clear!
     mContext->ForceClearFramebufferWithDefaultValues(clearBits, false);
 
-    mContext->gl->fDrawBuffers(mDrawBuffers.size(), mDrawBuffers.data());
+    mContext->gl->fDrawBuffers(mDrawBuffers.size(), &(mDrawBuffers[0]));
 
     // Mark all the uninitialized images as initialized.
     if (mDepthAttachment.HasUninitializedImageData())
@@ -947,7 +948,7 @@ WebGLFramebuffer::FinalizeAttachments() const
     mStencilAttachment.FinalizeAttachment(gl, LOCAL_GL_STENCIL_ATTACHMENT);
     mDepthStencilAttachment.FinalizeAttachment(gl, LOCAL_GL_DEPTH_STENCIL_ATTACHMENT);
 
-    for (size_t i = 0; i < mMoreColorAttachments.size(); i++) {
+    for (size_t i = 0; i < mMoreColorAttachments.Size(); i++) {
         GLenum attachPoint = LOCAL_GL_COLOR_ATTACHMENT1 + i;
         mMoreColorAttachments[i].FinalizeAttachment(gl, attachPoint);
     }
@@ -1063,19 +1064,19 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& callback,
     CycleCollectionNoteChild(callback, field.Renderbuffer(), name, flags);
 }
 
-template<typename T>
+template<typename C>
 inline void
-ImplCycleCollectionUnlink(std::vector<T>& field)
+ImplCycleCollectionUnlink(C& field)
 {
     for (auto& cur : field) {
         cur.Unlink();
     }
 }
 
-template<typename T>
+template<typename C>
 inline void
 ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& callback,
-                            std::vector<T>& field,
+                            C& field,
                             const char* name,
                             uint32_t flags = 0)
 {

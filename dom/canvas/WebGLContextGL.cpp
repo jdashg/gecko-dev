@@ -686,20 +686,6 @@ WebGLContext::GetBufferParameter(GLenum target, GLenum pname)
     return JS::NullValue();
 }
 
-static JS::Value
-MissingAttachmentCausesInvalidOp(WebGLContext* webgl)
-{
-    webgl->ErrorInvalidOperation("getFramebufferAttachmentParameter: Valid pname, but"
-                                 " missing attachment.");
-    return JS::NullValue();
-}
-
-static JS::Value
-JSUint32Value(uint32_t val)
-{
-    return JS::NumberValue(val);
-}
-
 JS::Value
 WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                                                 GLenum target,
@@ -768,32 +754,32 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE:
         if (attachment == LOCAL_GL_COLOR)
-            return JS::Int32Value(8);
-        return JS::Int32Value(0);
+            return JS::NumberValue(8);
+        return JS::NumberValue(0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
         if (attachment == LOCAL_GL_COLOR)
-            return JS::Int32Value(mOptions.alpha ? 8 : 0);
-        return JS::Int32Value(0);
+            return JS::NumberValue(mOptions.alpha ? 8 : 0);
+        return JS::NumberValue(0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
         if (attachment == LOCAL_GL_DEPTH)
-            return JS::Int32Value(mOptions.depth ? 24 : 0);
-        return JS::Int32Value(0);
+            return JS::NumberValue(mOptions.depth ? 24 : 0);
+        return JS::NumberValue(0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
         if (attachment == LOCAL_GL_STENCIL)
-            return JS::Int32Value(mOptions.stencil ? 8 : 0);
-        return JS::Int32Value(0);
+            return JS::NumberValue(mOptions.stencil ? 8 : 0);
+        return JS::NumberValue(0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
         if (attachment == LOCAL_GL_STENCIL)
-            return JS::Int32Value(LOCAL_GL_UNSIGNED_INT);
+            return JS::NumberValue(LOCAL_GL_UNSIGNED_INT);
         else
-            return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
+            return JS::NumberValue(LOCAL_GL_UNSIGNED_NORMALIZED);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-        return JS::Int32Value(LOCAL_GL_LINEAR);
+        return JS::NumberValue(LOCAL_GL_LINEAR);
     }
 
     ErrorInvalidEnum("%s: Invalid pname: 0x%04x", funcName, pname);
