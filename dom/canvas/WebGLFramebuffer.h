@@ -21,6 +21,9 @@ class WebGLFramebuffer;
 class WebGLRenderbuffer;
 class WebGLTexture;
 
+template<typename T>
+class PlacementArray;
+
 namespace gl {
     class GLContext;
 } // namespace gl
@@ -36,6 +39,16 @@ private:
     TexImageTarget mTexImageTarget;
     GLint mTexImageLayer;
     GLint mTexImageLevel;
+
+    // PlacementArray needs a default constructor.
+    template<typename T>
+    friend class PlacementArray;
+
+    WebGLFBAttachPoint()
+        : mFB(nullptr)
+        , mAttachmentPoint(0)
+    { }
+
 
 public:
     WebGLFBAttachPoint(WebGLFramebuffer* fb, GLenum attachmentPoint);
@@ -98,6 +111,55 @@ public:
     void OnBackingStoreRespecified() const;
 };
 
+template<typename T>
+class PlacementArray
+{
+public:
+    const size_t mCapacity;
+protected:
+    size_t mSize;
+    T* const mArray;
+
+public:
+    PlacementArray(size_t capacity)
+        : mCapacity(capacity)
+        , mSize(0)
+        , mArray((T*)moz_xmalloc(sizeof(T) * capacity))
+    { }
+
+    ~PlacementArray() {
+        for (auto& cur : *this) {
+            cur.~T();
+        }
+        free(mArray);
+    }
+
+    T* begin() const {
+        return mArray;
+    }
+
+    T* end() const {
+        return mArray + mSize;
+    }
+
+    T& operator [](size_t offset) const {
+        MOZ_ASSERT(offset < mSize);
+        return mArray[offset];
+    }
+
+    const size_t& Size() const { return mSize; }
+
+    template<typename A, typename B>
+    void AppendNew(A a, B b) {
+        if (mSize == mCapacity)
+            MOZ_CRASH("Bad EmplaceAppend.");
+
+        // Placement `new`:
+        new (&(mArray[mSize])) T(a, b);
+        ++mSize;
+    }
+};
+
 class WebGLFramebuffer final
     : public nsWrapperCache
     , public WebGLRefCountedObject<WebGLFramebuffer>
@@ -122,7 +184,8 @@ private:
     WebGLFBAttachPoint mDepthAttachment;
     WebGLFBAttachPoint mStencilAttachment;
     WebGLFBAttachPoint mDepthStencilAttachment;
-    std::vector<WebGLFBAttachPoint> mMoreColorAttachments;
+
+    PlacementArray<WebGLFBAttachPoint> mMoreColorAttachments;
 
     std::vector<GLenum> mDrawBuffers;
 
@@ -178,7 +241,7 @@ public:
     }
 
     const WebGLFBAttachPoint& ColorAttachment(size_t colorAttachmentId) const {
-        MOZ_ASSERT(colorAttachmentId < 1 + mMoreColorAttachments.size());
+        MOZ_ASSERT(colorAttachmentId < 1 + mMoreColorAttachments.Size());
         return colorAttachmentId ? mMoreColorAttachments[colorAttachmentId - 1]
                                  : mColorAttachment0;
     }
