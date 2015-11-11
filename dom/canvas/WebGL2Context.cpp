@@ -55,15 +55,6 @@ WebGL2Context::WrapObject(JSContext* cx, JS::Handle<JSObject*> givenProto)
 ////////////////////////////////////////////////////////////////////////////////
 // WebGL 2 initialisation
 
-// These WebGL 1 extensions are natively supported by WebGL 2.
-static const WebGLExtensionID kNativelySupportedExtensions[] = {
-    WebGLExtensionID::ANGLE_instanced_arrays,
-    WebGLExtensionID::EXT_blend_minmax,
-    WebGLExtensionID::OES_element_index_uint,
-    WebGLExtensionID::OES_standard_derivatives,
-    WebGLExtensionID::OES_vertex_array_object
-};
-
 static const gl::GLFeature kRequiredFeatures[] = {
     gl::GLFeature::blend_minmax,
     gl::GLFeature::clear_buffers,
@@ -146,13 +137,6 @@ WebGLContext::InitWebGL2()
         return false;
     }
 
-    // ok WebGL 2 is compatible, we can enable natively supported extensions.
-    for (size_t i = 0; i < ArrayLength(kNativelySupportedExtensions); i++) {
-        EnableExtension(kNativelySupportedExtensions[i]);
-
-        MOZ_ASSERT(IsExtensionEnabled(kNativelySupportedExtensions[i]));
-    }
-
     // we initialise WebGL 2 related stuff.
     gl->GetUIntegerv(LOCAL_GL_MAX_TRANSFORM_FEEDBACK_SEPARATE_ATTRIBS,
                      &mGLMaxTransformFeedbackSeparateAttribs);
@@ -164,6 +148,13 @@ WebGLContext::InitWebGL2()
 
     mDefaultTransformFeedback = new WebGLTransformFeedback(this, 0);
     mBoundTransformFeedback = mDefaultTransformFeedback;
+
+    if (!gl->IsGLES()) {
+        // Desktop OpenGL requires the following to be enabled in order to
+        // support sRGB operations on framebuffers.
+        gl->MakeCurrent();
+        gl->fEnable(LOCAL_GL_FRAMEBUFFER_SRGB_EXT);
+    }
 
     return true;
 }

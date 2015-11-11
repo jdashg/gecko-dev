@@ -647,7 +647,11 @@ public:
             MOZ_ASSERT(!mHasBeenChecked);
             mHasBeenChecked = true;
 
-            return mGL.fGetError();
+            const GLenum ret = mGL.fGetError();
+
+            while (mGL.fGetError()) {}
+
+            return ret;
         }
 
         ~LocalErrorScope() {

@@ -166,7 +166,7 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
         }
     }
 
-    if (IsExtensionEnabled(WebGLExtensionID::OES_vertex_array_object)) {
+    if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::OES_vertex_array_object)) {
         if (pname == LOCAL_GL_VERTEX_ARRAY_BINDING) {
             WebGLVertexArray* vao =
                 (mBoundVertexArray != mDefaultVertexArray) ? mBoundVertexArray.get() : nullptr;
@@ -174,7 +174,7 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
         }
     }
 
-    if (IsExtensionEnabled(WebGLExtensionID::EXT_disjoint_timer_query)) {
+    if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::EXT_disjoint_timer_query)) {
         if (pname == LOCAL_GL_TIMESTAMP_EXT) {
             GLuint64 iv = 0;
             gl->fGetInteger64v(pname, (GLint64*) &iv);
@@ -235,7 +235,7 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
         }
     }
 
-    if (IsExtensionEnabled(WebGLExtensionID::OES_standard_derivatives)) {
+    if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::OES_standard_derivatives)) {
         if (pname == LOCAL_GL_FRAGMENT_SHADER_DERIVATIVE_HINT) {
             GLint i = 0;
             gl->fGetIntegerv(pname, &i);

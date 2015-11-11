@@ -46,8 +46,11 @@ WebGLContext::ValidateBlendEquationEnum(GLenum mode, const char* info)
 
     case LOCAL_GL_MIN:
     case LOCAL_GL_MAX:
-        if (IsExtensionEnabled(WebGLExtensionID::EXT_blend_minmax))
+        if (IsWebGL2() ||
+            IsExtensionEnabled(WebGLExtensionID::EXT_blend_minmax))
+        {
             return true;
+        }
 
         break;
 

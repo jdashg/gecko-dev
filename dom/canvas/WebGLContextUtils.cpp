@@ -685,7 +685,7 @@ WebGLContext::AssertCachedBindings()
 
     GetAndFlushUnderlyingGLErrors();
 
-    if (IsExtensionEnabled(WebGLExtensionID::OES_vertex_array_object)) {
+    if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::OES_vertex_array_object)) {
         GLuint bound = mBoundVertexArray ? mBoundVertexArray->GLName() : 0;
         AssertUintParamCorrect(gl, LOCAL_GL_VERTEX_ARRAY_BINDING, bound);
     }
