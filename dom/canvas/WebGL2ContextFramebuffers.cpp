@@ -315,9 +315,6 @@ WebGL2Context::FramebufferTextureLayer(GLenum target, GLenum attachment,
             return ErrorInvalidOperation("framebufferTextureLayer: texture must be an "
                                          "existing 3D texture, or a 2D texture array.");
         }
-    } else {
-        return ErrorInvalidOperation("framebufferTextureLayer: texture must be an "
-                                     "existing 3D texture, or a 2D texture array.");
     }
 
     WebGLFramebuffer* fb;
@@ -350,6 +347,8 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
                                                  GLenum pname,
                                                  ErrorResult& out_error)
 {
+    const char funcName[] = "getFramebufferAttachmentParameter";
+
     if (IsContextLost())
         return JS::NullValue();
 
@@ -358,7 +357,7 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
     // framebuffer object. target must be DRAW_FRAMEBUFFER, READ_FRAMEBUFFER, or
     // FRAMEBUFFER."
 
-    if (!ValidateFramebufferTarget(target, "getFramebufferAttachmentParameter"))
+    if (!ValidateFramebufferTarget(target, funcName))
         return JS::NullValue();
 
     // FRAMEBUFFER is equivalent to DRAW_FRAMEBUFFER.
@@ -372,7 +371,8 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
     }
 
     if (boundFB) {
-        return boundFB->GetAttachmentParameter(cx, target, attachment, pname, &out_error);
+        return boundFB->GetAttachmentParameter(funcName, cx, target, attachment, pname,
+                                               &out_error);
     }
 
     ////////////////
@@ -389,9 +389,9 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
         break;
 
     default:
-        ErrorInvalidEnum("getFramebufferAttachmentParameter: Can only query "
-                         "attachment BACK, DEPTH, or STENCIL from default "
-                         "framebuffer");
+        ErrorInvalidEnum("%s: Can only query attachment BACK, DEPTH, or STENCIL from"
+                         " default framebuffer.",
+                         funcName);
         return JS::NullValue();
     }
 
@@ -615,7 +615,7 @@ WebGL2Context::ReadBuffer(GLenum mode)
         return;
 
     const bool isColorAttachment = (mode >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-                                    mode <= LastColorAttachment());
+                                    mode <= LastColorAttachmentEnum());
 
     if (mode != LOCAL_GL_NONE && mode != LOCAL_GL_BACK && !isColorAttachment) {
         ErrorInvalidEnum("readBuffer: `mode` must be one of NONE, BACK, or "

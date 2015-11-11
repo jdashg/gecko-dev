@@ -408,13 +408,13 @@ already_AddRefed<mozilla::layers::Image>
 ImageFromVideo(dom::HTMLVideoElement* elem);
 
 GLenum
-DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLenum internalFormat,
-           GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
-           GLenum unpackType, const void* data);
+DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
+           const webgl::DriverUnpackInfo* dui, GLsizei width, GLsizei height,
+           GLsizei depth, const void* data);
 GLenum
 DoTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLint xOffset,
               GLint yOffset, GLint zOffset, GLsizei width, GLsizei height,
-              GLsizei depth, GLenum unpackFormat, GLenum unpackType, const void* data);
+              GLsizei depth, const webgl::PackingInfo& pi, const void* data);
 GLenum
 DoCompressedTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level,
                         GLint xOffset, GLint yOffset, GLint zOffset, GLsizei width,

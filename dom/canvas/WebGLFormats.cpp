@@ -240,8 +240,8 @@ InitFormatInfo()
     AddFormatInfo(FOO(DEPTH_COMPONENT16 ), 2, UnsizedFormat::D , false, ComponentType::NormUInt);
     AddFormatInfo(FOO(DEPTH_COMPONENT24 ), 3, UnsizedFormat::D , false, ComponentType::NormUInt);
     AddFormatInfo(FOO(DEPTH_COMPONENT32F), 4, UnsizedFormat::D , false, ComponentType::Float);
-    AddFormatInfo(FOO(DEPTH24_STENCIL8  ), 4, UnsizedFormat::DS, false, ComponentType::None);
-    AddFormatInfo(FOO(DEPTH32F_STENCIL8 ), 5, UnsizedFormat::DS, false, ComponentType::None);
+    AddFormatInfo(FOO(DEPTH24_STENCIL8  ), 4, UnsizedFormat::DS, false, ComponentType::Special);
+    AddFormatInfo(FOO(DEPTH32F_STENCIL8 ), 5, UnsizedFormat::DS, false, ComponentType::Special);
 
     // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
     AddFormatInfo(FOO(STENCIL_INDEX8), 1, UnsizedFormat::S, false, ComponentType::UInt);
@@ -290,14 +290,14 @@ InitFormatInfo()
     AddFormatInfo(FOO(Alpha8          ), 1, UnsizedFormat::A , false, ComponentType::NormUInt);
 
     // OES_texture_float
-    AddFormatInfo(FOO(Luminance32FAlpha32F), 2, UnsizedFormat::LA, false, ComponentType::Float);
-    AddFormatInfo(FOO(Luminance32F        ), 1, UnsizedFormat::L , false, ComponentType::Float);
-    AddFormatInfo(FOO(Alpha32F            ), 1, UnsizedFormat::A , false, ComponentType::Float);
+    AddFormatInfo(FOO(Luminance32FAlpha32F), 8, UnsizedFormat::LA, false, ComponentType::Float);
+    AddFormatInfo(FOO(Luminance32F        ), 4, UnsizedFormat::L , false, ComponentType::Float);
+    AddFormatInfo(FOO(Alpha32F            ), 4, UnsizedFormat::A , false, ComponentType::Float);
 
     // OES_texture_half_float
-    AddFormatInfo(FOO(Luminance16FAlpha16F), 2, UnsizedFormat::LA, false, ComponentType::Float);
-    AddFormatInfo(FOO(Luminance16F        ), 1, UnsizedFormat::L , false, ComponentType::Float);
-    AddFormatInfo(FOO(Alpha16F            ), 1, UnsizedFormat::A , false, ComponentType::Float);
+    AddFormatInfo(FOO(Luminance16FAlpha16F), 4, UnsizedFormat::LA, false, ComponentType::Float);
+    AddFormatInfo(FOO(Luminance16F        ), 2, UnsizedFormat::L , false, ComponentType::Float);
+    AddFormatInfo(FOO(Alpha16F            ), 2, UnsizedFormat::A , false, ComponentType::Float);
 
 #undef FOO
 }

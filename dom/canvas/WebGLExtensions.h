@@ -289,14 +289,6 @@ public:
 
     static bool IsSupported(const WebGLContext*);
 
-    static const size_t kMinColorAttachments = 4;
-    static const size_t kMinDrawBuffers = 4;
-    /*
-     WEBGL_draw_buffers does not give a minal value for GL_MAX_DRAW_BUFFERS. But, we request
-     for GL_MAX_DRAW_BUFFERS = 4 at least to be able to use all requested color attachments.
-     See DrawBuffersWEBGL in WebGLExtensionDrawBuffers.cpp inner comments for more informations.
-     */
-
     DECL_WEBGL_EXTENSION_GOOP
 };
 

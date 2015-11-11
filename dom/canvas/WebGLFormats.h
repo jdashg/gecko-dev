@@ -163,12 +163,13 @@ enum class UnsizedFormat : uint8_t {
 
 // GLES 3.0.4 p114 Table 3.4, p240
 enum class ComponentType : uint8_t {
-    None,         // DEPTH24_STENCIL8
+    None,
     Int,          // RGBA32I
     UInt,         // RGBA32UI, STENCIL_INDEX8
     NormInt,      // RGBA8_SNORM
     NormUInt,     // RGBA8, DEPTH_COMPONENT16
     Float,        // RGBA32F
+    Special,      // DEPTH24_STENCIL8
 };
 
 enum class CompressionFamily : uint8_t {
@@ -226,6 +227,10 @@ struct DriverUnpackInfo
     GLenum internalFormat;
     GLenum unpackFormat;
     GLenum unpackType;
+
+    PackingInfo ToPacking() const {
+        return {unpackFormat, unpackType};
+    }
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////

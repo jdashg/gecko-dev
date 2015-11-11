@@ -260,10 +260,6 @@ WebGLContext::ValidateDrawModeEnum(GLenum mode, const char* info)
     }
 }
 
-/**
- * Return true if the framebuffer attachment is valid. Attachment must
- * be one of depth/stencil/depth_stencil/color attachment.
- */
 bool
 WebGLContext::ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum attachment,
                                             const char* funcName)
@@ -289,8 +285,11 @@ WebGLContext::ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum a
         return true;
     }
 
-    if (attachment >= LOCAL_GL_COLOR_ATTACHMENT0 && attachment <= LastColorAttachment())
+    if (attachment >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+        attachment <= LastColorAttachmentEnum())
+    {
         return true;
+    }
 
     ErrorInvalidEnum("%s: attachment: invalid enum value 0x%x.", funcName,
                      attachment);
@@ -705,6 +704,8 @@ WebGLContext::InitAndValidateGL()
 
     // Bindings, etc.
     mActiveTexture = 0;
+    mDefaultFB_DrawBuffer0 = LOCAL_GL_BACK;
+
     mEmitContextLostErrorOnce = true;
     mWebGLError = LOCAL_GL_NO_ERROR;
     mUnderlyingGLError = LOCAL_GL_NO_ERROR;
@@ -791,23 +792,44 @@ WebGLContext::InitAndValidateGL()
             mGLMaxSamples = 1;
     }
 
-    const auto fnFloor = [](uint32_t& val) {
+    // If we don't support a target, its max size is 0. We should only floor-to-POT if the
+    // value if it's non-zero. (NB log2(0) is -Inf, so zero isn't an integer power-of-two)
+    const auto fnFloorPOTIfSupported = [](uint32_t& val) {
         if (val) {
             val = FloorPOT(val);
         }
     };
 
-    fnFloor(mImplMaxTextureSize);
-    fnFloor(mImplMaxCubeMapTextureSize);
-    fnFloor(mImplMaxRenderbufferSize);
+    fnFloorPOTIfSupported(mImplMaxTextureSize);
+    fnFloorPOTIfSupported(mImplMaxCubeMapTextureSize);
+    fnFloorPOTIfSupported(mImplMaxRenderbufferSize);
 
-    fnFloor(mImplMax3DTextureSize);
-    fnFloor(mImplMaxArrayTextureLayers);
+    fnFloorPOTIfSupported(mImplMax3DTextureSize);
+    fnFloorPOTIfSupported(mImplMaxArrayTextureLayers);
 
     ////////////////
 
     mGLMaxColorAttachments = 1;
     mGLMaxDrawBuffers = 1;
+    gl->GetPotentialInteger(LOCAL_GL_MAX_COLOR_ATTACHMENTS,
+                            (GLint*)&mGLMaxColorAttachments);
+    gl->GetPotentialInteger(LOCAL_GL_MAX_DRAW_BUFFERS, (GLint*)&mGLMaxDrawBuffers);
+
+    if (MinCapabilityMode()) {
+        mGLMaxColorAttachments = std::min(mGLMaxColorAttachments,
+                                          kMinMaxColorAttachments);
+        mGLMaxDrawBuffers = std::min(mGLMaxDrawBuffers, kMinMaxDrawBuffers);
+    }
+
+    if (IsWebGL2()) {
+        mImplMaxColorAttachments = mGLMaxColorAttachments;
+        mImplMaxDrawBuffers = std::min(mGLMaxDrawBuffers, mImplMaxColorAttachments);
+    } else {
+        mImplMaxColorAttachments = 1;
+        mImplMaxDrawBuffers = 1;
+    }
+
+    ////////////////
 
     if (MinCapabilityMode()) {
         mGLMaxFragmentUniformVectors = MINVALUE_GL_MAX_FRAGMENT_UNIFORM_VECTORS;

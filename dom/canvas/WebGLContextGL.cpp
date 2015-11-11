@@ -708,10 +708,12 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
                                                 GLenum pname,
                                                 ErrorResult& rv)
 {
+    const char funcName[] = "getFramebufferAttachmentParameter";
+
     if (IsContextLost())
         return JS::NullValue();
 
-    if (!ValidateFramebufferTarget(target, "getFramebufferAttachmentParameter"))
+    if (!ValidateFramebufferTarget(target, funcName))
         return JS::NullValue();
 
     WebGLFramebuffer* fb;
@@ -729,145 +731,73 @@ WebGLContext::GetFramebufferAttachmentParameter(JSContext* cx,
         MOZ_CRASH("Bad target.");
     }
 
-    if (!fb) {
-        // This isn't actually true. GLES 3.0.4, p240: "If the default framebuffer[...]".
-        ErrorInvalidOperation("getFramebufferAttachmentParameter: cannot query"
-                              " framebuffer 0.");
+    if (fb)
+        return fb->GetAttachmentParameter(funcName, cx, target, attachment, pname, &rv);
+
+    ////////////////////////////////////
+
+    if (!IsWebGL2()) {
+        ErrorInvalidOperation("%s: Querying against the default framebuffer is not"
+                              " allowed in WebGL 1.",
+                              funcName);
         return JS::NullValue();
     }
 
-    if (!ValidateFramebufferAttachment(fb, attachment,
-                                       "getFramebufferAttachmentParameter"))
-    {
+    switch (attachment) {
+    case LOCAL_GL_COLOR:
+    case LOCAL_GL_DEPTH:
+    case LOCAL_GL_STENCIL:
+        break;
+
+    default:
+        ErrorInvalidEnum("%s: For the default framebuffer, can only query COLOR, DEPTH,"
+                         " or STENCIL.",
+                         funcName);
         return JS::NullValue();
     }
-
-    if (IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers) &&
-        attachment >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-        attachment <= LOCAL_GL_COLOR_ATTACHMENT15)
-    {
-        fb->EnsureColorAttachPoints(attachment - LOCAL_GL_COLOR_ATTACHMENT0);
-    }
-
-    MakeContextCurrent();
-
-    const WebGLFBAttachPoint& fba = fb->GetAttachPoint(attachment);
 
     switch (pname) {
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
-        if (fba.Renderbuffer())
-            return JSUint32Value(LOCAL_GL_RENDERBUFFER);
-
-        if (fba.Texture())
-            return JSUint32Value(LOCAL_GL_TEXTURE);
-
-        return JSUint32Value(LOCAL_GL_NONE);
+        return JS::Int32Value(LOCAL_GL_FRAMEBUFFER_DEFAULT);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-        if (fba.Renderbuffer())
-            return WebGLObjectAsJSValue(cx, fba.Renderbuffer(), rv);
-
-        if (fba.Texture())
-            return WebGLObjectAsJSValue(cx, fba.Texture(), rv);
-
         return JS::NullValue();
-    }
 
+    ////////////////
 
-    const bool hasAttachments = (fba.Renderbuffer() || fba.Texture());
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE:
+        if (attachment == LOCAL_GL_COLOR)
+            return JS::Int32Value(8);
+        return JS::Int32Value(0);
 
-    switch (pname) {
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING_EXT:
-        if (!hasAttachments)
-            return MissingAttachmentCausesInvalidOp(this);
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
+        if (attachment == LOCAL_GL_COLOR)
+            return JS::Int32Value(mOptions.alpha ? 8 : 0);
+        return JS::Int32Value(0);
 
-        if (!IsWebGL2() && !IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
-            break;
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
+        if (attachment == LOCAL_GL_DEPTH)
+            return JS::Int32Value(mOptions.depth ? 24 : 0);
+        return JS::Int32Value(0);
 
-        if (!fba.IsDefined())
-            return JSUint32Value(LOCAL_GL_LINEAR);
-
-        if (fba.IsDefined()) {
-            if (fba.Format()->format->isSRGB)
-                return JSUint32Value(LOCAL_GL_SRGB_EXT);
-        }
-
-        return JSUint32Value(LOCAL_GL_LINEAR);
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
+        if (attachment == LOCAL_GL_STENCIL)
+            return JS::Int32Value(mOptions.stencil ? 8 : 0);
+        return JS::Int32Value(0);
 
     case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
-        if (!hasAttachments)
-            return MissingAttachmentCausesInvalidOp(this);
+        if (attachment == LOCAL_GL_STENCIL)
+            return JS::Int32Value(LOCAL_GL_UNSIGNED_INT);
+        else
+            return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
 
-        if (!IsWebGL2() &&
-            !IsExtensionEnabled(WebGLExtensionID::EXT_color_buffer_half_float) &&
-            !IsExtensionEnabled(WebGLExtensionID::WEBGL_color_buffer_float))
-        {
-            break;
-        }
-
-        if (!fba.IsDefined())
-            return JSUint32Value(LOCAL_GL_LINEAR);
-
-        if (attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-            ErrorInvalidOperation("getFramebufferAttachmentParameter: Cannot get component"
-                                  " type of a depth-stencil attachment.");
-            return JS::NullValue();
-        }
-
-        switch (fba.Format()->format->componentType) {
-        case webgl::ComponentType::Int:
-            return JSUint32Value(LOCAL_GL_INT);
-
-        case webgl::ComponentType::UInt:
-            return JSUint32Value(LOCAL_GL_UNSIGNED_INT);
-
-        case webgl::ComponentType::NormInt:
-            return JSUint32Value(LOCAL_GL_SIGNED_NORMALIZED);
-
-        case webgl::ComponentType::NormUInt:
-            return JSUint32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
-
-        case webgl::ComponentType::Float:
-            return JSUint32Value(LOCAL_GL_FLOAT);
-
-        case webgl::ComponentType::None:
-            return JSUint32Value(LOCAL_GL_NONE);
-        }
-        // Exhaustive switch means nothing's left.
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_LEVEL:
-        if (!hasAttachments)
-            return MissingAttachmentCausesInvalidOp(this);
-
-        if (!fba.Texture())
-            break;
-
-        return JSUint32Value(fba.MipLevel());
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_TEXTURE_CUBE_MAP_FACE:
-        if (!hasAttachments)
-            return MissingAttachmentCausesInvalidOp(this);
-
-        if (!fba.Texture())
-            break;
-
-        switch (fba.ImageTarget().get()) {
-        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
-        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
-        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
-        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Y:
-        case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
-        case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
-            return JSUint32Value(fba.ImageTarget().get());
-        }
-
-        return JSUint32Value(0);
-
-    default:
-        break;
+    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
+        return JS::Int32Value(LOCAL_GL_LINEAR);
     }
 
-    ErrorInvalidEnumInfo("getFramebufferAttachmentParameter: pname", pname);
+    ErrorInvalidEnum("%s: Invalid pname: 0x%04x", funcName, pname);
     return JS::NullValue();
 }
 

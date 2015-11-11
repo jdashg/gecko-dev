@@ -671,21 +671,21 @@ Is3D(TexImageTarget target)
 }
 
 GLenum
-DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLenum internalFormat,
-           GLsizei width, GLsizei height, GLsizei depth, GLenum unpackFormat,
-           GLenum unpackType, const void* data)
+DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level,
+           const webgl::DriverUnpackInfo* dui, GLsizei width, GLsizei height,
+           GLsizei depth, const void* data)
 {
     const GLint border = 0;
 
     gl::GLContext::LocalErrorScope errorScope(*gl);
 
     if (Is3D(target)) {
-        gl->fTexImage3D(target.get(), level, internalFormat, width, height, depth,
-                        border, unpackFormat, unpackType, data);
+        gl->fTexImage3D(target.get(), level, dui->internalFormat, width, height, depth,
+                        border, dui->unpackFormat, dui->unpackType, data);
     } else {
         MOZ_ASSERT(depth == 1);
-        gl->fTexImage2D(target.get(), level, internalFormat, width, height, border,
-                        unpackFormat, unpackType, data);
+        gl->fTexImage2D(target.get(), level, dui->internalFormat, width, height, border,
+                        dui->unpackFormat, dui->unpackType, data);
     }
 
     return errorScope.GetError();
@@ -694,18 +694,18 @@ DoTexImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLenum interna
 GLenum
 DoTexSubImage(gl::GLContext* gl, TexImageTarget target, GLint level, GLint xOffset,
               GLint yOffset, GLint zOffset, GLsizei width, GLsizei height, GLsizei depth,
-              GLenum unpackFormat, GLenum unpackType, const void* data)
+              const webgl::PackingInfo& pi, const void* data)
 {
     gl::GLContext::LocalErrorScope errorScope(*gl);
 
     if (Is3D(target)) {
         gl->fTexSubImage3D(target.get(), level, xOffset, yOffset, zOffset, width, height,
-                           depth, unpackFormat, unpackType, data);
+                           depth, pi.format, pi.type, data);
     } else {
         MOZ_ASSERT(zOffset == 0);
         MOZ_ASSERT(depth == 1);
         gl->fTexSubImage2D(target.get(), level, xOffset, yOffset, width, height,
-                           unpackFormat, unpackType, data);
+                           pi.format, pi.type, data);
     }
 
     return errorScope.GetError();
