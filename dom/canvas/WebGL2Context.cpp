@@ -61,8 +61,7 @@ static const WebGLExtensionID kNativelySupportedExtensions[] = {
     WebGLExtensionID::EXT_blend_minmax,
     WebGLExtensionID::OES_element_index_uint,
     WebGLExtensionID::OES_standard_derivatives,
-    WebGLExtensionID::OES_vertex_array_object,
-    WebGLExtensionID::WEBGL_draw_buffers
+    WebGLExtensionID::OES_vertex_array_object
 };
 
 static const gl::GLFeature kRequiredFeatures[] = {
