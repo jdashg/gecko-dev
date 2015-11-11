@@ -142,7 +142,7 @@ WebGLContext::GetParameter(JSContext* cx, GLenum pname, ErrorResult& rv)
         }
     }
 
-    if (IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers)) {
+    if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::WEBGL_draw_buffers)) {
         if (pname == LOCAL_GL_MAX_COLOR_ATTACHMENTS) {
             return JS::Int32Value(mImplMaxColorAttachments);
 
