@@ -1149,7 +1149,7 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     }
 
     if (glError) {
-        mContext->ErrorInvalidOperation("%s: Unexpected error during upload: 0x04x",
+        mContext->ErrorInvalidOperation("%s: Unexpected error during upload: 0x%04x",
                                         funcName, glError);
         MOZ_ASSERT(false, "Unexpected GL error.");
         return;

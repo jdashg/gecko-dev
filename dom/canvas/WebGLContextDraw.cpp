@@ -147,10 +147,9 @@ WebGLContext::BindFakeBlack(uint32_t texUnit, TexTarget target, FakeBlackType fa
 bool
 WebGLContext::DrawInstanced_check(const char* info)
 {
-    if ((IsWebGL2() ||
-         IsExtensionEnabled(WebGLExtensionID::ANGLE_instanced_arrays)) &&
-        !mBufferFetchingHasPerVertex)
-    {
+    MOZ_ASSERT(IsWebGL2() ||
+               IsExtensionEnabled(WebGLExtensionID::ANGLE_instanced_arrays));
+    if (!mBufferFetchingHasPerVertex) {
         /* http://www.khronos.org/registry/gles/extensions/ANGLE/ANGLE_instanced_arrays.txt
          *  If all of the enabled vertex attribute arrays that are bound to active
          *  generic attributes in the program have a non-zero divisor, the draw
@@ -232,10 +231,6 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    if (!DrawInstanced_check(info)) {
-        return false;
-    }
-
     return true;
 }
 
@@ -285,6 +280,9 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
     if (!DrawArrays_check(first, count, primcount, funcName))
         return;
 
+    if (!DrawInstanced_check(funcName))
+        return;
+
     RunContextLossTimer();
 
     {
@@ -315,38 +313,39 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
     }
 
     // If count is 0, there's nothing to do.
-    if (count == 0 || primcount == 0) {
+    if (count == 0 || primcount == 0)
+        return false;
+
+    uint8_t bytesPerElem = 0;
+    switch (type) {
+    case LOCAL_GL_UNSIGNED_BYTE:
+        bytesPerElem = 1;
+        break;
+
+    case LOCAL_GL_UNSIGNED_SHORT:
+        bytesPerElem = 2;
+        break;
+
+    case LOCAL_GL_UNSIGNED_INT:
+        if (IsWebGL2() || IsExtensionEnabled(WebGLExtensionID::OES_element_index_uint)) {
+            bytesPerElem = 4;
+        }
+        break;
+    }
+
+    if (!bytesPerElem) {
+        ErrorInvalidEnum("%s: Invalid `type`: 0x%04x", info, type);
         return false;
     }
 
-    CheckedUint32 checked_byteCount;
-
-    GLsizei first = 0;
-
-    if (type == LOCAL_GL_UNSIGNED_SHORT) {
-        checked_byteCount = 2 * CheckedUint32(count);
-        if (byteOffset % 2 != 0) {
-            ErrorInvalidOperation("%s: invalid byteOffset for UNSIGNED_SHORT (must be a multiple of 2)", info);
-            return false;
-        }
-        first = byteOffset / 2;
-    }
-    else if (type == LOCAL_GL_UNSIGNED_BYTE) {
-        checked_byteCount = count;
-        first = byteOffset;
-    }
-    else if (type == LOCAL_GL_UNSIGNED_INT && IsExtensionEnabled(WebGLExtensionID::OES_element_index_uint)) {
-        checked_byteCount = 4 * CheckedUint32(count);
-        if (byteOffset % 4 != 0) {
-            ErrorInvalidOperation("%s: invalid byteOffset for UNSIGNED_INT (must be a multiple of 4)", info);
-            return false;
-        }
-        first = byteOffset / 4;
-    }
-    else {
-        ErrorInvalidEnum("%s: type must be UNSIGNED_SHORT or UNSIGNED_BYTE", info);
+    if (byteOffset % bytesPerElem != 0) {
+        ErrorInvalidOperation("%s: `byteOffset` must be a multiple of the size of `type`",
+                              info);
         return false;
     }
+
+    const GLsizei first = byteOffset / bytesPerElem;
+    const CheckedUint32 checked_byteCount = bytesPerElem * CheckedUint32(count);
 
     if (!checked_byteCount.isValid()) {
         ErrorInvalidValue("%s: overflow in byteCount", info);
@@ -485,6 +484,9 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
 
     GLuint upperBound = 0;
     if (!DrawElements_check(count, type, byteOffset, primcount, funcName, &upperBound))
+        return;
+
+    if (!DrawInstanced_check(funcName))
         return;
 
     RunContextLossTimer();

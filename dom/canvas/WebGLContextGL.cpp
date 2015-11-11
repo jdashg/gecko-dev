@@ -972,13 +972,17 @@ WebGLContext::Hint(GLenum target, GLenum mode)
     bool isValid = false;
 
     switch (target) {
-        case LOCAL_GL_GENERATE_MIPMAP_HINT:
+    case LOCAL_GL_GENERATE_MIPMAP_HINT:
+        isValid = true;
+        break;
+
+    case LOCAL_GL_FRAGMENT_SHADER_DERIVATIVE_HINT:
+        if (IsWebGL2() ||
+            IsExtensionEnabled(WebGLExtensionID::OES_standard_derivatives))
+        {
             isValid = true;
-            break;
-        case LOCAL_GL_FRAGMENT_SHADER_DERIVATIVE_HINT:
-            if (IsExtensionEnabled(WebGLExtensionID::OES_standard_derivatives))
-                isValid = true;
-            break;
+        }
+        break;
     }
 
     if (!isValid)
