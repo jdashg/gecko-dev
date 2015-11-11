@@ -731,7 +731,8 @@ WebGLFramebuffer::PrecheckFramebufferStatus() const
     if (HasIncompleteAttachments())
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
 
-    if (!AllImageRectsMatch())
+    // INCOMPLETE_DIMENSIONS doesn't exist in GLES3.
+    if (!mContext->IsWebGL2() && !AllImageRectsMatch())
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS; // Inconsistent sizes
 
     if (HasDepthStencilConflict())
