@@ -262,7 +262,8 @@ WebGLContext::ValidateDrawModeEnum(GLenum mode, const char* info)
 
 bool
 WebGLContext::ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum attachment,
-                                            const char* funcName)
+                                            const char* funcName,
+                                            bool badColorAttachmentIsInvalidOp)
 {
     if (!fb) {
         switch (attachment) {
@@ -291,8 +292,15 @@ WebGLContext::ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum a
         return true;
     }
 
-    ErrorInvalidEnum("%s: attachment: invalid enum value 0x%x.", funcName,
-                     attachment);
+    if (badColorAttachmentIsInvalidOp &&
+        attachment >= LOCAL_GL_COLOR_ATTACHMENT0)
+    {
+        const uint32_t offset = attachment - LOCAL_GL_COLOR_ATTACHMENT0;
+        ErrorInvalidOperation("%s: Bad color attachment: COLOR_ATTACHMENT%u. (0x%04x)",
+                              funcName, offset, attachment);
+    } else {
+        ErrorInvalidEnum("%s: attachment: Bad attachment 0x%x.", funcName, attachment);
+    }
     return false;
 }
 

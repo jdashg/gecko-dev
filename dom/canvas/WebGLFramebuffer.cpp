@@ -44,9 +44,12 @@ WebGLFBAttachPoint::IsDeleteRequested() const
 bool
 WebGLFBAttachPoint::IsDefined() const
 {
+    /*
     return (Renderbuffer() && Renderbuffer()->IsDefined()) ||
            (Texture() && Texture()->ImageInfoAt(mTexImageTarget,
                                                 mTexImageLevel).IsDefined());
+    */
+    return (Renderbuffer() || Texture());
 }
 
 const webgl::FormatUsageInfo*
@@ -218,6 +221,8 @@ WebGLFBAttachPoint::OnBackingStoreRespecified() const
 bool
 WebGLFBAttachPoint::IsComplete() const
 {
+    MOZ_ASSERT(IsDefined());
+
     if (!HasImage())
         return false;
 
@@ -652,24 +657,25 @@ WebGLFramebuffer::HasDefinedAttachments() const
     return hasAttachments;
 }
 
-static bool
-IsIncomplete(const WebGLFBAttachPoint& cur)
-{
-    return cur.IsDefined() && !cur.IsComplete();
-}
-
 bool
 WebGLFramebuffer::HasIncompleteAttachments() const
 {
+    const auto fnIsIncomplete = [](const auto& cur) {
+        if (!cur.IsDefined())
+            return false; // Not defined, so can't count as incomplete.
+
+        return !cur.IsComplete();
+    };
+
     bool hasIncomplete = false;
 
-    hasIncomplete |= IsIncomplete(mColorAttachment0);
-    hasIncomplete |= IsIncomplete(mDepthAttachment);
-    hasIncomplete |= IsIncomplete(mStencilAttachment);
-    hasIncomplete |= IsIncomplete(mDepthStencilAttachment);
+    hasIncomplete |= fnIsIncomplete(mColorAttachment0);
+    hasIncomplete |= fnIsIncomplete(mDepthAttachment);
+    hasIncomplete |= fnIsIncomplete(mStencilAttachment);
+    hasIncomplete |= fnIsIncomplete(mDepthStencilAttachment);
 
     for (const auto& cur : mMoreColorAttachments) {
-        hasIncomplete |= IsIncomplete(cur);
+        hasIncomplete |= fnIsIncomplete(cur);
     }
 
     return hasIncomplete;

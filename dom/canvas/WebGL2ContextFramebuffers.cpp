@@ -347,115 +347,8 @@ WebGL2Context::GetFramebufferAttachmentParameter(JSContext* cx,
                                                  GLenum pname,
                                                  ErrorResult& out_error)
 {
-    const char funcName[] = "getFramebufferAttachmentParameter";
-
-    if (IsContextLost())
-        return JS::NullValue();
-
-    // OpenGL ES 3.0.4 (August 27, 2014) 6.1. QUERYING GL STATE 240
-    // "getFramebufferAttachmentParamter returns information about attachments of a bound
-    // framebuffer object. target must be DRAW_FRAMEBUFFER, READ_FRAMEBUFFER, or
-    // FRAMEBUFFER."
-
-    if (!ValidateFramebufferTarget(target, funcName))
-        return JS::NullValue();
-
-    // FRAMEBUFFER is equivalent to DRAW_FRAMEBUFFER.
-    if (target == LOCAL_GL_FRAMEBUFFER)
-        target = LOCAL_GL_DRAW_FRAMEBUFFER;
-
-    WebGLFramebuffer* boundFB = nullptr;
-    switch (target) {
-    case LOCAL_GL_DRAW_FRAMEBUFFER: boundFB = mBoundDrawFramebuffer; break;
-    case LOCAL_GL_READ_FRAMEBUFFER: boundFB = mBoundReadFramebuffer; break;
-    }
-
-    if (boundFB) {
-        return boundFB->GetAttachmentParameter(funcName, cx, target, attachment, pname,
-                                               &out_error);
-    }
-
-    ////////////////
-    // Handle default FB
-
-    // If the default framebuffer is bound to target, then attachment must be BACK,
-    // identifying the color buffer; DEPTH, identifying the depth buffer; or STENCIL,
-    // identifying the stencil buffer.
-    switch (attachment) {
-    case LOCAL_GL_BACK:
-    case LOCAL_GL_DEPTH:
-    case LOCAL_GL_STENCIL:
-    case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
-        break;
-
-    default:
-        ErrorInvalidEnum("%s: Can only query attachment BACK, DEPTH, or STENCIL from"
-                         " default framebuffer.",
-                         funcName);
-        return JS::NullValue();
-    }
-
-    switch (pname) {
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
-        return JS::Int32Value(LOCAL_GL_FRAMEBUFFER_DEFAULT);
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE:
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_GREEN_SIZE:
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_BLUE_SIZE:
-        if (attachment != LOCAL_GL_BACK)
-            return JS::Int32Value(0);
-
-        return JS::Int32Value(8);
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE:
-        if (attachment != LOCAL_GL_BACK)
-            return JS::Int32Value(0);
-
-        return JS::Int32Value(mOptions.alpha ? 8 : 0);
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE:
-        if (attachment != LOCAL_GL_DEPTH &&
-            attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-        {
-            return JS::Int32Value(0);
-        }
-
-        return JS::Int32Value(mOptions.depth ? 16 : 0);
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE:
-        if (attachment != LOCAL_GL_STENCIL &&
-            attachment != LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-        {
-            return JS::Int32Value(0);
-        }
-
-        return JS::Int32Value(mOptions.stencil ? 8 : 0);
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE:
-        switch (attachment) {
-        case LOCAL_GL_BACK:    return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
-        case LOCAL_GL_DEPTH:   return JS::Int32Value(LOCAL_GL_UNSIGNED_NORMALIZED);
-        case LOCAL_GL_STENCIL: return JS::Int32Value(LOCAL_GL_UNSIGNED_INT);
-
-        case LOCAL_GL_DEPTH_STENCIL_ATTACHMENT:
-            ErrorInvalidOperation("getFramebufferAttachmentParameter: Querying "
-                                  "FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE against "
-                                  "DEPTH_STENCIL_ATTACHMENT is an error.");
-            return JS::NullValue();
-        }
-        MOZ_CRASH("unreachable");
-
-    case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING:
-        if (attachment != LOCAL_GL_BACK)
-            return JS::Int32Value(0);
-
-        return JS::Int32Value(LOCAL_GL_LINEAR);
-    }
-
-    // Any combinations of framebuffer type and pname not described above will generate an
-    // INVALID_ENUM error.
-    ErrorInvalidEnum("getFramebufferAttachmentParameter: Invalid combination of params.");
-    return JS::NullValue();
+    return WebGLContext::GetFramebufferAttachmentParameter(cx, target, attachment, pname,
+                                                           out_error);
 }
 
 // Map attachments intended for the default buffer, to attachments for a non-
@@ -493,12 +386,14 @@ WebGL2Context::InvalidateFramebuffer(GLenum target,
                                      const dom::Sequence<GLenum>& attachments,
                                      ErrorResult& rv)
 {
+    const char funcName[] = "invalidateSubFramebuffer";
+
     if (IsContextLost())
         return;
 
     MakeContextCurrent();
 
-    if (!ValidateFramebufferTarget(target, "framebufferRenderbuffer"))
+    if (!ValidateFramebufferTarget(target, funcName))
         return;
 
     const WebGLFramebuffer* fb;
@@ -519,9 +414,10 @@ WebGL2Context::InvalidateFramebuffer(GLenum target,
         MOZ_CRASH("Bad target.");
     }
 
+    const bool badColorAttachmentIsInvalidOp = true;
     for (size_t i = 0; i < attachments.Length(); i++) {
-        if (!ValidateFramebufferAttachment(fb, attachments[i],
-                                           "invalidateFramebuffer"))
+        if (!ValidateFramebufferAttachment(fb, attachments[i], funcName,
+                                           badColorAttachmentIsInvalidOp))
         {
             return;
         }
@@ -530,8 +426,7 @@ WebGL2Context::InvalidateFramebuffer(GLenum target,
     // InvalidateFramebuffer is a hint to the driver. Should be OK to
     // skip calls if not supported, for example by OSX 10.9 GL
     // drivers.
-    static bool invalidateFBSupported = gl->IsSupported(gl::GLFeature::invalidate_framebuffer);
-    if (!invalidateFBSupported)
+    if (!gl->IsSupported(gl::GLFeature::invalidate_framebuffer))
         return;
 
     if (!fb && !isDefaultFB) {
@@ -541,7 +436,8 @@ WebGL2Context::InvalidateFramebuffer(GLenum target,
             return;
         }
 
-        gl->fInvalidateFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements());
+        gl->fInvalidateFramebuffer(target, tmpAttachments.Length(),
+                                   tmpAttachments.Elements());
     } else {
         gl->fInvalidateFramebuffer(target, attachments.Length(), attachments.Elements());
     }
@@ -552,13 +448,20 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
                                         GLint x, GLint y, GLsizei width, GLsizei height,
                                         ErrorResult& rv)
 {
+    const char funcName[] = "invalidateSubFramebuffer";
+
     if (IsContextLost())
         return;
 
     MakeContextCurrent();
 
-    if (!ValidateFramebufferTarget(target, "framebufferRenderbuffer"))
+    if (!ValidateFramebufferTarget(target, funcName))
         return;
+
+    if (width < 0 || height < 0) {
+        ErrorInvalidValue("%s: width and height must be >= 0.", funcName);
+        return;
+    }
 
     const WebGLFramebuffer* fb;
     bool isDefaultFB;
@@ -578,9 +481,10 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
         MOZ_CRASH("Bad target.");
     }
 
+    const bool badColorAttachmentIsInvalidOp = true;
     for (size_t i = 0; i < attachments.Length(); i++) {
-        if (!ValidateFramebufferAttachment(fb, attachments[i],
-                                           "invalidateSubFramebuffer"))
+        if (!ValidateFramebufferAttachment(fb, attachments[i], funcName,
+                                           badColorAttachmentIsInvalidOp))
         {
             return;
         }
@@ -589,8 +493,7 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
     // InvalidateFramebuffer is a hint to the driver. Should be OK to
     // skip calls if not supported, for example by OSX 10.9 GL
     // drivers.
-    static bool invalidateFBSupported = gl->IsSupported(gl::GLFeature::invalidate_framebuffer);
-    if (!invalidateFBSupported)
+    if (!gl->IsSupported(gl::GLFeature::invalidate_framebuffer))
         return;
 
     if (!fb && !isDefaultFB) {
@@ -600,11 +503,11 @@ WebGL2Context::InvalidateSubFramebuffer(GLenum target, const dom::Sequence<GLenu
             return;
         }
 
-        gl->fInvalidateSubFramebuffer(target, tmpAttachments.Length(), tmpAttachments.Elements(),
-                                      x, y, width, height);
+        gl->fInvalidateSubFramebuffer(target, tmpAttachments.Length(),
+                                      tmpAttachments.Elements(), x, y, width, height);
     } else {
-        gl->fInvalidateSubFramebuffer(target, attachments.Length(), attachments.Elements(),
-                                      x, y, width, height);
+        gl->fInvalidateSubFramebuffer(target, attachments.Length(),
+                                      attachments.Elements(), x, y, width, height);
     }
 }
 

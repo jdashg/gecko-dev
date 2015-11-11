@@ -446,8 +446,9 @@ public:
                               GLint level);
 
     // Framebuffer validation
-    bool ValidateFramebufferAttachment(const WebGLFramebuffer* fb,
-                                       GLenum attachment, const char* funcName);
+    bool ValidateFramebufferAttachment(const WebGLFramebuffer* fb, GLenum attachment,
+                                       const char* funcName,
+                                       bool badColorAttachmentIsInvalidOp = false);
 
     void FrontFace(GLenum mode);
     already_AddRefed<WebGLActiveInfo> GetActiveAttrib(WebGLProgram* prog,
