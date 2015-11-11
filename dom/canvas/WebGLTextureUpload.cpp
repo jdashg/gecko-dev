@@ -1640,7 +1640,7 @@ ScopedCopyTexImageSource::ScopedCopyTexImageSource(WebGLContext* webgl,
 
     const GLenum status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
     if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
-        MOZ_CRASH("Temp framebuffer is not Complete.");
+        MOZ_CRASH("Temp framebuffer is not complete.");
     }
 
     // Restore RB binding.

@@ -572,11 +572,7 @@ WebGLTexture::EnsureImageDataInitialized(const char* funcName, TexImageTarget ta
 {
     auto& imageInfo = ImageInfoAt(target, level);
     MOZ_ASSERT(imageInfo.IsDefined());
-    /*
-    if (!imageInfo.IsDefined())
-        return true; // The driver should handle this for us?
-                     // (happens because ResolveFakeBlack plus incomplete mipchains)
-    */
+
     if (imageInfo.IsDataInitialized())
         return true;
 
