@@ -64,9 +64,9 @@ function testTexParameter(testCase)
     var msg = "paramName: " + enumToString(testCase.pname);
     errors = testCase.expectedErrors;
     gl.texParameteri(testCase.target, testCase.pname, testCase.param);
-    glErrorShouldBe(gl, errors, msg);
+    wtu.glErrorShouldBeIn(gl, errors, msg);
     gl.texParameterf(testCase.target, testCase.pname, testCase.param);
-    glErrorShouldBe(gl, errors, msg);
+    wtu.glErrorShouldBeIn(gl, errors, msg);
 }
 
 function testGetTexParameter(testCase)
@@ -74,7 +74,7 @@ function testGetTexParameter(testCase)
     var msg = "paramName: " + enumToString(testCase.pname);
     errors = testCase.expectedErrors;
     gl.getTexParameter(testCase.target, testCase.pname);
-    glErrorShouldBe(gl, errors, msg);
+    wtu.glErrorShouldBeIn(gl, errors, msg);
 }
 
 function testCopyTexImage2D(testCase)

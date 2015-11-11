@@ -1001,9 +1001,8 @@ function wrapGLContext(gl) {
 // Assert that f generates a specific GL error.
 function assertGLError(gl, err, name, f) {
   if (f == null) { f = name; name = null; }
-  var r = false;
   var glErr = 0;
-  try { f(); } catch(e) { r=true; glErr = e.glError; }
+  try { f(); } catch(e) { glErr = e.glError; }
   if (glErr !== err) {
     if (glErr === undefined) {
       testFailed("assertGLError: UNEXPCETED EXCEPTION", name, f);
@@ -1027,7 +1026,7 @@ function assertGLErrorIn(gl, expectedErrorList, name, f) {
     if ('glError' in e) {
       actualError = e.glError;
     } else {
-      testFailed("assertGLError: UNEXPCETED EXCEPTION", name, f);
+      testFailed("assertGLErrorIn: UNEXPCETED EXCEPTION", name, f);
       return false;
     }
   }
@@ -1045,7 +1044,7 @@ function assertGLErrorIn(gl, expectedErrorList, name, f) {
     return true;
   }
 
-  testFailed("assertGLError: expected: " + expectedErrorListStr +
+  testFailed("assertGLErrorIn: expected: " + expectedErrorListStr +
              " actual: " + getGLErrorAsString(gl, actualError), name, f);
   return false;
 }
