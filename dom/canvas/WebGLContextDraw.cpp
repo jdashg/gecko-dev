@@ -423,10 +423,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    if (!DrawInstanced_check(info)) {
-        return false;
-    }
-
     return true;
 }
 

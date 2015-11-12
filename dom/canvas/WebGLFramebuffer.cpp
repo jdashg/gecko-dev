@@ -869,12 +869,22 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
 
     mContext->MakeContextCurrent();
 
-    mContext->gl->fDrawBuffers(tempDrawBuffers.size(), &(tempDrawBuffers[0]));
+    gl::GLContext* gl = mContext->gl;
+
+    const auto fnDrawBuffers = [gl](const std::vector<GLenum>& list) {
+        const GLenum* ptr = nullptr;
+        if (list.size()) {
+            ptr = &(list[0]);
+        }
+        gl->fDrawBuffers(list.size(), ptr);
+    };
+
+    fnDrawBuffers(tempDrawBuffers);
 
     // Clear!
     mContext->ForceClearFramebufferWithDefaultValues(clearBits, false);
 
-    mContext->gl->fDrawBuffers(mDrawBuffers.size(), &(mDrawBuffers[0]));
+    fnDrawBuffers(mDrawBuffers);
 
     // Mark all the uninitialized images as initialized.
     if (mDepthAttachment.HasUninitializedImageData())

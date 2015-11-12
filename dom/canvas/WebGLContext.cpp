@@ -95,6 +95,10 @@ WebGLContextOptions::WebGLContextOptions()
         alpha = false;
 }
 
+
+/*static*/ const uint32_t WebGLContext::kMinMaxColorAttachments = 4;
+/*static*/ const uint32_t WebGLContext::kMinMaxDrawBuffers = 4;
+
 WebGLContext::WebGLContext()
     : WebGLContextUnchecked(nullptr)
     , mBypassShaderValidation(false)
