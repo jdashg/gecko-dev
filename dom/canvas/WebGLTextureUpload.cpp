@@ -319,13 +319,10 @@ ValidateTexImage(WebGLContext* webgl, WebGLTexture* texture, const char* funcNam
         return false;
     }
 
-    if (level > WebGLTexture::kMaxLevelCount) {
+    if (level >= WebGLTexture::kMaxLevelCount) {
         webgl->ErrorInvalidValue("%s: `level` is too large.", funcName);
         return false;
     }
-
-    // Right-shift is only defined for bits-1, so 31 for GLsizei.
-    MOZ_ASSERT(level <= 31);
 
     WebGLTexture::ImageInfo& imageInfo = texture->ImageInfoAt(target, level);
 
@@ -452,11 +449,6 @@ WebGLTexture::ValidateTexImageSelection(const char* funcName, TexImageTarget tar
                                         GLsizei depth,
                                         WebGLTexture::ImageInfo** const out_imageInfo)
 {
-    if (mImmutable) {
-        mContext->ErrorInvalidOperation("%s: Specified texture is immutable.", funcName);
-        return false;
-    }
-
     // The conformance test wants bad arg checks before imageInfo checks.
     if (xOffset < 0 || yOffset < 0 || zOffset < 0 ||
         width < 0 || height < 0 || depth < 0)
@@ -916,10 +908,8 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
         return;
     }
 
-    if (levels > 31) {
-        // Right-shift is only defined for bits-1, so 31 for GLsizei.
-        // Besides,
-        mContext->ErrorInvalidValue("%s: `level` is too large.", funcName);
+    if (!width || !height || !depth) {
+        mContext->ErrorInvalidValue("%s: Dimensions must be non-zero.", funcName);
         return;
     }
 
@@ -958,6 +948,23 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
     }
 
     ////////////////////////////////////
+
+    const auto lastLevel = levels - 1;
+    MOZ_ASSERT(lastLevel <= 31, "Right-shift is only defined for bits-1.");
+
+    const uint32_t lastLevelWidth = uint32_t(width) >> lastLevel;
+    const uint32_t lastLevelHeight = uint32_t(height) >> lastLevel;
+    const uint32_t lastLevelDepth = uint32_t(depth) >> lastLevel;
+
+    if (!lastLevelWidth && !lastLevelHeight && !lastLevelDepth) {
+        mContext->ErrorInvalidOperation("%s: Too many levels requested for the given"
+                                        " dimensions. (levels: %u, width: %u, height: %u,"
+                                        " depth: %u)",
+                                        funcName, levels, width, height, depth);
+        return;
+    }
+
+    ////////////////////////////////////
     // Do the thing!
 
     mContext->gl->MakeCurrent();
@@ -986,6 +993,8 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
     SetImageInfosAtLevel(0, newInfo);
 
     PopulateMipChain(0, levels-1);
+
+    mImmutable = true;
 }
 
 ////////////////////////////////////////
