@@ -71,6 +71,8 @@ protected:
 
     uint32_t mBaseMipmapLevel; // Set by texParameter (defaults to 0)
     uint32_t mMaxMipmapLevel;  // Set by texParameter (defaults to 1000)
+    // You almost certainly don't want to query mMaxMipmapLevel.
+    // You almost certainly want MaxEffectiveMipmapLevel().
 
     GLenum mTexCompareMode;
 
