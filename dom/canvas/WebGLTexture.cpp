@@ -202,8 +202,10 @@ WebGLTexture::IsMipmapComplete() const
     MOZ_ASSERT(DoesMinFilterRequireMipmap());
     // GLES 3.0.4, p161
 
+    const auto maxLevel = MaxEffectiveMipmapLevel();
+
     // "* `level_base <= level_max`"
-    if (mBaseMipmapLevel > mMaxMipmapLevel)
+    if (mBaseMipmapLevel > maxLevel)
         return false;
 
     // Make a copy so we can modify it.
@@ -217,7 +219,7 @@ WebGLTexture::IsMipmapComplete() const
     uint32_t refDepth = baseImageInfo.mDepth;
     MOZ_ASSERT(refWidth && refHeight && refDepth);
 
-    for (uint32_t level = mBaseMipmapLevel; level < mMaxMipmapLevel; level++) {
+    for (uint32_t level = mBaseMipmapLevel; level <= maxLevel; level++) {
         // "A cube map texture is mipmap complete if each of the six texture images,
         //  considered individually, is mipmap complete."
 
@@ -628,14 +630,10 @@ WebGLTexture::PopulateMipChain(uint32_t firstLevel, uint32_t lastLevel)
     uint32_t refWidth = baseImageInfo.mWidth;
     uint32_t refHeight = baseImageInfo.mHeight;
     uint32_t refDepth = baseImageInfo.mDepth;
-    MOZ_ASSERT(refWidth && refHeight && refDepth);
+    if (!refWidth || !refHeight || !refDepth)
+        return;
 
-    for (uint32_t level = firstLevel; level <= lastLevel; level++) {
-        const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
-                            baseImageInfo.IsDataInitialized());
-
-        SetImageInfosAtLevel(level, cur);
-
+    for (uint32_t level = firstLevel + 1; level <= lastLevel; level++) {
         bool isMinimal = (refWidth == 1 &&
                           refHeight == 1);
         if (mTarget == LOCAL_GL_TEXTURE_3D) {
@@ -651,6 +649,11 @@ WebGLTexture::PopulateMipChain(uint32_t firstLevel, uint32_t lastLevel)
         if (mTarget == LOCAL_GL_TEXTURE_3D) { // But not TEXTURE_2D_ARRAY!
             refDepth = std::max(uint32_t(1), refDepth / 2);
         }
+
+        const ImageInfo cur(baseImageInfo.mFormat, refWidth, refHeight, refDepth,
+                            baseImageInfo.IsDataInitialized());
+
+        SetImageInfosAtLevel(level, cur);
     }
 }
 
@@ -699,22 +702,23 @@ WebGLTexture::BindTexture(TexTarget texTarget)
 void
 WebGLTexture::GenerateMipmap(TexTarget texTarget)
 {
-    if (mBaseMipmapLevel > mMaxMipmapLevel) {
-        mContext->ErrorInvalidOperation("generateMipmap: Texture does not have a valid mipmap"
-                              " range.");
-        return;
-    }
-
-    if (IsCubeMap() && !IsCubeComplete()) {
-        mContext->ErrorInvalidOperation("generateMipmap: Cube maps must be \"cube complete\".");
-        return;
-    }
-
     const ImageInfo& baseImageInfo = BaseImageInfo();
     if (!baseImageInfo.IsDefined()) {
         mContext->ErrorInvalidOperation("generateMipmap: The base level of the texture is not"
                               " defined.");
         return;
+    }
+
+    const auto maxLevel = MaxEffectiveMipmapLevel();
+    if (mBaseMipmapLevel > maxLevel) {
+      mContext->ErrorInvalidOperation("generateMipmap: Texture does not have a valid mipmap"
+        " range.");
+      return;
+    }
+
+    if (IsCubeMap() && !IsCubeComplete()) {
+      mContext->ErrorInvalidOperation("generateMipmap: Cube maps must be \"cube complete\".");
+      return;
     }
 
     if (!mContext->IsWebGL2() && !baseImageInfo.IsPowerOfTwo()) {
@@ -754,7 +758,7 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
     }
 
     // Record the results.
-    PopulateMipChain(mBaseMipmapLevel, mMaxMipmapLevel);
+    PopulateMipChain(mBaseMipmapLevel, maxLevel);
 }
 
 JS::Value
