@@ -52,12 +52,15 @@
 namespace mozilla {
 
 static bool
-IsValidTexTarget(WebGLContext* webgl, GLenum rawTexTarget,
+IsValidTexTarget(WebGLContext* webgl, uint8_t funcDims, GLenum rawTexTarget,
                  TexTarget* const out)
 {
+    uint8_t targetDims;
+
     switch (rawTexTarget) {
     case LOCAL_GL_TEXTURE_2D:
     case LOCAL_GL_TEXTURE_CUBE_MAP:
+        targetDims = 2;
         break;
 
     case LOCAL_GL_TEXTURE_3D:
@@ -65,11 +68,16 @@ IsValidTexTarget(WebGLContext* webgl, GLenum rawTexTarget,
         if (!webgl->IsWebGL2())
             return false;
 
+        targetDims = 3;
         break;
 
     default:
         return false;
     }
+
+    // Some funcs (like GenerateMipmap) doesn't know the dimension, so don't check it.
+    if (funcDims && targetDims != funcDims)
+        return false;
 
     *out = rawTexTarget;
     return true;
@@ -112,14 +120,15 @@ IsValidTexImageTarget(WebGLContext* webgl, uint8_t funcDims, GLenum rawTexImageT
 }
 
 bool
-ValidateTexTarget(WebGLContext* webgl, const char* funcName, GLenum rawTexTarget,
-                  TexTarget* const out_texTarget, WebGLTexture** const out_tex)
+ValidateTexTarget(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
+                  GLenum rawTexTarget, TexTarget* const out_texTarget,
+                  WebGLTexture** const out_tex)
 {
     if (webgl->IsContextLost())
         return false;
 
     TexTarget texTarget;
-    if (!IsValidTexTarget(webgl, rawTexTarget, &texTarget)) {
+    if (!IsValidTexTarget(webgl, funcDims, rawTexTarget, &texTarget)) {
         webgl->ErrorInvalidEnum("%s: Invalid texTarget.", funcName);
         return false;
     }
@@ -236,10 +245,11 @@ void
 WebGLContext::GenerateMipmap(GLenum rawTexTarget)
 {
     const char funcName[] = "generateMipmap";
+    const uint8_t funcDims = 0;
 
     TexTarget texTarget;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, funcName, rawTexTarget, &texTarget, &tex))
+    if (!ValidateTexTarget(this, funcName, funcDims, rawTexTarget, &texTarget, &tex))
         return;
 
     tex->GenerateMipmap(texTarget);
@@ -249,10 +259,11 @@ JS::Value
 WebGLContext::GetTexParameter(GLenum rawTexTarget, GLenum pname)
 {
     const char funcName[] = "getTexParameter";
+    const uint8_t funcDims = 0;
 
     TexTarget texTarget;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, funcName, rawTexTarget, &texTarget, &tex))
+    if (!ValidateTexTarget(this, funcName, funcDims, rawTexTarget, &texTarget, &tex))
         return JS::NullValue();
 
     if (!IsTexParamValid(pname)) {
@@ -282,10 +293,11 @@ WebGLContext::TexParameter_base(GLenum rawTexTarget, GLenum pname, GLint* maybeI
     MOZ_ASSERT(maybeIntParam || maybeFloatParam);
 
     const char funcName[] = "texParameter";
+    const uint8_t funcDims = 0;
 
     TexTarget texTarget;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, funcName, rawTexTarget, &texTarget, &tex))
+    if (!ValidateTexTarget(this, funcName, funcDims, rawTexTarget, &texTarget, &tex))
         return;
 
     tex->TexParameter(texTarget, pname, maybeIntParam, maybeFloatParam);

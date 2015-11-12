@@ -10,30 +10,6 @@
 
 namespace mozilla {
 
-static bool
-ValidateTargetMatchesFuncDims(WebGLContext* webgl, const char* funcName, uint8_t funcDims,
-                              GLenum rawTexTarget)
-{
-    uint8_t targetDims = 0;
-    switch (rawTexTarget) {
-    case LOCAL_GL_TEXTURE_2D:
-    case LOCAL_GL_TEXTURE_CUBE_MAP:
-        targetDims = 2;
-        break;
-
-    case LOCAL_GL_TEXTURE_3D:
-        targetDims = 3;
-        break;
-    }
-
-    if (targetDims != funcDims) {
-        webgl->ErrorInvalidEnum("%s: Invalid texTarget.", funcName);
-        return false;
-    }
-
-    return true;
-}
-
 void
 WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internalFormat,
                             GLsizei width, GLsizei height)
@@ -41,12 +17,9 @@ WebGL2Context::TexStorage2D(GLenum rawTexTarget, GLsizei levels, GLenum internal
     const char funcName[] = "TexStorage2D";
     const uint8_t funcDims = 2;
 
-    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
-        return;
-
     TexTarget target;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, funcName, rawTexTarget, &target, &tex))
+    if (!ValidateTexTarget(this, funcName, funcDims, rawTexTarget, &target, &tex))
         return;
 
     const GLsizei depth = 1;
@@ -60,12 +33,9 @@ WebGL2Context::TexStorage3D(GLenum rawTexTarget, GLsizei levels, GLenum internal
     const char funcName[] = "texStorage3D";
     const uint8_t funcDims = 3;
 
-    if (!ValidateTargetMatchesFuncDims(this, funcName, funcDims, rawTexTarget))
-        return;
-
     TexTarget target;
     WebGLTexture* tex;
-    if (!ValidateTexTarget(this, funcName, rawTexTarget, &target, &tex))
+    if (!ValidateTexTarget(this, funcName, funcDims, rawTexTarget, &target, &tex))
         return;
 
     tex->TexStorage(funcName, target, levels, internalFormat, width, height, depth);
