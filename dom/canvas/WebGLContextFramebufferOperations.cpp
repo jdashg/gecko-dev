@@ -201,11 +201,16 @@ WebGLContext::DrawBuffers(const dom::Sequence<GLenum>& buffers)
     }
 
     MakeContextCurrent();
-    gl->fDrawBuffers(buffers.Length(), buffers.Elements());
 
-    const GLenum* begin = buffers.Elements();
-    const GLenum* end = begin + buffers.Length();
-    mBoundDrawFramebuffer->mDrawBuffers.assign(begin, end);
+    const GLenum* ptr = nullptr;
+    if (buffers.Length()) {
+        ptr = buffers.Elements();
+    }
+
+    gl->fDrawBuffers(buffers.Length(), ptr);
+
+    const auto end = ptr + buffers.Length();
+    mBoundDrawFramebuffer->mDrawBuffers.assign(ptr, end);
 }
 
 void

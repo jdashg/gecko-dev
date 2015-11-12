@@ -871,7 +871,7 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
 
     gl::GLContext* gl = mContext->gl;
 
-    const auto fnDrawBuffers = [gl](const std::vector<GLenum>& list) {
+    const auto fnDrawBuffers = [&gl](const std::vector<GLenum>& list) {
         const GLenum* ptr = nullptr;
         if (list.size()) {
             ptr = &(list[0]);
@@ -879,12 +879,20 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
         gl->fDrawBuffers(list.size(), ptr);
     };
 
-    fnDrawBuffers(tempDrawBuffers);
+    const auto drawBufferExt = WebGLExtensionID::WEBGL_draw_buffers;
+    const bool hasDrawBuffers = (mContext->IsWebGL2() ||
+                                 mContext->IsExtensionEnabled(drawBufferExt));
+
+    if (hasDrawBuffers) {
+        fnDrawBuffers(tempDrawBuffers);
+    }
 
     // Clear!
     mContext->ForceClearFramebufferWithDefaultValues(clearBits, false);
 
-    fnDrawBuffers(mDrawBuffers);
+    if (hasDrawBuffers) {
+        fnDrawBuffers(mDrawBuffers);
+    }
 
     // Mark all the uninitialized images as initialized.
     if (mDepthAttachment.HasUninitializedImageData())

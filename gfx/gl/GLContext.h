@@ -2313,6 +2313,7 @@ public:
 public:
     void fDrawBuffers(GLsizei n, const GLenum* bufs) {
         BEFORE_GL_CALL;
+        ASSERT_SYMBOL_PRESENT(fDrawBuffers);
         mSymbols.fDrawBuffers(n, bufs);
         AFTER_GL_CALL;
     }
