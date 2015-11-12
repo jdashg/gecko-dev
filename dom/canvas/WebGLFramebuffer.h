@@ -121,7 +121,7 @@ protected:
     T* const mArray;
 
 public:
-    PlacementArray(size_t capacity)
+    explicit PlacementArray(size_t capacity)
         : mCapacity(capacity)
         , mSize(0)
         , mArray((T*)moz_xmalloc(sizeof(T) * capacity))

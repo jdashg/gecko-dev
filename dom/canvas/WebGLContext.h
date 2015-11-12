@@ -214,8 +214,8 @@ class WebGLContext
         UNMASKED_RENDERER_WEBGL = 0x9246
     };
 
-    static const uint32_t kMinMaxColorAttachments = 4;
-    static const uint32_t kMinMaxDrawBuffers = 4;
+    static const uint32_t kMinMaxColorAttachments;
+    static const uint32_t kMinMaxDrawBuffers;
 
 public:
     WebGLContext();
@@ -1706,7 +1706,7 @@ public:
         : mBuffer(nullptr)
     { }
 
-    UniqueBuffer(void* buffer)
+    MOZ_IMPLICIT UniqueBuffer(void* buffer)
         : mBuffer(buffer)
     { }
 
