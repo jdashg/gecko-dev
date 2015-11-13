@@ -799,6 +799,10 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 
 #undef FOO
 
+    SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
+    SetUsage(ptr, EffectiveFormat::Luminance8      , false, true);
+    SetUsage(ptr, EffectiveFormat::Alpha8          , false, true);
+
     AddBasicUnsizedFormats(ptr, gl);
 
     return Move(ret);
