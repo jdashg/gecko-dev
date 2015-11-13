@@ -702,40 +702,42 @@ WebGLTexture::BindTexture(TexTarget texTarget)
 void
 WebGLTexture::GenerateMipmap(TexTarget texTarget)
 {
+    // GLES 3.0.4 p160:
+    // "Mipmap generation replaces texel array levels level base + 1 through q with arrays
+    //  derived from the level base array, regardless of their previous contents. All
+    //  other mipmap arrays, including the level base array, are left unchanged by this
+    //  computation."
     const ImageInfo& baseImageInfo = BaseImageInfo();
     if (!baseImageInfo.IsDefined()) {
-        mContext->ErrorInvalidOperation("generateMipmap: The base level of the texture is not"
-                              " defined.");
+        mContext->ErrorInvalidOperation("generateMipmap: The base level of the texture is"
+                                        " not defined.");
         return;
     }
 
-    const auto maxLevel = MaxEffectiveMipmapLevel();
-    if (mBaseMipmapLevel > maxLevel) {
-      mContext->ErrorInvalidOperation("generateMipmap: Texture does not have a valid mipmap"
-        " range.");
-      return;
-    }
-
     if (IsCubeMap() && !IsCubeComplete()) {
-      mContext->ErrorInvalidOperation("generateMipmap: Cube maps must be \"cube complete\".");
+      mContext->ErrorInvalidOperation("generateMipmap: Cube maps must be \"cube"
+                                      " complete\".");
       return;
     }
 
     if (!mContext->IsWebGL2() && !baseImageInfo.IsPowerOfTwo()) {
-        mContext->ErrorInvalidOperation("generateMipmap: The base level of the texture does not"
-                              " have power-of-two dimensions.");
+        mContext->ErrorInvalidOperation("generateMipmap: The base level of the texture"
+                                        " does not have power-of-two dimensions.");
         return;
     }
 
     auto format = baseImageInfo.mFormat->format;
     if (format->compression) {
         mContext->ErrorInvalidOperation("generateMipmap: Texture data at base level is"
-                              " compressed.");
+                                        " compressed.");
         return;
     }
 
-    if (format->hasDepth)
-        return mContext->ErrorInvalidOperation("generateMipmap: Depth textures are not supported");
+    if (format->hasDepth) {
+        mContext->ErrorInvalidOperation("generateMipmap: Depth textures are not"
+                                        " supported.");
+        return;
+    }
 
     // Done with validation. Do the operation.
 
@@ -758,7 +760,10 @@ WebGLTexture::GenerateMipmap(TexTarget texTarget)
     }
 
     // Record the results.
-    PopulateMipChain(mBaseMipmapLevel, maxLevel);
+    // Note that we don't use MaxEffectiveMipmapLevel() here, since that returns
+    // mBaseMipmapLevel if the min filter doesn't require mipmaps.
+    const uint32_t lastLevel = mBaseMipmapLevel + baseImageInfo.MaxMipmapLevels() - 1;
+    PopulateMipChain(mBaseMipmapLevel, lastLevel);
 }
 
 JS::Value
