@@ -443,6 +443,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
         switch (packingFormat) {
@@ -453,6 +454,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
         switch (packingFormat) {
@@ -463,6 +465,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
         switch (packingFormat) {
@@ -473,6 +476,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     case LOCAL_GL_HALF_FLOAT:
     case LOCAL_GL_HALF_FLOAT_OES:
@@ -501,6 +505,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     case LOCAL_GL_FLOAT:
         switch (packingFormat) {
@@ -528,6 +533,7 @@ GetFormatForPackingTuple(GLenum packingFormat, GLenum packingType,
         default:
             break;
         }
+        break;
 
     default:
         break;
@@ -662,7 +668,8 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
         if (outOfMemory) {
             *out_glError = LOCAL_GL_OUT_OF_MEMORY;
         } else {
-            MOZ_CRASH("Failed to convert surface.");
+            NS_ERROR("Failed to convert surface.");
+            *out_glError = LOCAL_GL_OUT_OF_MEMORY;
         }
         return;
     }
