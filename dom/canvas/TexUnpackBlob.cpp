@@ -557,7 +557,9 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
 
     // Source args:
 
+    MOZ_ASSERT(webgl->gl->IsCurrent());
     gfx::DataSourceSurface::ScopedMap srcMap(surf, gfx::DataSourceSurface::MapType::READ);
+    MOZ_ASSERT(webgl->gl->IsCurrent());
     if (!srcMap.IsMapped())
         return false;
 
@@ -603,6 +605,7 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
 
     const bool dstPremultiplied = webgl->mPixelStore_PremultiplyAlpha;
 
+    MOZ_ASSERT(webgl->gl->IsCurrent());
     // And go!:
     if (!ConvertImage(width, height,
                       srcBegin, srcStride, srcOrigin, srcFormat, srcPremultiplied,
@@ -614,6 +617,7 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
         return false;
     }
 
+    MOZ_ASSERT(webgl->gl->IsCurrent());
     *out_convertedBuffer = Move(dstBuffer);
     *out_convertedAlignment = dstAlignment;
     return true;
@@ -637,12 +641,16 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
 {
     *out_glError = 0;
 
+    WebGLContext* webgl = tex->mContext;
+
     // TODO: Do blitting of the native SourceSurface.
+
+    MOZ_ASSERT(webgl->gl->IsCurrent());
 
     RefPtr<gfx::DataSourceSurface> dataSurf = mSurf->GetDataSurface();
     MOZ_ASSERT(dataSurf);
 
-    WebGLContext* webgl = tex->mContext;
+    MOZ_ASSERT(webgl->gl->IsCurrent());
 
     GLenum error;
     if (UploadDataSurface(isSubImage, webgl, target, level, dui, xOffset, yOffset,
@@ -650,6 +658,8 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
     {
         return;
     }
+
+    MOZ_ASSERT(webgl->gl->IsCurrent());
 
     if (error == LOCAL_GL_OUT_OF_MEMORY) {
         *out_glError = LOCAL_GL_OUT_OF_MEMORY;
@@ -673,6 +683,8 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
         }
         return;
     }
+
+    MOZ_ASSERT(webgl->gl->IsCurrent());
 
     ScopedUnpackReset scopedReset(webgl);
     webgl->gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, convertedAlignment);
