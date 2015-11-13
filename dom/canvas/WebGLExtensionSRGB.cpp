@@ -30,7 +30,7 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
     const auto fnAdd = [&fua, gl](webgl::EffectiveFormat effFormat, GLenum format,
                                   GLenum desktopUnpackFormat)
     {
-        auto usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8);
+        auto usage = fua->EditUsage(effFormat);
         usage->isFilterable = true;
 
         webgl::DriverUnpackInfo dui = {format, format, LOCAL_GL_UNSIGNED_BYTE};
