@@ -332,18 +332,39 @@ WebGLFBAttachPoint::GetParameter(const char* funcName, WebGLContext* webgl, JSCo
 {
     const bool hasAttachment = (mTexturePtr || mRenderbufferPtr);
     if (!hasAttachment) {
+        // Divergent between GLES 3 and 2.
+
+        // GLES 2.0.25 p127:
+        // "If the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is NONE, then querying any
+        //  other pname will generate INVALID_ENUM."
+
+        // GLES 3.0.4 p240:
+        // "If the value of FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE is NONE, no framebuffer is
+        //  bound to target. In this case querying pname
+        //  FRAMEBUFFER_ATTACHMENT_OBJECT_NAME will return zero, and all other queries
+        //  will generate an INVALID_OPERATION error."
         switch (pname) {
         case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE:
             return JS::Int32Value(LOCAL_GL_NONE);
 
         case LOCAL_GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME:
-            return JS::NullValue();
+            if (webgl->IsWebGL2())
+                return JS::NullValue();
+
+            break;
 
         default:
+            break;
+        }
+
+        if (webgl->IsWebGL2()) {
             webgl->ErrorInvalidOperation("%s: No attachment at %s.", funcName,
                                          webgl->EnumName(attachment));
-            return JS::NullValue();
+        } else {
+            webgl->ErrorInvalidEnum("%s: No attachment at %s.", funcName,
+                                    webgl->EnumName(attachment));
         }
+        return JS::NullValue();
     }
 
     bool isPNameValid = false;
