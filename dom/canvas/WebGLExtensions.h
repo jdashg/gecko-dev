@@ -219,6 +219,8 @@ public:
     explicit WebGLExtensionTextureFloat(WebGLContext*);
     virtual ~WebGLExtensionTextureFloat();
 
+    static bool IsSupported(const WebGLContext*);
+
     DECL_WEBGL_EXTENSION_GOOP
 };
 
@@ -240,6 +242,8 @@ public:
 
     explicit WebGLExtensionTextureHalfFloat(WebGLContext*);
     virtual ~WebGLExtensionTextureHalfFloat();
+
+    static bool IsSupported(const WebGLContext*);
 
     DECL_WEBGL_EXTENSION_GOOP
 };
