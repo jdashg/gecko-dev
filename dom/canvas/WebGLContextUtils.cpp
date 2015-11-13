@@ -31,9 +31,6 @@ TexTarget
 TexImageTargetToTexTarget(TexImageTarget texImageTarget)
 {
     switch (texImageTarget.get()) {
-    case LOCAL_GL_TEXTURE_2D:
-    case LOCAL_GL_TEXTURE_3D:
-        return texImageTarget.get();
     case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X:
     case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_X:
     case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Y:
@@ -41,10 +38,9 @@ TexImageTargetToTexTarget(TexImageTarget texImageTarget)
     case LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_Z:
     case LOCAL_GL_TEXTURE_CUBE_MAP_NEGATIVE_Z:
         return LOCAL_GL_TEXTURE_CUBE_MAP;
+
     default:
-        MOZ_ASSERT(false, "Bad texture target");
-        // Should be caught by the constructor for TexTarget
-        return LOCAL_GL_NONE;
+        return texImageTarget.get();
     }
 }
 
