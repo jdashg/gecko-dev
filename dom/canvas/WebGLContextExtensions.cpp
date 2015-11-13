@@ -173,13 +173,9 @@ WebGLContext::IsExtensionSupported(WebGLExtensionID ext) const
         case WebGLExtensionID::OES_standard_derivatives:
             return gl->IsSupported(gl::GLFeature::standard_derivatives);
         case WebGLExtensionID::OES_texture_float:
-            return gl->IsSupported(gl::GLFeature::texture_float);
+            return WebGLExtensionTextureFloat::IsSupported(this);
         case WebGLExtensionID::OES_texture_half_float:
-            // If we have Feature::texture_half_float, we must not be on ES2
-            // and need to translate HALF_FLOAT_OES -> HALF_FLOAT.  We do that
-            // right before making the relevant calls.
-            return gl->IsExtensionSupported(gl::GLContext::OES_texture_half_float) ||
-                   gl->IsSupported(gl::GLFeature::texture_half_float);
+            return WebGLExtensionTextureHalfFloat::IsSupported(this);
 
         case WebGLExtensionID::OES_vertex_array_object:
             return true;
