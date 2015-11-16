@@ -17,7 +17,7 @@ WebGLExtensionCompressedTextureATC::WebGLExtensionCompressedTextureATC(WebGLCont
     : WebGLExtensionBase(webgl)
 {
     RefPtr<WebGLContext> webgl_ = webgl; // Bug 1201275
-    const auto fnAdd = [webgl_](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+    const auto fnAdd = [&webgl_](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
         auto& fua = webgl_->mFormatUsage;
 
         auto usage = fua->EditUsage(effFormat);

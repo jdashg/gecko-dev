@@ -27,8 +27,9 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
 
     auto& fua = webgl->mFormatUsage;
 
-    const auto fnAdd = [&fua, gl](webgl::EffectiveFormat effFormat, GLenum format,
-                                  GLenum desktopUnpackFormat)
+    RefPtr<gl::GLContext> gl_ = gl; // Bug 1201275
+    const auto fnAdd = [&fua, &gl_](webgl::EffectiveFormat effFormat, GLenum format,
+                                    GLenum desktopUnpackFormat)
     {
         auto usage = fua->EditUsage(effFormat);
         usage->isFilterable = true;
@@ -36,7 +37,7 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
         webgl::DriverUnpackInfo dui = {format, format, LOCAL_GL_UNSIGNED_BYTE};
         const auto pi = dui.ToPacking();
 
-        if (!gl->IsGLES())
+        if (!gl_->IsGLES())
             dui.unpackFormat = desktopUnpackFormat;
 
         fua->AddUnsizedTexFormat(pi, usage);

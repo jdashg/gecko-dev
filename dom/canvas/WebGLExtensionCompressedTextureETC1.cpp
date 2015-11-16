@@ -16,13 +16,14 @@ namespace mozilla {
 WebGLExtensionCompressedTextureETC1::WebGLExtensionCompressedTextureETC1(WebGLContext* webgl)
     : WebGLExtensionBase(webgl)
 {
-    const auto fnAdd = [&webgl](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
-        auto& fua = webgl->mFormatUsage;
+    RefPtr<WebGLContext> webgl_ = webgl; // Bug 1201275
+    const auto fnAdd = [&webgl_](GLenum sizedFormat, webgl::EffectiveFormat effFormat) {
+        auto& fua = webgl_->mFormatUsage;
 
         auto usage = fua->EditUsage(effFormat);
         fua->AddSizedTexFormat(sizedFormat, usage);
 
-        webgl->mCompressedTextureFormats.AppendElement(sizedFormat);
+        webgl_->mCompressedTextureFormats.AppendElement(sizedFormat);
     };
 
 #define FOO(x) LOCAL_GL_ ## x, webgl::EffectiveFormat::x

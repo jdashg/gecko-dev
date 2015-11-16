@@ -497,13 +497,14 @@ ValidateCompressedTexUnpack(WebGLContext* webgl, const char* funcName, GLsizei w
     auto blockWidth = compression->blockWidth;
     auto blockHeight = compression->blockHeight;
 
-    CheckedUint32 widthInBlocks = (width % blockWidth) ? width / blockWidth + 1
-                                                       : width / blockWidth;
-    CheckedUint32 heightInBlocks = (height % blockHeight) ? height / blockHeight + 1
-                                                          : height / blockHeight;
-    CheckedUint32 blocksPerImage = widthInBlocks * heightInBlocks;
-    CheckedUint32 bytesPerImage = bytesPerBlock * blocksPerImage;
-    CheckedUint32 bytesNeeded = bytesPerImage * depth;
+    auto widthInBlocks = CheckedUint32(width) / blockWidth;
+    auto heightInBlocks = CheckedUint32(height) / blockHeight;
+    if (width % blockWidth) widthInBlocks += 1;
+    if (height % blockHeight) heightInBlocks += 1;
+
+    const CheckedUint32 blocksPerImage = widthInBlocks * heightInBlocks;
+    const CheckedUint32 bytesPerImage = bytesPerBlock * blocksPerImage;
+    const CheckedUint32 bytesNeeded = bytesPerImage * depth;
 
     if (!bytesNeeded.isValid()) {
         webgl->ErrorOutOfMemory("%s: Overflow while computing the needed buffer size.",

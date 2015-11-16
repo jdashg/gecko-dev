@@ -500,11 +500,12 @@ WebGLFramebuffer::FramebufferRenderbuffer(GLenum attachment, RBTarget rbtarget,
 
     // `attachPointEnum` is validated by ValidateFramebufferAttachment().
 
-    const auto fnAttach = [this, rb](GLenum attachment) {
+    RefPtr<WebGLRenderbuffer> rb_ = rb; // Bug 1201275
+    const auto fnAttach = [this, &rb_](GLenum attachment) {
         const auto attachPoint = this->GetAttachPoint(attachment);
         MOZ_ASSERT(attachPoint);
 
-        attachPoint->SetRenderbuffer(rb);
+        attachPoint->SetRenderbuffer(rb_);
     };
 
     if (mContext->IsWebGL2() && attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
@@ -537,11 +538,12 @@ WebGLFramebuffer::FramebufferTexture2D(GLenum attachment, TexImageTarget texImag
         }
     }
 
-    const auto fnAttach = [this, tex, texImageTarget, level](GLenum attachment) {
+    RefPtr<WebGLTexture> tex_ = tex; // Bug 1201275
+    const auto fnAttach = [this, &tex_, texImageTarget, level](GLenum attachment) {
         const auto attachPoint = this->GetAttachPoint(attachment);
         MOZ_ASSERT(attachPoint);
 
-        attachPoint->SetTexImage(tex, texImageTarget, level);
+        attachPoint->SetTexImage(tex_, texImageTarget, level);
     };
 
     if (mContext->IsWebGL2() && attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
@@ -564,11 +566,12 @@ WebGLFramebuffer::FramebufferTextureLayer(GLenum attachment, WebGLTexture* tex,
     const TexImageTarget texImageTarget = (tex ? tex->Target().get()
                                                : LOCAL_GL_TEXTURE_2D);
 
-    const auto fnAttach = [this, tex, texImageTarget, level, layer](GLenum attachment) {
+    RefPtr<WebGLTexture> tex_ = tex; // Bug 1201275
+    const auto fnAttach = [this, &tex_, texImageTarget, level, layer](GLenum attachment) {
         const auto attachPoint = this->GetAttachPoint(attachment);
         MOZ_ASSERT(attachPoint);
 
-        attachPoint->SetTexImageLayer(tex, texImageTarget, level, layer);
+        attachPoint->SetTexImageLayer(tex_, texImageTarget, level, layer);
     };
 
     if (mContext->IsWebGL2() && attachment == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
@@ -890,14 +893,12 @@ WebGLFramebuffer::CheckAndInitializeAttachments()
 
     mContext->MakeContextCurrent();
 
-    gl::GLContext* gl = mContext->gl;
-
-    const auto fnDrawBuffers = [&gl](const std::vector<GLenum>& list) {
+    const auto fnDrawBuffers = [this](const std::vector<GLenum>& list) {
         const GLenum* ptr = nullptr;
         if (list.size()) {
             ptr = &(list[0]);
         }
-        gl->fDrawBuffers(list.size(), ptr);
+        this->mContext->gl->fDrawBuffers(list.size(), ptr);
     };
 
     const auto drawBufferExt = WebGLExtensionID::WEBGL_draw_buffers;
