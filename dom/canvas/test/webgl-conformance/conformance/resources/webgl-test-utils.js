@@ -689,6 +689,10 @@ var glErrorShouldBeIn = function(gl, expectedErrorList, opt_msg) {
  * @param {string} evalSTr The string to evaluate.
  */
 var shouldGenerateGLError = function(gl, glError, evalStr) {
+  glErrorShouldBe(gl, 0,
+                  "Should not be pre-existing errors during call to"
+                  + " shouldGenerateGLError().");
+
   var exception;
   try {
     eval(evalStr);
@@ -709,6 +713,10 @@ var shouldGenerateGLError = function(gl, glError, evalStr) {
  * @param {string} evalSTr The string to evaluate.
  */
 var shouldGenerateGLErrorIn = function(gl, expectedErrorList, evalStr) {
+  glErrorShouldBe(gl, 0,
+                  "Should not be pre-existing errors during call to"
+                  + " shouldGenerateGLErrorIn().");
+
   var exception;
   try {
     eval(evalStr);

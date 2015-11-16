@@ -273,6 +273,7 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
                                     GLsizei height, gfx::DataSourceSurface* surf,
                                     bool isSurfAlphaPremult, GLenum* const out_glError)
 {
+    MOZ_ASSERT(webgl->gl->IsCurrent());
     *out_glError = 0;
 
     if (isSurfAlphaPremult != webgl->mPixelStore_PremultiplyAlpha)
@@ -351,8 +352,7 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
         // alignment used for some SourceSurfaces. (D2D allegedy likes alignment=16)
     }
 
-    gl->MakeCurrent();
-
+    MOZ_ALWAYS_TRUE( webgl->gl->MakeCurrent() );
     ScopedUnpackReset scopedReset(webgl);
     gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, unpackAlignment);
 
@@ -557,9 +557,8 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
 
     // Source args:
 
-    MOZ_ASSERT(webgl->gl->IsCurrent());
+    // After we call this, on OSX, our GLContext will no longer be current.
     gfx::DataSourceSurface::ScopedMap srcMap(surf, gfx::DataSourceSurface::MapType::READ);
-    MOZ_ASSERT(webgl->gl->IsCurrent());
     if (!srcMap.IsMapped())
         return false;
 
@@ -605,7 +604,6 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
 
     const bool dstPremultiplied = webgl->mPixelStore_PremultiplyAlpha;
 
-    MOZ_ASSERT(webgl->gl->IsCurrent());
     // And go!:
     if (!ConvertImage(width, height,
                       srcBegin, srcStride, srcOrigin, srcFormat, srcPremultiplied,
@@ -617,7 +615,6 @@ TexUnpackSurface::ConvertSurface(WebGLContext* webgl, const webgl::DriverUnpackI
         return false;
     }
 
-    MOZ_ASSERT(webgl->gl->IsCurrent());
     *out_convertedBuffer = Move(dstBuffer);
     *out_convertedAlignment = dstAlignment;
     return true;
@@ -645,14 +642,12 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
 
     // TODO: Do blitting of the native SourceSurface.
 
-    MOZ_ASSERT(webgl->gl->IsCurrent());
+    // MakeCurrent is a big mess in here, because mapping (and presumably unmapping) on
+    // OSX can lose our MakeCurrent. Therefore it's easiest to MakeCurrent just before we
+    // call into GL, instead of trying to keep MakeCurrent-ed.
 
     RefPtr<gfx::DataSourceSurface> dataSurf = mSurf->GetDataSurface();
     MOZ_ASSERT(dataSurf);
-
-    webgl->gl->MakeCurrent(); // This seems to be necessary after GetDataSurface.
-
-    MOZ_ASSERT(webgl->gl->IsCurrent());
 
     GLenum error;
     if (UploadDataSurface(isSubImage, webgl, target, level, dui, xOffset, yOffset,
@@ -660,9 +655,6 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
     {
         return;
     }
-
-    MOZ_ASSERT(webgl->gl->IsCurrent());
-
     if (error == LOCAL_GL_OUT_OF_MEMORY) {
         *out_glError = LOCAL_GL_OUT_OF_MEMORY;
         return;
@@ -686,8 +678,7 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
         return;
     }
 
-    MOZ_ASSERT(webgl->gl->IsCurrent());
-
+    MOZ_ALWAYS_TRUE( webgl->gl->MakeCurrent() );
     ScopedUnpackReset scopedReset(webgl);
     webgl->gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, convertedAlignment);
 
