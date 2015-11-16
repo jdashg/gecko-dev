@@ -650,6 +650,8 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
     RefPtr<gfx::DataSourceSurface> dataSurf = mSurf->GetDataSurface();
     MOZ_ASSERT(dataSurf);
 
+    webgl->gl->MakeCurrent(); // This seems to be necessary after GetDataSurface.
+
     MOZ_ASSERT(webgl->gl->IsCurrent());
 
     GLenum error;
