@@ -42,7 +42,7 @@ WebGLExtensionTextureHalfFloat::WebGLExtensionTextureHalfFloat(WebGLContext* web
     ////////////////
 
     pi = {LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES};
-    dui = {pi.format, pi.format, pi.type};
+    dui = {pi.format, pi.format, driverUnpackType};
     swizzle = nullptr;
     if (needSizedInternal) {
         dui.internalFormat = LOCAL_GL_RGBA16F;
@@ -52,7 +52,7 @@ WebGLExtensionTextureHalfFloat::WebGLExtensionTextureHalfFloat(WebGLContext* web
     //////
 
     pi = {LOCAL_GL_RGB, LOCAL_GL_HALF_FLOAT_OES};
-    dui = {pi.format, pi.format, pi.type};
+    dui = {pi.format, pi.format, driverUnpackType};
     swizzle = nullptr;
     if (needSizedInternal) {
         dui.internalFormat = LOCAL_GL_RGB16F;
