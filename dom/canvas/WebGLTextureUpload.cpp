@@ -252,7 +252,9 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
                             ErrorResult* const out_error)
 {
     auto sfer = mContext->SurfaceFromElement(elem);
-    if (!sfer.mSourceSurface) {
+
+    const auto& layersImage = sfer.mLayersImage;
+    if (!layersImage && !sfer.GetSourceSurface()) {
         mContext->ErrorInvalidOperation("%s: Failed to get data from DOM element.",
                                         funcName);
         return;
@@ -276,7 +278,7 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
         }
     }
 
-    auto& srcSurf = sfer.mSourceSurface;
+    auto& srcSurf = sfer.GetSourceSurface();
 
     UniquePtr<webgl::TexUnpackBlob> blob;
     blob.reset(new webgl::TexUnpackSurface(srcSurf, sfer.mIsPremultiplied));

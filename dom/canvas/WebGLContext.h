@@ -1323,11 +1323,6 @@ public:
         return nsLayoutUtils::SurfaceFromElement(elem, flags, idealDrawTarget);
     }
 
-    nsresult
-    SurfaceFromElementResultToImageSurface(const nsLayoutUtils::SurfaceFromElementResult& res,
-                                           RefPtr<gfx::DataSourceSurface>* const out_image,
-                                           WebGLTexelFormat* const out_format);
-
 protected:
     // Returns false if `object` is null or not valid.
     template<class ObjectType>
