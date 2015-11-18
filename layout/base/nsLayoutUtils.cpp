@@ -8274,10 +8274,6 @@ nsLayoutUtils::SurfaceFromElementResult::SurfaceFromElementResult()
 {
 }
 
-nsLayoutUtils::SurfaceFromElementResult::~SurfaceFromElementResult()
-{
-}
-
 const RefPtr<mozilla::gfx::SourceSurface>&
 nsLayoutUtils::SurfaceFromElementResult::GetSourceSurface()
 {

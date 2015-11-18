@@ -10,6 +10,7 @@
 #include "GLDefs.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
+#include "mozilla/RefPtr.h"
 #include "nsLayoutUtils.h"
 #include "WebGLContext.h"
 #include "WebGLTexelConversions.h"
@@ -242,6 +243,9 @@ TexUnpackImage::TexUnpackImage(const RefPtr<layers::Image>& image, bool isAlphaP
     : TexUnpackBlob(image->GetSize().width, image->GetSize().height, 1, true)
     , mImage(image)
     , mIsAlphaPremult(isAlphaPremult)
+{ }
+
+TexUnpackImage::~TexUnpackImage()
 { }
 
 void
@@ -705,6 +709,9 @@ TexUnpackSurface::TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf,
     : TexUnpackBlob(surf->GetSize().width, surf->GetSize().height, 1, true)
     , mSurf(surf)
     , mIsAlphaPremult(isAlphaPremult)
+{ }
+
+TexUnpackSurface::~TexUnpackSurface()
 { }
 
 void
