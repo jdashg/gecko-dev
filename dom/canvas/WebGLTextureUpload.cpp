@@ -225,24 +225,9 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
 {
     auto sfer = mContext->SurfaceFromElement(elem);
 
-    if (sfer.mIsWriteOnly) {
-        mContext->GenerateWarning("%s: Element is write-only.", funcName);
-        out_error->Throw(NS_ERROR_DOM_SECURITY_ERR);
-        return;
-    }
-
-    if (!sfer.mCORSUsed) {
-        auto& srcPrincipal = sfer.mPrincipal;
-        nsIPrincipal* dstPrincipal = mContext->GetCanvas()->NodePrincipal();
-
-        if (!dstPrincipal->Subsumes(srcPrincipal)) {
-            mContext->GenerateWarning("%s: Cross-origin elements require CORS.",
-                                      funcName);
-            out_error->Throw(NS_ERROR_DOM_SECURITY_ERR);
-            return;
-        }
-    }
-
+    // While it's counter-intuitive, the shape of the SFEResult API means that we should
+    // try to pull out a surface first, and then, if we do pull out a surface, check
+    // CORS/write-only/etc..
     UniquePtr<webgl::TexUnpackBlob> blob;
     const bool isAlphaPremult = sfer.mIsPremultiplied;
 
@@ -251,10 +236,41 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
         blob.reset(new webgl::TexUnpackImage(layersImage, isAlphaPremult));
     } else if (sfer.GetSourceSurface()) {
         blob.reset(new webgl::TexUnpackSurface(sfer.GetSourceSurface(), isAlphaPremult));
+    }
+
+    if (blob) {
+        if (!sfer.mCORSUsed) {
+            auto& srcPrincipal = sfer.mPrincipal;
+            nsIPrincipal* dstPrincipal = mContext->GetCanvas()->NodePrincipal();
+
+            if (!dstPrincipal->Subsumes(srcPrincipal)) {
+                mContext->GenerateWarning("%s: Cross-origin elements require CORS.",
+                                          funcName);
+                out_error->Throw(NS_ERROR_DOM_SECURITY_ERR);
+                return;
+            }
+        }
+
+        if (sfer.mIsWriteOnly) {
+            // mIsWriteOnly defaults to true, and so will be true even if SFE merely
+            // failed. Thus we must test mIsWriteOnly after successfully retrieving an
+            // Image or SourceSurface.
+            mContext->GenerateWarning("%s: Element is write-only, thus cannot be"
+                                      " uploaded.",
+                                      funcName);
+            out_error->Throw(NS_ERROR_DOM_SECURITY_ERR);
+            return;
+        }
     } else {
-        mContext->ErrorInvalidOperation("%s: Failed to get data from DOM element.",
-                                        funcName);
-        return;
+        mContext->GenerateWarning("%s: Failed to get data from DOM element. Implicit"
+                                  " width and height for this upload will be zero.",
+                                  funcName);
+
+        const uint32_t width = 0;
+        const uint32_t height = 0;
+        const uint32_t depth = 1; // Implicit depth for DOM uploads is always 1.
+        const size_t byteCount = 0;
+        blob.reset(new webgl::TexUnpackBytes(width, height, depth, byteCount, nullptr));
     }
     MOZ_ASSERT(blob);
 
