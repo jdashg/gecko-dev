@@ -2085,11 +2085,19 @@ public:
     friend class mozilla::dom::CanvasRenderingContext2D;
     friend class nsLayoutUtils;
 
+    /* If SFEResult contains a valid surface, it either mLayersImage or mSourceSurface
+     * will be non-null, and GetSourceSurface() will not be null.
+     *
+     * For valid surfaces, mSourceSurface may be null if mLayersImage is non-null, but
+     * GetSourceSurface() will create mSourceSurface from mLayersImage when called.
+     */
+
     /* Video elements (at least) often are already decoded as layers::Images. */
     RefPtr<mozilla::layers::Image> mLayersImage;
 
 protected:
-    /* mSourceSurface will contain the resulting surface, or will be nullptr on error */
+    /* GetSourceSurface() fills this and returns its non-null value if this SFEResult
+     * was successful. */
     RefPtr<mozilla::gfx::SourceSurface> mSourceSurface;
 
 public:
