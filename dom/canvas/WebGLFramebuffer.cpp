@@ -219,7 +219,7 @@ WebGLFBAttachPoint::OnBackingStoreRespecified() const
 }
 
 bool
-WebGLFBAttachPoint::IsComplete() const
+WebGLFBAttachPoint::IsComplete(WebGLContext* webgl) const
 {
     MOZ_ASSERT(IsDefined());
 
@@ -238,14 +238,25 @@ WebGLFBAttachPoint::IsComplete() const
 
     auto format = formatUsage->format;
 
-    if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
-        return format->hasDepth && !format->hasStencil;
+    if (webgl->IsWebGL2()) {
+      if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+          return format->hasDepth;
 
-    if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
-        return !format->hasDepth && format->hasStencil;
+      if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
+          return format->hasStencil;
 
-    if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
-        return format->hasDepth && format->hasStencil;
+      if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+          MOZ_CRASH("No DEPTH_STENCIL_ATTACHMENT in WebGL 2.");
+    } else {
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+            return format->hasDepth && !format->hasStencil;
+
+        if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
+            return !format->hasDepth && format->hasStencil;
+
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+            return format->hasDepth && format->hasStencil;
+    }
 
     MOZ_ASSERT(mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0);
     return format->isColorFormat;
@@ -685,11 +696,11 @@ WebGLFramebuffer::HasDefinedAttachments() const
 bool
 WebGLFramebuffer::HasIncompleteAttachments() const
 {
-    const auto fnIsIncomplete = [](const WebGLFBAttachPoint& cur) {
+    const auto fnIsIncomplete = [this](const WebGLFBAttachPoint& cur) {
         if (!cur.IsDefined())
             return false; // Not defined, so can't count as incomplete.
 
-        return !cur.IsComplete();
+        return !cur.IsComplete(this->mContext);
     };
 
     bool hasIncomplete = false;
@@ -762,12 +773,17 @@ WebGLFramebuffer::PrecheckFramebufferStatus() const
     if (HasIncompleteAttachments())
         return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
 
-    // INCOMPLETE_DIMENSIONS doesn't exist in GLES3.
-    if (!mContext->IsWebGL2() && !AllImageRectsMatch())
-        return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS; // Inconsistent sizes
+    if (!mContext->IsWebGL2()) {
+        // INCOMPLETE_DIMENSIONS doesn't exist in GLES3.
+        if (!AllImageRectsMatch())
+            return LOCAL_GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS; // Inconsistent sizes
 
-    if (HasDepthStencilConflict())
-        return LOCAL_GL_FRAMEBUFFER_UNSUPPORTED;
+        const auto depthOrStencilCount = int(mDepthAttachment.IsDefined()) +
+                                         int(mStencilAttachment.IsDefined()) +
+                                         int(mDepthStencilAttachment.IsDefined());
+        if (depthOrStencilCount > 1)
+            return LOCAL_GL_FRAMEBUFFER_UNSUPPORTED;
+    }
 
     return LOCAL_GL_FRAMEBUFFER_COMPLETE;
 }

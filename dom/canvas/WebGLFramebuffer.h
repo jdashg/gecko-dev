@@ -100,7 +100,7 @@ public:
     //const WebGLRectangleObject& RectangleObject() const;
 
     bool HasImage() const;
-    bool IsComplete() const;
+    bool IsComplete(WebGLContext* webgl) const;
 
     void FinalizeAttachment(gl::GLContext* gl, GLenum attachmentLoc) const;
 
@@ -233,12 +233,6 @@ public:
 
     const webgl::FormatUsageInfo*
     GetFormatForAttachment(const WebGLFBAttachPoint& attachment) const;
-
-    bool HasDepthStencilConflict() const {
-        return int(mDepthAttachment.IsDefined()) +
-               int(mStencilAttachment.IsDefined()) +
-               int(mDepthStencilAttachment.IsDefined()) >= 2;
-    }
 
     const WebGLFBAttachPoint& ColorAttachment(size_t colorAttachmentId) const {
         MOZ_ASSERT(colorAttachmentId < 1 + mMoreColorAttachments.Size());
