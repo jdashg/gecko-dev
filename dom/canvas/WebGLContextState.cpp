@@ -77,7 +77,9 @@ WebGLContext::GetStencilBits(GLint* out_stencilBits)
 {
     *out_stencilBits = 0;
     if (mBoundDrawFramebuffer) {
-        if (mBoundDrawFramebuffer->HasDepthStencilConflict()) {
+        if (mBoundDrawFramebuffer->StencilAttachment().IsDefined() &&
+            mBoundDrawFramebuffer->DepthStencilAttachment().IsDefined())
+        {
             // Error, we don't know which stencil buffer's bits to use
             ErrorInvalidFramebufferOperation("getParameter: framebuffer has two stencil buffers bound");
             return false;

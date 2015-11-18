@@ -54,34 +54,6 @@ namespace mozilla {
  *                   height)
  */
 
-//////////////////////////////////////////////////////////////////////////////////////////
-// Some functions need an extra level of indirection, particularly for DOM Elements.
-
-already_AddRefed<mozilla::layers::Image>
-ImageFromVideo(dom::HTMLVideoElement* elem)
-{
-    uint16_t readyState;
-    if (NS_SUCCEEDED(elem->GetReadyState(&readyState)) &&
-        readyState < elem->HAVE_CURRENT_DATA)
-    {
-        // No frame inside, just return
-        return nullptr;
-    }
-
-    RefPtr<layers::ImageContainer> container = elem->GetImageContainer();
-    if (!container)
-        return nullptr;
-
-    nsAutoTArray<layers::ImageContainer::OwningImage, 4> currentImages;
-    container->GetCurrentImages(&currentImages);
-
-    if (!currentImages.Length())
-        return nullptr;
-
-    RefPtr<mozilla::layers::Image> ret = currentImages[0].mImage;
-    return ret.forget();
-}
-
 ////////////////////////////////////////
 // ArrayBufferView?
 
@@ -253,13 +225,6 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
 {
     auto sfer = mContext->SurfaceFromElement(elem);
 
-    const auto& layersImage = sfer.mLayersImage;
-    if (!layersImage && !sfer.GetSourceSurface()) {
-        mContext->ErrorInvalidOperation("%s: Failed to get data from DOM element.",
-                                        funcName);
-        return;
-    }
-
     if (sfer.mIsWriteOnly) {
         mContext->GenerateWarning("%s: Element is write-only.", funcName);
         out_error->Throw(NS_ERROR_DOM_SECURITY_ERR);
@@ -278,10 +243,20 @@ WebGLTexture::TexOrSubImage(bool isSubImage, const char* funcName, TexImageTarge
         }
     }
 
-    auto& srcSurf = sfer.GetSourceSurface();
-
     UniquePtr<webgl::TexUnpackBlob> blob;
-    blob.reset(new webgl::TexUnpackSurface(srcSurf, sfer.mIsPremultiplied));
+    const bool isAlphaPremult = sfer.mIsPremultiplied;
+
+    const auto& layersImage = sfer.mLayersImage;
+    if (layersImage && !gfxPrefs::WebGLDisableDOMBlitUploads()) {
+        blob.reset(new webgl::TexUnpackImage(layersImage, isAlphaPremult));
+    } else if (sfer.GetSourceSurface()) {
+        blob.reset(new webgl::TexUnpackSurface(sfer.GetSourceSurface(), isAlphaPremult));
+    } else {
+        mContext->ErrorInvalidOperation("%s: Failed to get data from DOM element.",
+                                        funcName);
+        return;
+    }
+    MOZ_ASSERT(blob);
 
     const GLint border = 0;
     TexOrSubImage(isSubImage, funcName, target, level, internalFormat, xOffset, yOffset,
@@ -1146,14 +1121,21 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     // It's tempting to do allocation first, and TexSubImage second, but this is generally
     // slower.
 
+    const ImageInfo newImageInfo(dstUsage, blob->mWidth, blob->mHeight, blob->mDepth,
+                                 blob->mHasData);
+
     const bool isSubImage = false;
+    const bool needsRespec = (imageInfo->mWidth  != newImageInfo.mWidth ||
+                              imageInfo->mHeight != newImageInfo.mHeight ||
+                              imageInfo->mDepth  != newImageInfo.mDepth ||
+                              imageInfo->mFormat != newImageInfo.mFormat);
     const GLint xOffset = 0;
     const GLint yOffset = 0;
     const GLint zOffset = 0;
 
     GLenum glError;
-    blob->TexOrSubImage(isSubImage, funcName, this, target, level, driverUnpackInfo,
-                        xOffset, yOffset, zOffset, &glError);
+    blob->TexOrSubImage(isSubImage, needsRespec, funcName, this, target, level,
+                        driverUnpackInfo, xOffset, yOffset, zOffset, &glError);
 
     if (glError == LOCAL_GL_OUT_OF_MEMORY) {
         mContext->ErrorOutOfMemory("%s: Driver ran out of memory during upload.",
@@ -1173,8 +1155,6 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
     ////////////////////////////////////
     // Update our specification data.
 
-    const ImageInfo newImageInfo(dstUsage, blob->mWidth, blob->mHeight, blob->mDepth,
-                                 blob->mHasData);
     SetImageInfo(imageInfo, newImageInfo);
 }
 
@@ -1246,10 +1226,11 @@ WebGLTexture::TexSubImage(const char* funcName, TexImageTarget target, GLint lev
     }
 
     const bool isSubImage = true;
+    const bool needsRespect = false;
 
     GLenum glError;
-    blob->TexOrSubImage(isSubImage, funcName, this, target, level, driverUnpackInfo,
-                        xOffset, yOffset, zOffset, &glError);
+    blob->TexOrSubImage(isSubImage, needsRespect, funcName, this, target, level,
+                        driverUnpackInfo, xOffset, yOffset, zOffset, &glError);
 
     if (glError == LOCAL_GL_OUT_OF_MEMORY) {
         mContext->ErrorOutOfMemory("%s: Driver ran out of memory during upload.",

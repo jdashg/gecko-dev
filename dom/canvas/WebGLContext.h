@@ -122,9 +122,7 @@ class SourceSurface;
 namespace webgl {
 struct LinkedProgramInfo;
 class ShaderValidator;
-class TexUnpackBuffer;
-class TexUnpackImage;
-class TexUnpackSrcSurface;
+class TexUnpackBlob;
 } // namespace webgl
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
@@ -1577,6 +1575,7 @@ public:
     friend class ScopedCopyTexImageSource;
     friend class ScopedResolveTexturesForDraw;
     friend class ScopedUnpackReset;
+    friend class webgl::TexUnpackBlob;
     friend class webgl::TexUnpackBytes;
     friend class webgl::TexUnpackSurface;
     friend class WebGLTexture;
