@@ -29,6 +29,7 @@
 #include "Units.h"
 #include "mozilla/ToString.h"
 #include "nsHTMLReflowMetrics.h"
+#include "ImageContainer.h"
 
 #include <limits>
 #include <algorithm>
@@ -2117,7 +2118,6 @@ public:
     // Methods:
 
     SurfaceFromElementResult();
-    ~SurfaceFromElementResult();
 
     // Gets mSourceSurface, or makes a SourceSurface from mLayersImage.
     const RefPtr<mozilla::gfx::SourceSurface>& GetSourceSurface();

@@ -7,10 +7,12 @@
 #define TEX_UNPACK_BLOB_H_
 
 #include "GLContextTypes.h"
-#include "GLDefs.h"
-#include "mozilla/RefPtr.h"
-#include "mozilla/gfx/Point.h"
+#include "GLTypes.h"
 #include "WebGLStrongTypes.h"
+
+
+template <class T>
+class RefPtr;
 
 namespace mozilla {
 
@@ -104,6 +106,7 @@ public:
     const bool mIsAlphaPremult;
 
     TexUnpackImage(const RefPtr<layers::Image>& image, bool isAlphaPremult);
+    virtual ~TexUnpackImage() override;
 
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) override
@@ -125,6 +128,7 @@ public:
     const bool mIsAlphaPremult;
 
     TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf, bool isAlphaPremult);
+    virtual ~TexUnpackSurface() override;
 
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) override
