@@ -5,6 +5,7 @@
 
 #include "WebGLFormats.h"
 
+#include "gfxPrefs.h"
 #include "GLDefs.h"
 #include "mozilla/StaticMutex.h"
 
@@ -806,6 +807,13 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     fnAddSizedUnpack(FOO(DEPTH24_STENCIL8 ), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             );
     fnAddSizedUnpack(FOO(DEPTH32F_STENCIL8), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
 
+    if (gfxPrefs::WebGL2CompatMode()) {
+        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_FLOAT, EffectiveFormat::RGBA32F);
+        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_FLOAT, EffectiveFormat::RGB32F );
+
+        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGBA16F);
+        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGB16F );
+    }
 #undef FOO
 
     SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
