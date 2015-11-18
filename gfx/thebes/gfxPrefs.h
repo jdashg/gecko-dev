@@ -430,6 +430,8 @@ private:
   DECL_GFX_PREF(Live, "webgl.prefer-16bpp",                    WebGLPrefer16bpp, bool, false);
   DECL_GFX_PREF(Live, "webgl.restore-context-when-visible",    WebGLRestoreWhenVisible, bool, true);
 
+  DECL_GFX_PREF(Live, "webgl.webgl2-compat-mode",              WebGL2CompatMode, bool, false);
+
   // WARNING:
   // Please make sure that you've added your new preference to the list above in alphabetical order.
   // Please do not just append it to the end of the list.
