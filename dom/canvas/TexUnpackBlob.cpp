@@ -31,8 +31,21 @@ DoTexOrSubImage(bool isSubImage, gl::GLContext* gl, TexImageTarget target, GLint
     }
 }
 
+/*static*/ void
+TexUnpackBlob::OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
+                             gl::OriginPos* const out_dst)
+{
+    // Our surfaces are TopLeft.
+    *out_src = gl::OriginPos::TopLeft;
+
+    // WebGL specs the default as passing DOM elements top-left first.
+    // Thus y-flip would give us bottom-left.
+    *out_dst = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
+                                        : gl::OriginPos::TopLeft;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
-// TexUnpackBuffer
+// TexUnpackBytes
 
 bool
 TexUnpackBytes::ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
@@ -123,8 +136,8 @@ FormatFromPacking(const webgl::PackingInfo& pi)
 }
 
 void
-TexUnpackBytes::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
-                              TexImageTarget target, GLint level,
+TexUnpackBytes::TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                              WebGLTexture* tex, TexImageTarget target, GLint level,
                               const webgl::DriverUnpackInfo* dui, GLint xOffset,
                               GLint yOffset, GLint zOffset, GLenum* const out_glError)
 {
@@ -223,7 +236,85 @@ TexUnpackBytes::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTextur
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-// TexUnpackDataSurface
+// TexUnpackImage
+
+TexUnpackImage::TexUnpackImage(const RefPtr<layers::Image>& image, bool isAlphaPremult)
+    : TexUnpackBlob(image->GetSize().width, image->GetSize().height, 1, true)
+    , mImage(image)
+    , mIsAlphaPremult(isAlphaPremult)
+{ }
+
+void
+TexUnpackImage::TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                              WebGLTexture* tex, TexImageTarget target, GLint level,
+                              const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                              GLint yOffset, GLint zOffset, GLenum* const out_glError)
+{
+    MOZ_ASSERT_IF(needsRespec, !isSubImage);
+    *out_glError = 0;
+
+    WebGLContext* webgl = tex->mContext;
+
+    gl::GLContext* gl = webgl->GL();
+    gl->MakeCurrent();
+
+    if (needsRespec) {
+        GLenum error = DoTexOrSubImage(isSubImage, gl, target.get(), level, dui, xOffset,
+                                       yOffset, zOffset, mWidth, mHeight, mDepth,
+                                       nullptr);
+        if (error) {
+            MOZ_ASSERT(!error);
+            *out_glError = LOCAL_GL_OUT_OF_MEMORY;
+            return;
+        }
+    }
+
+    do {
+        if (dui->unpackFormat != LOCAL_GL_RGB && dui->unpackFormat != LOCAL_GL_RGBA)
+            break;
+
+        if (dui->unpackType != LOCAL_GL_UNSIGNED_BYTE)
+            break;
+
+        gl::ScopedFramebuffer scopedFB(gl);
+        gl::ScopedBindFramebuffer bindFB(gl, scopedFB.FB());
+
+        {
+            gl::GLContext::LocalErrorScope errorScope(*gl);
+
+            gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                                      target.get(), tex->mGLName, level);
+
+            if (errorScope.GetError())
+                break;
+        }
+
+        const GLenum status = gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+        if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE)
+            break;
+
+        gl::OriginPos srcOrigin, dstOrigin;
+        OriginsForDOM(webgl, &srcOrigin, &dstOrigin);
+
+        const gfx::IntSize destSize(mWidth, mHeight);
+        if (!gl->BlitHelper()->BlitImageToFramebuffer(mImage, destSize, scopedFB.FB(),
+                                                      dstOrigin))
+        {
+            break;
+        }
+
+        return;
+    } while (false);
+
+    TexUnpackSurface surfBlob(mImage->GetAsSourceSurface(), mIsAlphaPremult);
+
+    surfBlob.TexOrSubImage(isSubImage, needsRespec, funcName, tex, target, level, dui,
+                           xOffset, yOffset, zOffset, out_glError);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// TexUnpackSurface
 
 static bool
 GuessAlignment(const void* data, size_t bytesPerRow, size_t stride, size_t maxAlignment,
@@ -252,19 +343,6 @@ SupportsBGRA(gl::GLContext* gl)
     return false;
 }
 
-/*static*/ void
-TexUnpackSurface::OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
-                                gl::OriginPos* const out_dst)
-{
-    // Our surfaces are TopLeft.
-    *out_src = gl::OriginPos::TopLeft;
-
-    // WebGL specs the default as passing DOM elements top-left first.
-    // Thus y-flip would give us bottom-left.
-    *out_dst = webgl->mPixelStore_FlipY ? gl::OriginPos::BottomLeft
-                                        : gl::OriginPos::TopLeft;
-}
-
 /*static*/ bool
 TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
                                     TexImageTarget target, GLint level,
@@ -273,7 +351,8 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
                                     GLsizei height, gfx::DataSourceSurface* surf,
                                     bool isSurfAlphaPremult, GLenum* const out_glError)
 {
-    MOZ_ASSERT(webgl->gl->IsCurrent());
+    gl::GLContext* gl = webgl->GL();
+    MOZ_ASSERT(gl->IsCurrent());
     *out_glError = 0;
 
     if (isSurfAlphaPremult != webgl->mPixelStore_PremultiplyAlpha)
@@ -283,8 +362,6 @@ TexUnpackSurface::UploadDataSurface(bool isSubImage, WebGLContext* webgl,
     OriginsForDOM(webgl, &srcOrigin, &dstOrigin);
     if (srcOrigin != dstOrigin)
         return false;
-
-    gl::GLContext* gl = webgl->gl;
 
     // This differs from the raw-data upload in that we choose how we do the unpack.
     // (alignment, etc.)
@@ -631,16 +708,14 @@ TexUnpackSurface::TexUnpackSurface(const RefPtr<gfx::SourceSurface>& surf,
 { }
 
 void
-TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
-                                TexImageTarget target, GLint level,
+TexUnpackSurface::TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                                WebGLTexture* tex, TexImageTarget target, GLint level,
                                 const webgl::DriverUnpackInfo* dui, GLint xOffset,
                                 GLint yOffset, GLint zOffset, GLenum* const out_glError)
 {
     *out_glError = 0;
 
     WebGLContext* webgl = tex->mContext;
-
-    // TODO: Do blitting of the native SourceSurface.
 
     // MakeCurrent is a big mess in here, because mapping (and presumably unmapping) on
     // OSX can lose our MakeCurrent. Therefore it's easiest to MakeCurrent just before we
@@ -665,7 +740,6 @@ TexUnpackSurface::TexOrSubImage(bool isSubImage, const char* funcName, WebGLText
     UniqueBuffer convertedBuffer;
     uint8_t convertedAlignment;
     bool outOfMemory;
-
     if (!ConvertSurface(webgl, dui, dataSurf, mIsAlphaPremult, &convertedBuffer,
                         &convertedAlignment, &outOfMemory))
     {

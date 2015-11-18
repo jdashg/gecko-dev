@@ -64,11 +64,14 @@ public:
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) = 0;
 
-    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
-                               TexImageTarget target, GLint level,
+    virtual void TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                               WebGLTexture* tex, TexImageTarget target, GLint level,
                                const webgl::DriverUnpackInfo* dui, GLint xOffset,
                                GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) = 0;
+
+    static void OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
+                              gl::OriginPos* const out_dst);
 };
 
 class TexUnpackBytes : public TexUnpackBlob
@@ -87,8 +90,29 @@ public:
     virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
                                 const webgl::PackingInfo& pi) override;
 
-    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
-                               TexImageTarget target, GLint level,
+    virtual void TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                               WebGLTexture* tex, TexImageTarget target, GLint level,
+                               const webgl::DriverUnpackInfo* dui, GLint xOffset,
+                               GLint yOffset, GLint zOffset,
+                               GLenum* const out_glError) override;
+};
+
+class TexUnpackImage : public TexUnpackBlob
+{
+public:
+    const RefPtr<layers::Image> mImage;
+    const bool mIsAlphaPremult;
+
+    TexUnpackImage(const RefPtr<layers::Image>& image, bool isAlphaPremult);
+
+    virtual bool ValidateUnpack(WebGLContext* webgl, const char* funcName, bool isFunc3D,
+                                const webgl::PackingInfo& pi) override
+    {
+        return true;
+    }
+
+    virtual void TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                               WebGLTexture* tex, TexImageTarget target, GLint level,
                                const webgl::DriverUnpackInfo* dui, GLint xOffset,
                                GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
@@ -108,8 +132,8 @@ public:
         return true;
     }
 
-    virtual void TexOrSubImage(bool isSubImage, const char* funcName, WebGLTexture* tex,
-                               TexImageTarget target, GLint level,
+    virtual void TexOrSubImage(bool isSubImage, bool needsRespec, const char* funcName,
+                               WebGLTexture* tex, TexImageTarget target, GLint level,
                                const webgl::DriverUnpackInfo* dui, GLint xOffset,
                                GLint yOffset, GLint zOffset,
                                GLenum* const out_glError) override;
@@ -126,9 +150,6 @@ protected:
                                   GLint yOffset, GLint zOffset, GLsizei width,
                                   GLsizei height, gfx::DataSourceSurface* surf,
                                   bool isSurfAlphaPremult, GLenum* const out_glError);
-
-    static void OriginsForDOM(WebGLContext* webgl, gl::OriginPos* const out_src,
-                              gl::OriginPos* const out_dst);
 };
 
 } // namespace webgl

@@ -481,6 +481,8 @@ ScopedGLDrawState::ScopedGLDrawState(GLContext* aGL)
 
 ScopedGLDrawState::~ScopedGLDrawState()
 {
+    MOZ_ASSERT(mGL->IsCurrent());
+
     mGL->fScissor(scissorBox[0], scissorBox[1],
                   scissorBox[2], scissorBox[3]);
 
@@ -561,9 +563,6 @@ ScopedUnpackAlignment::ScopedUnpackAlignment(GLContext* gl, GLint scopedVal)
 
     if (scopedVal != mOldVal) {
         gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, scopedVal);
-    } else {
-        // Don't try to re-set it during unwrap.
-        mOldVal = 0;
     }
 }
 
@@ -572,9 +571,7 @@ ScopedUnpackAlignment::UnwrapImpl() {
     // Check that we're not falling out of scope after the current context changed.
     MOZ_ASSERT(mGL->IsCurrent());
 
-    if (mOldVal) {
-        mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mOldVal);
-    }
+    mGL->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, mOldVal);
 }
 
 } /* namespace gl */
