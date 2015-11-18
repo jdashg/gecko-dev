@@ -21,6 +21,7 @@ WebGLExtensionCompressedTextureETC1::WebGLExtensionCompressedTextureETC1(WebGLCo
         auto& fua = webgl_->mFormatUsage;
 
         auto usage = fua->EditUsage(effFormat);
+        usage->isFilterable = true;
         fua->AddSizedTexFormat(sizedFormat, usage);
 
         webgl_->mCompressedTextureFormats.AppendElement(sizedFormat);
