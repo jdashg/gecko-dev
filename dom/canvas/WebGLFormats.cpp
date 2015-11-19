@@ -432,22 +432,12 @@ FormatUsageInfo::IsUnpackValid(const PackingInfo& key,
 
 ////////////////////////////////////////
 
-static inline void
-SetUsage(FormatUsageAuthority* fua, EffectiveFormat effFormat, bool isRenderable,
-         bool isFilterable)
-{
-    MOZ_ASSERT(!fua->GetUsage(effFormat));
-
-    auto usage = fua->EditUsage(effFormat);
-    usage->isRenderable = isRenderable;
-    usage->isFilterable = isFilterable;
-}
-
 static void
 AddSimpleUnsized(FormatUsageAuthority* fua, GLenum unpackFormat, GLenum unpackType,
                  EffectiveFormat effFormat)
 {
     auto usage = fua->EditUsage(effFormat);
+    usage->isFilterable = true;
 
     const PackingInfo pi = {unpackFormat, unpackType};
     const DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
@@ -481,6 +471,7 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
                                             const GLint* swizzle)
         {
             auto usage = fua->EditUsage(effFormat);
+            usage->isFilterable = true;
             usage->textureSwizzleRGBA = swizzle;
 
             fua->AddTexUnpack(usage, pi, dui);
@@ -507,7 +498,7 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
 }
 
 static void
-AddBasicUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
+AddUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
     // GLES 2.0.25, p63, Table 3.4
     AddSimpleUnsized(fua, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE         , EffectiveFormat::RGBA8  );
@@ -529,26 +520,35 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
     ////////////////////////////////////////////////////////////////////////////
     // Usages
 
+    const auto fnSet = [ptr](EffectiveFormat effFormat, bool isRenderable,
+                             bool isFilterable)
+    {
+        MOZ_ASSERT(!ptr->GetUsage(effFormat));
+
+        auto usage = ptr->EditUsage(effFormat);
+        usage->isRenderable = isRenderable;
+        usage->isFilterable = isFilterable;
+    };
+
     // GLES 2.0.25, p117, Table 4.5
     // RGBA8 is made renderable in WebGL 1.0, "Framebuffer Object Attachments"
+    //                              render filter
+    //                              able   able
+    fnSet(EffectiveFormat::RGBA8  , true , true);
+    fnSet(EffectiveFormat::RGBA4  , true , true);
+    fnSet(EffectiveFormat::RGB5_A1, true , true);
+    fnSet(EffectiveFormat::RGB8   , false, true);
+    fnSet(EffectiveFormat::RGB565 , true , true);
 
-    //                                      render filter
-    //                                      able   able
-    SetUsage(ptr, EffectiveFormat::RGBA8  , true , true);
-    SetUsage(ptr, EffectiveFormat::RGBA4  , true , true);
-    SetUsage(ptr, EffectiveFormat::RGB5_A1, true , true);
-    SetUsage(ptr, EffectiveFormat::RGB8   , false, true);
-    SetUsage(ptr, EffectiveFormat::RGB565 , true , true);
+    fnSet(EffectiveFormat::Luminance8Alpha8, false, true);
+    fnSet(EffectiveFormat::Luminance8      , false, true);
+    fnSet(EffectiveFormat::Alpha8          , false, true);
 
-    SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
-    SetUsage(ptr, EffectiveFormat::Luminance8      , false, true);
-    SetUsage(ptr, EffectiveFormat::Alpha8          , false, true);
-
-    SetUsage(ptr, EffectiveFormat::DEPTH_COMPONENT16, true, false);
-    SetUsage(ptr, EffectiveFormat::STENCIL_INDEX8   , true, false);
+    fnSet(EffectiveFormat::DEPTH_COMPONENT16, true, false);
+    fnSet(EffectiveFormat::STENCIL_INDEX8   , true, false);
 
     // Added in WebGL 1.0 spec:
-    SetUsage(ptr, EffectiveFormat::DEPTH24_STENCIL8, true, false);
+    fnSet(EffectiveFormat::DEPTH24_STENCIL8, true, false);
 
     ////////////////////////////////////
     // RB formats
@@ -569,7 +569,7 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 
     ////////////////////////////////////////////////////////////////////////////
 
-    AddBasicUnsizedFormats(ptr, gl);
+    AddUnsizedFormats(ptr, gl);
 
     return Move(ret);
 }
@@ -690,10 +690,12 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     // For filterable, see GLES 3.0.4, p161 "...a texture is complete unless..."
 
     const auto fnAllowES3TexFormat = [ptr](GLenum sizedFormat, EffectiveFormat effFormat,
-                                         bool isRenderable, bool isFilterable)
+                                           bool isRenderable, bool isFilterable)
     {
-        SetUsage(ptr, effFormat, isRenderable, isFilterable);
-        auto usage = ptr->GetUsage(effFormat);
+        auto usage = ptr->EditUsage(effFormat);
+        usage->isRenderable = isRenderable;
+        usage->isFilterable = isFilterable;
+
         ptr->AllowSizedTexFormat(sizedFormat, usage);
 
         if (isRenderable) {
@@ -772,9 +774,6 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     fnAllowES3TexFormat(FOO(DEPTH24_STENCIL8  ), true, false);
     fnAllowES3TexFormat(FOO(DEPTH32F_STENCIL8 ), true, false);
 
-    // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
-    fnAllowES3TexFormat(FOO(STENCIL_INDEX8), true, false);
-
     // GLES 3.0.4, p147, table 3.19
     // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
 
@@ -800,14 +799,18 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 
 #undef FOO
 
+    // GLES 3.0.4, p206, "Required Renderbuffer Formats":
+    // "Implementations are also required to support STENCIL_INDEX8. Requesting this
+    //  internal format for a renderbuffer will allocate at least 8 stencil bit planes."
+
+    auto usage = ptr->EditUsage(EffectiveFormat::STENCIL_INDEX8);
+    usage->isRenderable = true;
+    ptr->AllowRBFormat(LOCAL_GL_STENCIL_INDEX8, usage);
+
     ////////////////
     // Legacy formats
 
-    SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
-    SetUsage(ptr, EffectiveFormat::Luminance8      , false, true);
-    SetUsage(ptr, EffectiveFormat::Alpha8          , false, true);
-
-    AddBasicUnsizedFormats(ptr, gl);
+    AddUnsizedFormats(ptr, gl);
 
     if (gfxPrefs::WebGL2CompatMode()) {
         AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_FLOAT, EffectiveFormat::RGBA32F);
