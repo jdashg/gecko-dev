@@ -104,6 +104,13 @@ ValidateUnpackArrayType(WebGLContext* webgl, const char* funcName, GLenum unpack
     if (DoesJSTypeMatchUnpackType(unpackType, jsType))
         return true;
 
+    const auto& fua = webgl->mFormatUsage;
+    const GLenum fakeUnpackFormat = LOCAL_GL_RGBA;
+    if (!fua->AreUnpackEnumsValid(fakeUnpackFormat, unpackType)) {
+        webgl->ErrorInvalidEnum("%s: Invalid unpack type: 0x%04x", funcName, unpackType);
+        return false;
+    }
+
     webgl->ErrorInvalidOperation("%s: `pixels` be compatible with unpack `type`.",
                                  funcName);
     return false;
@@ -994,67 +1001,6 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
 ////////////////////////////////////////
 // Tex(Sub)Image
 
-static bool
-ValidateUnpackEnums(const webgl::PackingInfo& pi, WebGLContext* webgl,
-                    const char* funcName)
-{
-    switch (pi.format) {
-    case LOCAL_GL_RED:
-    case LOCAL_GL_RED_INTEGER:
-    case LOCAL_GL_DEPTH_COMPONENT:
-    case LOCAL_GL_LUMINANCE:
-    case LOCAL_GL_ALPHA:
-
-    case LOCAL_GL_RG:
-    case LOCAL_GL_RG_INTEGER:
-    case LOCAL_GL_LUMINANCE_ALPHA:
-    case LOCAL_GL_DEPTH_STENCIL:
-
-    case LOCAL_GL_RGB:
-    case LOCAL_GL_RGB_INTEGER:
-
-    case LOCAL_GL_RGBA:
-    case LOCAL_GL_RGBA_INTEGER:
-        break;
-
-    default:
-        webgl->ErrorInvalidEnum("%s: Invalid format enum: 0x%04x",
-                                funcName, pi.format);
-        return false;
-    }
-
-    switch (pi.type) {
-    case LOCAL_GL_UNSIGNED_BYTE:
-    case LOCAL_GL_UNSIGNED_SHORT:
-    case LOCAL_GL_UNSIGNED_INT:
-    case LOCAL_GL_BYTE:
-    case LOCAL_GL_SHORT:
-    case LOCAL_GL_INT:
-    case LOCAL_GL_FLOAT:
-    case LOCAL_GL_HALF_FLOAT:
-    case LOCAL_GL_HALF_FLOAT_OES:
-
-    case LOCAL_GL_UNSIGNED_INT_24_8:
-    case LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
-
-    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-    case LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV:
-    case LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV:
-
-    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-    case LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV:
-        break;
-
-    default:
-        webgl->ErrorInvalidEnum("%s: Invalid type enum: 0x%04x",
-                                funcName, pi.type);
-        return false;
-    }
-
-    return true;
-}
-
 void
 WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
                        GLenum internalFormat, GLint border, GLenum unpackFormat,
@@ -1073,7 +1019,8 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
 
     const webgl::PackingInfo srcPacking = { unpackFormat, unpackType };
 
-    auto dstUsage = mContext->mFormatUsage->GetSizedTexUsage(internalFormat);
+    const auto& fua = mContext->mFormatUsage;
+    auto dstUsage = fua->GetSizedTexUsage(internalFormat);
     if (!dstUsage) {
         if (internalFormat != unpackFormat) {
             mContext->ErrorInvalidOperation("%s: Unsized internalFormat must match"
@@ -1082,10 +1029,25 @@ WebGLTexture::TexImage(const char* funcName, TexImageTarget target, GLint level,
             return;
         }
 
-        dstUsage = mContext->mFormatUsage->GetUnsizedTexUsage(srcPacking);
+        dstUsage = fua->GetUnsizedTexUsage(srcPacking);
     }
 
     if (!dstUsage) {
+        if (!mContext->IsWebGL2()) {
+            if (!fua->IsInternalFormatEnumValid(internalFormat)) {
+                mContext->ErrorInvalidValue("%s: Invalid internalformat: 0x%04x",
+                                            funcName, internalFormat);
+                return;
+            }
+
+            if (!fua->AreUnpackEnumsValid(unpackFormat, unpackType)) {
+                mContext->ErrorInvalidEnum("%s: Invalid unpack format/type:"
+                                           " 0x%04x/0x%04x",
+                                           funcName, unpackFormat, unpackType);
+                return;
+            }
+        }
+
         mContext->ErrorInvalidOperation("%s: Invalid internalformat/format/type:"
                                         " 0x%04x/0x%04x/0x%04x",
                                         funcName, internalFormat, unpackFormat,
@@ -1211,11 +1173,18 @@ WebGLTexture::TexSubImage(const char* funcName, TexImageTarget target, GLint lev
     // Get source info
 
     const webgl::PackingInfo srcPacking = { unpackFormat, unpackType };
-    if (!ValidateUnpackEnums(srcPacking, mContext, funcName))
-        return;
-
     const webgl::DriverUnpackInfo* driverUnpackInfo;
     if (!dstUsage->IsUnpackValid(srcPacking, &driverUnpackInfo)) {
+        if (!mContext->IsWebGL2()) {
+            const auto& fua = mContext->mFormatUsage;
+            if (!fua->AreUnpackEnumsValid(unpackFormat, unpackType)) {
+                mContext->ErrorInvalidEnum("%s: Invalid unpack format/type:"
+                                           " 0x%04x/0x%04x",
+                                           funcName, unpackFormat, unpackType);
+                return;
+            }
+        }
+
         mContext->ErrorInvalidOperation("%s: Mismatched internalFormat and format/type:"
                                         " %s and 0x%04x/0x%04x",
                                         funcName, dstFormat->name, unpackFormat,

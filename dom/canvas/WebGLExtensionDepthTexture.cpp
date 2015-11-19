@@ -23,9 +23,9 @@ WebGLExtensionDepthTexture::WebGLExtensionDepthTexture(WebGLContext* webgl)
 
         const webgl::PackingInfo pi = {unpackFormat, unpackType};
         const webgl::DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
+        fua->AddTexUnpack(usage, pi, dui);
 
-        fua->AddUnsizedTexFormat(pi, usage);
-        usage->AddUnpack(pi, dui);
+        fua->AllowUnsizedTexFormat(pi, usage);
     };
 
     fnAdd(webgl::EffectiveFormat::DEPTH_COMPONENT16, LOCAL_GL_DEPTH_COMPONENT,

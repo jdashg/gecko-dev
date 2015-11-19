@@ -40,8 +40,9 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
         if (!gl_->IsGLES())
             dui.unpackFormat = desktopUnpackFormat;
 
-        fua->AddUnsizedTexFormat(pi, usage);
-        usage->AddUnpack(pi, dui);
+        fua->AddTexUnpack(usage, pi, dui);
+
+        fua->AllowUnsizedTexFormat(pi, usage);
     };
 
     fnAdd(webgl::EffectiveFormat::SRGB8, LOCAL_GL_SRGB, LOCAL_GL_RGB);
@@ -49,7 +50,7 @@ WebGLExtensionSRGB::WebGLExtensionSRGB(WebGLContext* webgl)
 
     auto usage = fua->EditUsage(webgl::EffectiveFormat::SRGB8_ALPHA8);
     usage->isRenderable = true;
-    fua->AddRBFormat(LOCAL_GL_SRGB8_ALPHA8, usage);
+    fua->AllowRBFormat(LOCAL_GL_SRGB8_ALPHA8, usage);
 }
 
 WebGLExtensionSRGB::~WebGLExtensionSRGB()
