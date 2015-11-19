@@ -26,10 +26,10 @@ WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
     const auto fnAdd = [&fua, &pi, &dui, &swizzle](webgl::EffectiveFormat effFormat)
     {
         auto usage = fua->EditUsage(effFormat);
-        fua->AddUnsizedTexFormat(pi, usage);
-        usage->AddUnpack(pi, dui);
-
         usage->textureSwizzleRGBA = swizzle;
+        fua->AddTexUnpack(usage, pi, dui);
+
+        fua->AllowUnsizedTexFormat(pi, usage);
     };
 
     const bool needSizedInternal = !gl->IsGLES();

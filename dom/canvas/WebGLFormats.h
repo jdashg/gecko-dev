@@ -264,7 +264,6 @@ struct FormatUsageInfo
         , textureSwizzleRGBA(nullptr)
     { }
 
-    void AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value);
     bool IsUnpackValid(const PackingInfo& key,
                        const DriverUnpackInfo** const out_value) const;
 };
@@ -277,6 +276,10 @@ class FormatUsageAuthority
     std::map<GLenum, const FormatUsageInfo*> mSizedTexFormatMap;
     std::map<PackingInfo, const FormatUsageInfo*> mUnsizedTexFormatMap;
 
+    std::set<GLenum> mValidTexInternalFormats;
+    std::set<GLenum> mValidTexUnpackFormats;
+    std::set<GLenum> mValidTexUnpackTypes;
+
 public:
     static UniquePtr<FormatUsageAuthority> CreateForWebGL1(gl::GLContext* gl);
     static UniquePtr<FormatUsageAuthority> CreateForWebGL2(gl::GLContext* gl);
@@ -285,25 +288,22 @@ private:
     FormatUsageAuthority() { }
 
 public:
-    void AddRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
-    void AddSizedTexFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
-    void AddUnsizedTexFormat(const PackingInfo& pi, const FormatUsageInfo* usage);
+    FormatUsageInfo* EditUsage(EffectiveFormat format);
+    const FormatUsageInfo* GetUsage(EffectiveFormat format) const;
+
+    void AddTexUnpack(FormatUsageInfo* usage, const PackingInfo& pi,
+                      const DriverUnpackInfo& dui);
+
+    bool IsInternalFormatEnumValid(GLenum internalFormat) const;
+    bool AreUnpackEnumsValid(GLenum unpackFormat, GLenum unpackType) const;
+
+    void AllowRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
+    void AllowSizedTexFormat(GLenum sizedFormat, const FormatUsageInfo* usage);
+    void AllowUnsizedTexFormat(const PackingInfo& pi, const FormatUsageInfo* usage);
 
     const FormatUsageInfo* GetRBUsage(GLenum sizedFormat) const;
     const FormatUsageInfo* GetSizedTexUsage(GLenum sizedFormat) const;
     const FormatUsageInfo* GetUnsizedTexUsage(const PackingInfo& pi) const;
-
-    FormatUsageInfo* EditUsage(EffectiveFormat format);
-
-    const FormatUsageInfo* GetUsage(EffectiveFormat format) const;
-
-    const FormatUsageInfo* GetUsage(const FormatInfo* format) const
-    {
-        if (!format)
-            return nullptr;
-
-        return GetUsage(format->effectiveFormat);
-    }
 };
 
 } // namespace webgl

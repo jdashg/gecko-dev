@@ -405,6 +405,7 @@ BytesPerPixel(const PackingInfo& packing)
 }
 
 
+
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -415,18 +416,7 @@ BytesPerPixel(const PackingInfo& packing)
 //////////////////////////////////////////////////////////////////////////////////////////
 // FormatUsageAuthority
 
-void
-FormatUsageInfo::AddUnpack(const PackingInfo& key, const DriverUnpackInfo& value)
-{
-    // Don't AlwaysInsert here, since we'll see duplicates from sized and unsized formats.
-    auto res = validUnpacks.insert({ key, value });
-    auto itr = res.first;
 
-    if (!idealUnpack) {
-        // First one!
-        idealUnpack = &(itr->second);
-    }
-}
 
 bool
 FormatUsageInfo::IsUnpackValid(const PackingInfo& key,
@@ -460,10 +450,10 @@ AddSimpleUnsized(FormatUsageAuthority* fua, GLenum unpackFormat, GLenum unpackTy
     auto usage = fua->EditUsage(effFormat);
 
     const PackingInfo pi = {unpackFormat, unpackType};
-    fua->AddUnsizedTexFormat(pi, usage);
-
     const DriverUnpackInfo dui = {unpackFormat, unpackFormat, unpackType};
-    usage->AddUnpack(pi, dui);
+    fua->AddTexUnpack(usage, pi, dui);
+
+    fua->AllowUnsizedTexFormat(pi, usage);
 };
 
 
@@ -491,9 +481,11 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
                                             const GLint* swizzle)
         {
             auto usage = fua->EditUsage(effFormat);
-            fua->AddUnsizedTexFormat(pi, usage);
-            usage->AddUnpack(pi, dui);
             usage->textureSwizzleRGBA = swizzle;
+
+            fua->AddTexUnpack(usage, pi, dui);
+
+            fua->AllowUnsizedTexFormat(pi, usage);
         };
 
         pi = {LOCAL_GL_LUMINANCE, LOCAL_GL_UNSIGNED_BYTE};
@@ -561,7 +553,7 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
     ////////////////////////////////////
     // RB formats
 
-#define FOO(x) ptr->AddRBFormat(LOCAL_GL_ ## x, ptr->GetUsage(EffectiveFormat::x))
+#define FOO(x) ptr->AllowRBFormat(LOCAL_GL_ ## x, ptr->GetUsage(EffectiveFormat::x))
 
     FOO(RGBA4            );
     FOO(RGB5_A1          );
@@ -572,8 +564,8 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 
 #undef FOO
 
-    ptr->AddRBFormat(LOCAL_GL_DEPTH_STENCIL,
-                     ptr->GetUsage(EffectiveFormat::DEPTH24_STENCIL8));
+    ptr->AllowRBFormat(LOCAL_GL_DEPTH_STENCIL,
+                       ptr->GetUsage(EffectiveFormat::DEPTH24_STENCIL8));
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -586,125 +578,10 @@ UniquePtr<FormatUsageAuthority>
 FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 {
     UniquePtr<FormatUsageAuthority> ret(new FormatUsageAuthority);
-    FormatUsageAuthority* const ptr = ret.get();
-
-    const auto fnAddES3TexFormat = [ptr](GLenum sizedFormat, EffectiveFormat effFormat,
-                                         bool isRenderable, bool isFilterable)
-    {
-        SetUsage(ptr, effFormat, isRenderable, isFilterable);
-        auto usage = ptr->GetUsage(effFormat);
-        ptr->AddSizedTexFormat(sizedFormat, usage);
-
-        if (isRenderable) {
-            ptr->AddRBFormat(sizedFormat, usage);
-        }
-    };
+    const auto ptr = ret.get();
 
     ////////////////////////////////////////////////////////////////////////////
-
-    // For renderable, see GLES 3.0.4, p212 "Framebuffer Completeness"
-    // For filterable, see GLES 3.0.4, p161 "...a texture is complete unless..."
-
-    // GLES 3.0.4, p128-129 "Required Texture Formats"
-    // GLES 3.0.4, p130-132, table 3.13
-
-#define FOO(x) LOCAL_GL_ ## x, EffectiveFormat::x
-
-    //                                 render filter
-    //                                  able   able
-    fnAddES3TexFormat(FOO(R8         ), true , true );
-    fnAddES3TexFormat(FOO(R8_SNORM   ), false, true );
-    fnAddES3TexFormat(FOO(RG8        ), true , true );
-    fnAddES3TexFormat(FOO(RG8_SNORM  ), false, true );
-    fnAddES3TexFormat(FOO(RGB8       ), true , true );
-    fnAddES3TexFormat(FOO(RGB8_SNORM ), false, true );
-    fnAddES3TexFormat(FOO(RGB565     ), true , true );
-    fnAddES3TexFormat(FOO(RGBA4      ), true , true );
-    fnAddES3TexFormat(FOO(RGB5_A1    ), true , true );
-    fnAddES3TexFormat(FOO(RGBA8      ), true , true );
-    fnAddES3TexFormat(FOO(RGBA8_SNORM), false, true );
-    fnAddES3TexFormat(FOO(RGB10_A2   ), true , true );
-    fnAddES3TexFormat(FOO(RGB10_A2UI ), true , false);
-
-    fnAddES3TexFormat(FOO(SRGB8       ), false, true);
-    fnAddES3TexFormat(FOO(SRGB8_ALPHA8), true , true);
-
-    fnAddES3TexFormat(FOO(R16F   ), false, true);
-    fnAddES3TexFormat(FOO(RG16F  ), false, true);
-    fnAddES3TexFormat(FOO(RGB16F ), false, true);
-    fnAddES3TexFormat(FOO(RGBA16F), false, true);
-
-    fnAddES3TexFormat(FOO(R32F   ), false, false);
-    fnAddES3TexFormat(FOO(RG32F  ), false, false);
-    fnAddES3TexFormat(FOO(RGB32F ), false, false);
-    fnAddES3TexFormat(FOO(RGBA32F), false, false);
-
-    fnAddES3TexFormat(FOO(R11F_G11F_B10F), false, true);
-    fnAddES3TexFormat(FOO(RGB9_E5       ), false, true);
-
-    fnAddES3TexFormat(FOO(R8I  ), true, false);
-    fnAddES3TexFormat(FOO(R8UI ), true, false);
-    fnAddES3TexFormat(FOO(R16I ), true, false);
-    fnAddES3TexFormat(FOO(R16UI), true, false);
-    fnAddES3TexFormat(FOO(R32I ), true, false);
-    fnAddES3TexFormat(FOO(R32UI), true, false);
-
-    fnAddES3TexFormat(FOO(RG8I  ), true, false);
-    fnAddES3TexFormat(FOO(RG8UI ), true, false);
-    fnAddES3TexFormat(FOO(RG16I ), true, false);
-    fnAddES3TexFormat(FOO(RG16UI), true, false);
-    fnAddES3TexFormat(FOO(RG32I ), true, false);
-    fnAddES3TexFormat(FOO(RG32UI), true, false);
-
-    fnAddES3TexFormat(FOO(RGB8I  ), false, false);
-    fnAddES3TexFormat(FOO(RGB8UI ), false, false);
-    fnAddES3TexFormat(FOO(RGB16I ), false, false);
-    fnAddES3TexFormat(FOO(RGB16UI), false, false);
-    fnAddES3TexFormat(FOO(RGB32I ), false, false);
-    fnAddES3TexFormat(FOO(RGB32UI), false, false);
-
-    fnAddES3TexFormat(FOO(RGBA8I  ), true, false);
-    fnAddES3TexFormat(FOO(RGBA8UI ), true, false);
-    fnAddES3TexFormat(FOO(RGBA16I ), true, false);
-    fnAddES3TexFormat(FOO(RGBA16UI), true, false);
-    fnAddES3TexFormat(FOO(RGBA32I ), true, false);
-    fnAddES3TexFormat(FOO(RGBA32UI), true, false);
-
-    // GLES 3.0.4, p133, table 3.14
-    // GLES 3.0.4, p161 "...a texture is complete unless..."
-    fnAddES3TexFormat(FOO(DEPTH_COMPONENT16 ), true, false);
-    fnAddES3TexFormat(FOO(DEPTH_COMPONENT24 ), true, false);
-    fnAddES3TexFormat(FOO(DEPTH_COMPONENT32F), true, false);
-    fnAddES3TexFormat(FOO(DEPTH24_STENCIL8  ), true, false);
-    fnAddES3TexFormat(FOO(DEPTH32F_STENCIL8 ), true, false);
-
-    // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
-    fnAddES3TexFormat(FOO(STENCIL_INDEX8), true, false);
-
-    // GLES 3.0.4, p147, table 3.19
-    // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
-
-    // Note that all compressed texture formats are filterable:
-    // GLES 3.0.4 p161:
-    // "[A] texture is complete unless any of the following conditions hold true:
-    //  [...]
-    //  * The effective internal format specified for the texture arrays is a sized
-    //    internal color format that is not texture-filterable (see table 3.13) and [the
-    //    mag filter requires filtering]."
-    // Compressed formats are not sized internal color formats, and indeed they are not
-    // listed in table 3.13.
-    fnAddES3TexFormat(FOO(COMPRESSED_RGB8_ETC2                     ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_SRGB8_ETC2                    ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_RGBA8_ETC2_EAC                ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_SRGB8_ALPHA8_ETC2_EAC         ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_R11_EAC                       ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_RG11_EAC                      ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_SIGNED_R11_EAC                ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_SIGNED_RG11_EAC               ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 ), false, true);
-    fnAddES3TexFormat(FOO(COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2), false, true);
-
-#undef FOO
+    // GLES 3.0.4 p111-113
 
     const auto fnAddSizedUnpack = [ptr](EffectiveFormat effFormat, GLenum internalFormat,
                                         GLenum unpackFormat, GLenum unpackType)
@@ -713,13 +590,11 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 
         const PackingInfo pi = {unpackFormat, unpackType};
         const DriverUnpackInfo dui = {internalFormat, unpackFormat, unpackType};
-        usage->AddUnpack(pi, dui);
+        ptr->AddTexUnpack(usage, pi, dui);
     };
 
 #define FOO(x) EffectiveFormat::x, LOCAL_GL_ ## x
 
-    ////////////////////////////////////////////////////////////////////////////
-    // GLES 3.0.4 p111-113
     // RGBA
     fnAddSizedUnpack(FOO(RGBA8       ), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE              );
     fnAddSizedUnpack(FOO(RGBA4       ), LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_SHORT_4_4_4_4     );
@@ -807,14 +682,126 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     fnAddSizedUnpack(FOO(DEPTH24_STENCIL8 ), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_UNSIGNED_INT_24_8             );
     fnAddSizedUnpack(FOO(DEPTH32F_STENCIL8), LOCAL_GL_DEPTH_STENCIL, LOCAL_GL_FLOAT_32_UNSIGNED_INT_24_8_REV);
 
-    if (gfxPrefs::WebGL2CompatMode()) {
-        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_FLOAT, EffectiveFormat::RGBA32F);
-        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_FLOAT, EffectiveFormat::RGB32F );
-
-        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGBA16F);
-        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGB16F );
-    }
 #undef FOO
+
+    ////////////////////////////////////////////////////////////////////////////
+
+    // For renderable, see GLES 3.0.4, p212 "Framebuffer Completeness"
+    // For filterable, see GLES 3.0.4, p161 "...a texture is complete unless..."
+
+    const auto fnAllowES3TexFormat = [ptr](GLenum sizedFormat, EffectiveFormat effFormat,
+                                         bool isRenderable, bool isFilterable)
+    {
+        SetUsage(ptr, effFormat, isRenderable, isFilterable);
+        auto usage = ptr->GetUsage(effFormat);
+        ptr->AllowSizedTexFormat(sizedFormat, usage);
+
+        if (isRenderable) {
+            ptr->AllowRBFormat(sizedFormat, usage);
+        }
+    };
+
+#define FOO(x) LOCAL_GL_ ## x, EffectiveFormat::x
+
+    // GLES 3.0.4, p128-129 "Required Texture Formats"
+    // GLES 3.0.4, p130-132, table 3.13
+    //                                   render filter
+    //                                    able   able
+    fnAllowES3TexFormat(FOO(R8         ), true , true );
+    fnAllowES3TexFormat(FOO(R8_SNORM   ), false, true );
+    fnAllowES3TexFormat(FOO(RG8        ), true , true );
+    fnAllowES3TexFormat(FOO(RG8_SNORM  ), false, true );
+    fnAllowES3TexFormat(FOO(RGB8       ), true , true );
+    fnAllowES3TexFormat(FOO(RGB8_SNORM ), false, true );
+    fnAllowES3TexFormat(FOO(RGB565     ), true , true );
+    fnAllowES3TexFormat(FOO(RGBA4      ), true , true );
+    fnAllowES3TexFormat(FOO(RGB5_A1    ), true , true );
+    fnAllowES3TexFormat(FOO(RGBA8      ), true , true );
+    fnAllowES3TexFormat(FOO(RGBA8_SNORM), false, true );
+    fnAllowES3TexFormat(FOO(RGB10_A2   ), true , true );
+    fnAllowES3TexFormat(FOO(RGB10_A2UI ), true , false);
+
+    fnAllowES3TexFormat(FOO(SRGB8       ), false, true);
+    fnAllowES3TexFormat(FOO(SRGB8_ALPHA8), true , true);
+
+    fnAllowES3TexFormat(FOO(R16F   ), false, true);
+    fnAllowES3TexFormat(FOO(RG16F  ), false, true);
+    fnAllowES3TexFormat(FOO(RGB16F ), false, true);
+    fnAllowES3TexFormat(FOO(RGBA16F), false, true);
+
+    fnAllowES3TexFormat(FOO(R32F   ), false, false);
+    fnAllowES3TexFormat(FOO(RG32F  ), false, false);
+    fnAllowES3TexFormat(FOO(RGB32F ), false, false);
+    fnAllowES3TexFormat(FOO(RGBA32F), false, false);
+
+    fnAllowES3TexFormat(FOO(R11F_G11F_B10F), false, true);
+    fnAllowES3TexFormat(FOO(RGB9_E5       ), false, true);
+
+    fnAllowES3TexFormat(FOO(R8I  ), true, false);
+    fnAllowES3TexFormat(FOO(R8UI ), true, false);
+    fnAllowES3TexFormat(FOO(R16I ), true, false);
+    fnAllowES3TexFormat(FOO(R16UI), true, false);
+    fnAllowES3TexFormat(FOO(R32I ), true, false);
+    fnAllowES3TexFormat(FOO(R32UI), true, false);
+
+    fnAllowES3TexFormat(FOO(RG8I  ), true, false);
+    fnAllowES3TexFormat(FOO(RG8UI ), true, false);
+    fnAllowES3TexFormat(FOO(RG16I ), true, false);
+    fnAllowES3TexFormat(FOO(RG16UI), true, false);
+    fnAllowES3TexFormat(FOO(RG32I ), true, false);
+    fnAllowES3TexFormat(FOO(RG32UI), true, false);
+
+    fnAllowES3TexFormat(FOO(RGB8I  ), false, false);
+    fnAllowES3TexFormat(FOO(RGB8UI ), false, false);
+    fnAllowES3TexFormat(FOO(RGB16I ), false, false);
+    fnAllowES3TexFormat(FOO(RGB16UI), false, false);
+    fnAllowES3TexFormat(FOO(RGB32I ), false, false);
+    fnAllowES3TexFormat(FOO(RGB32UI), false, false);
+
+    fnAllowES3TexFormat(FOO(RGBA8I  ), true, false);
+    fnAllowES3TexFormat(FOO(RGBA8UI ), true, false);
+    fnAllowES3TexFormat(FOO(RGBA16I ), true, false);
+    fnAllowES3TexFormat(FOO(RGBA16UI), true, false);
+    fnAllowES3TexFormat(FOO(RGBA32I ), true, false);
+    fnAllowES3TexFormat(FOO(RGBA32UI), true, false);
+
+    // GLES 3.0.4, p133, table 3.14
+    fnAllowES3TexFormat(FOO(DEPTH_COMPONENT16 ), true, false);
+    fnAllowES3TexFormat(FOO(DEPTH_COMPONENT24 ), true, false);
+    fnAllowES3TexFormat(FOO(DEPTH_COMPONENT32F), true, false);
+    fnAllowES3TexFormat(FOO(DEPTH24_STENCIL8  ), true, false);
+    fnAllowES3TexFormat(FOO(DEPTH32F_STENCIL8 ), true, false);
+
+    // GLES 3.0.4, p205-206, "Required Renderbuffer Formats"
+    fnAllowES3TexFormat(FOO(STENCIL_INDEX8), true, false);
+
+    // GLES 3.0.4, p147, table 3.19
+    // GLES 3.0.4, p286+, $C.1 "ETC Compressed Texture Image Formats"
+
+    // Note that all compressed texture formats are filterable:
+    // GLES 3.0.4 p161:
+    // "[A] texture is complete unless any of the following conditions hold true:
+    //  [...]
+    //  * The effective internal format specified for the texture arrays is a sized
+    //    internal color format that is not texture-filterable (see table 3.13) and [the
+    //    mag filter requires filtering]."
+    // Compressed formats are not sized internal color formats, and indeed they are not
+    // listed in table 3.13.
+    fnAllowES3TexFormat(FOO(COMPRESSED_RGB8_ETC2                     ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_SRGB8_ETC2                    ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_RGBA8_ETC2_EAC                ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_SRGB8_ALPHA8_ETC2_EAC         ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_R11_EAC                       ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_RG11_EAC                      ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_SIGNED_R11_EAC                ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_SIGNED_RG11_EAC               ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 ), false, true);
+    fnAllowES3TexFormat(FOO(COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2), false, true);
+
+#undef FOO
+
+    ////////////////
+    // Legacy formats
 
     SetUsage(ptr, EffectiveFormat::Luminance8Alpha8, false, true);
     SetUsage(ptr, EffectiveFormat::Luminance8      , false, true);
@@ -822,28 +809,95 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
 
     AddBasicUnsizedFormats(ptr, gl);
 
+    if (gfxPrefs::WebGL2CompatMode()) {
+        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_FLOAT, EffectiveFormat::RGBA32F);
+        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_FLOAT, EffectiveFormat::RGB32F );
+
+        AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGBA16F);
+        AddSimpleUnsized(ptr, LOCAL_GL_RGB , LOCAL_GL_HALF_FLOAT_OES, EffectiveFormat::RGB16F );
+    }
+
     return Move(ret);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
 void
-FormatUsageAuthority::AddRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage)
+FormatUsageAuthority::AddTexUnpack(FormatUsageInfo* usage, const PackingInfo& pi,
+                                   const DriverUnpackInfo& dui)
 {
+    // Don't AlwaysInsert here, since we'll see duplicates from sized and unsized formats.
+    auto res = usage->validUnpacks.insert({ pi, dui });
+    auto itr = res.first;
+
+    if (!usage->idealUnpack) {
+        // First one!
+        usage->idealUnpack = &(itr->second);
+    }
+
+    mValidTexUnpackFormats.insert(pi.format);
+    mValidTexUnpackTypes.insert(pi.type);
+}
+
+static bool
+Contains(const std::set<GLenum>& set, GLenum key)
+{
+    return set.find(key) != set.end();
+}
+
+bool
+FormatUsageAuthority::IsInternalFormatEnumValid(GLenum internalFormat) const
+{
+    return Contains(mValidTexInternalFormats, internalFormat);
+}
+
+bool
+FormatUsageAuthority::AreUnpackEnumsValid(GLenum unpackFormat, GLenum unpackType) const
+{
+    return (Contains(mValidTexUnpackFormats, unpackFormat) &&
+            Contains(mValidTexUnpackTypes, unpackType));
+}
+
+////////////////////
+
+void
+FormatUsageAuthority::AllowRBFormat(GLenum sizedFormat, const FormatUsageInfo* usage)
+{
+    MOZ_ASSERT(!usage->format->compression);
+    MOZ_ASSERT(usage->format->sizedFormat);
+    MOZ_ASSERT(usage->isRenderable);
+
     AlwaysInsert(mRBFormatMap, sizedFormat, usage);
 }
 
 void
-FormatUsageAuthority::AddSizedTexFormat(GLenum sizedFormat, const FormatUsageInfo* usage)
+FormatUsageAuthority::AllowSizedTexFormat(GLenum sizedFormat,
+                                          const FormatUsageInfo* usage)
 {
+    if (usage->format->compression) {
+        MOZ_ASSERT(usage->isFilterable, "Compressed formats should be filterable.");
+    } else {
+        MOZ_ASSERT(usage->validUnpacks.size() && usage->idealUnpack,
+                   "AddTexUnpack() first.");
+    }
+
     AlwaysInsert(mSizedTexFormatMap, sizedFormat, usage);
+
+    mValidTexInternalFormats.insert(sizedFormat);
 }
 
 void
-FormatUsageAuthority::AddUnsizedTexFormat(const PackingInfo& pi,
-                                          const FormatUsageInfo* usage)
+FormatUsageAuthority::AllowUnsizedTexFormat(const PackingInfo& pi,
+                                            const FormatUsageInfo* usage)
 {
+    MOZ_ASSERT(!usage->format->compression);
+    MOZ_ASSERT(usage->validUnpacks.size() && usage->idealUnpack, "AddTexUnpack() first.");
+
     AlwaysInsert(mUnsizedTexFormatMap, pi, usage);
+
+    mValidTexInternalFormats.insert(pi.format);
+    mValidTexUnpackFormats.insert(pi.format);
+    mValidTexUnpackTypes.insert(pi.type);
 }
 
 const FormatUsageInfo*

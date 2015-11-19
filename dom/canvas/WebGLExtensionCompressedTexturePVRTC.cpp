@@ -22,7 +22,7 @@ WebGLExtensionCompressedTexturePVRTC::WebGLExtensionCompressedTexturePVRTC(WebGL
 
         auto usage = fua->EditUsage(effFormat);
         usage->isFilterable = true;
-        fua->AddSizedTexFormat(sizedFormat, usage);
+        fua->AllowSizedTexFormat(sizedFormat, usage);
 
         webgl_->mCompressedTextureFormats.AppendElement(sizedFormat);
     };
