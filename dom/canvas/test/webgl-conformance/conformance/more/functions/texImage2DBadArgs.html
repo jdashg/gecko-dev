@@ -75,7 +75,7 @@ function testrunner(gl, expectedList, desc, fn) {
  testrunner(gl, [gl.INVALID_ENUM], "bad target", function(){
      gl.texImage2D(gl.FLOAT, 0, gl.RGBA, 1,1,0,gl.RGBA,gl.UNSIGNED_BYTE, null);
  });
- testrunner(gl, [gl.INVALID_ENUM, gl.INVALID_OPERATION], "bad internal format/format", function(){
+ testrunner(gl, [gl.INVALID_ENUM, gl.INVALID_VALUE], "bad internal format/format", function(){
      gl.texImage2D(gl.TEXTURE_2D, 0, gl.FLOAT, 1,1,0,gl.FLOAT,gl.UNSIGNED_BYTE, null);
  });
  testrunner(gl, [gl.INVALID_VALUE], "border > 0", function(){
@@ -95,7 +95,7 @@ function testrunner(gl, expectedList, desc, fn) {
  testrunner(gl, [gl.INVALID_ENUM, gl.INVALID_OPERATION], "bad format", function(){
      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1,1,0,gl.FLOAT,gl.UNSIGNED_BYTE, null);
  });
- testrunner(gl, [gl.INVALID_ENUM, gl.INVALID_OPERATION], "bad type", function(){
+ testrunner(gl, [gl.INVALID_ENUM], "bad type", function(){
      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1,1,0,gl.RGBA,gl.TEXTURE_2D, null);
  });
  testrunner(gl, [gl.INVALID_OPERATION], "not enough data", function(){
