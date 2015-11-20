@@ -26338,30 +26338,6 @@
         "url": "/webaudio/the-audio-api/the-offlineaudiocontext-interface/current-time-block-size.html"
       },
       {
-        "path": "webgl/bufferSubData.html",
-        "url": "/webgl/bufferSubData.html"
-      },
-      {
-        "path": "webgl/compressedTexImage2D.html",
-        "url": "/webgl/compressedTexImage2D.html"
-      },
-      {
-        "path": "webgl/compressedTexSubImage2D.html",
-        "url": "/webgl/compressedTexSubImage2D.html"
-      },
-      {
-        "path": "webgl/texImage2D.html",
-        "url": "/webgl/texImage2D.html"
-      },
-      {
-        "path": "webgl/texSubImage2D.html",
-        "url": "/webgl/texSubImage2D.html"
-      },
-      {
-        "path": "webgl/uniformMatrixNfv.html",
-        "url": "/webgl/uniformMatrixNfv.html"
-      },
-      {
         "path": "webmessaging/Channel_postMessage_DataCloneErr.htm",
         "url": "/webmessaging/Channel_postMessage_DataCloneErr.htm"
       },
