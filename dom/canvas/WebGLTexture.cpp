@@ -187,15 +187,6 @@ WebGLTexture::SetImageInfosAtLevel(uint32_t level, const ImageInfo& newInfo)
     InvalidateResolveCache();
 }
 
-static inline uint32_t
-MaxMipmapLevelsForSize(const WebGLTexture::ImageInfo& info)
-{
-    auto size = std::max(std::max(info.mWidth, info.mHeight), info.mDepth);
-
-    // Find floor(log2(maxsize)) + 1. (ES 3.0.4, 3.8 - Mipmapping).
-    return mozilla::FloorLog2(size) + 1;
-}
-
 bool
 WebGLTexture::IsMipmapComplete() const
 {
