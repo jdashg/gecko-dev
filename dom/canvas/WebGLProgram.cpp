@@ -327,8 +327,9 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
                 }
             }
 
-            AddActiveInfo(prog->Context(), size, type, isArray, baseUserName, mappedName,
-                          &info->transformFeedbackVaryings, &info->transformFeedbackVaryingsMap);
+            AddActiveInfo(prog->mContext, size, type, isArray, baseUserName, mappedName,
+                          &info->transformFeedbackVaryings,
+                          &info->transformFeedbackVaryingsMap);
         }
     }
 
@@ -336,7 +337,6 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 webgl::LinkedProgramInfo::LinkedProgramInfo(WebGLProgram* prog)
     : prog(prog)
