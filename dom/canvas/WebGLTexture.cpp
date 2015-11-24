@@ -518,6 +518,8 @@ SetSwizzle(gl::GLContext* gl, TexTarget target, const GLint* swizzle)
                                          LOCAL_GL_ALPHA };
     if (!swizzle) {
         swizzle = kNoSwizzle;
+    } else if (!gl->IsSupported(gl::GLFeature::texture_swizzle)) {
+        MOZ_CRASH("Needs swizzle feature to swizzle!");
     }
 
     gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_SWIZZLE_R, swizzle[0]);

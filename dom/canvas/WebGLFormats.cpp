@@ -460,10 +460,13 @@ AddSimpleUnsized(FormatUsageAuthority* fua, GLenum unpackFormat, GLenum unpackTy
                                                                     LOCAL_GL_RED,
                                                                     LOCAL_GL_GREEN };
 
-static void
+static bool
 AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
     if (gl->IsCoreProfile()) {
+        if (!gl->IsSupported(gl::GLFeature::texture_swizzle))
+            return false;
+
         PackingInfo pi;
         DriverUnpackInfo dui;
 
@@ -495,9 +498,11 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
         AddSimpleUnsized(fua, LOCAL_GL_ALPHA          , LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Alpha8          );
         AddSimpleUnsized(fua, LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE, EffectiveFormat::Luminance8Alpha8);
     }
+
+    return true;
 }
 
-static void
+static bool
 AddUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
 {
     // GLES 2.0.25, p63, Table 3.4
@@ -508,7 +513,7 @@ AddUnsizedFormats(FormatUsageAuthority* fua, gl::GLContext* gl)
     AddSimpleUnsized(fua, LOCAL_GL_RGB , LOCAL_GL_UNSIGNED_SHORT_5_6_5  , EffectiveFormat::RGB565 );
 
     // L, A, LA
-    AddLegacyFormats_LA8(fua, gl);
+    return AddLegacyFormats_LA8(fua, gl);
 }
 
 UniquePtr<FormatUsageAuthority>
@@ -569,7 +574,8 @@ FormatUsageAuthority::CreateForWebGL1(gl::GLContext* gl)
 
     ////////////////////////////////////////////////////////////////////////////
 
-    AddUnsizedFormats(ptr, gl);
+    if (!AddUnsizedFormats(ptr, gl))
+        return nullptr;
 
     return Move(ret);
 }
@@ -810,7 +816,8 @@ FormatUsageAuthority::CreateForWebGL2(gl::GLContext* gl)
     ////////////////
     // Legacy formats
 
-    AddUnsizedFormats(ptr, gl);
+    if (!AddUnsizedFormats(ptr, gl))
+        return nullptr;
 
     if (gfxPrefs::WebGL2CompatMode()) {
         AddSimpleUnsized(ptr, LOCAL_GL_RGBA, LOCAL_GL_FLOAT, EffectiveFormat::RGBA32F);

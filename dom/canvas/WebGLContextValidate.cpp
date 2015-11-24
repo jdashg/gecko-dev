@@ -654,6 +654,8 @@ WebGLContext::InitAndValidateGL()
     // important when restoring contexts and extensions need to add
     // formats back into the authority.
     mFormatUsage = CreateFormatUsage(gl);
+    if (!mFormatUsage)
+        return false;
 
     GLenum error = gl->fGetError();
     if (error != LOCAL_GL_NO_ERROR) {
