@@ -202,7 +202,7 @@ WebGLTexture::IsMipmapComplete() const
     MOZ_ASSERT(DoesMinFilterRequireMipmap());
     // GLES 3.0.4, p161
 
-    const auto maxLevel = MaxEffectiveMipmapLevel();
+    const uint32_t maxLevel = MaxEffectiveMipmapLevel();
 
     // "* `level_base <= level_max`"
     if (mBaseMipmapLevel > maxLevel)

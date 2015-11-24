@@ -2583,7 +2583,7 @@ GLContext::FlushIfHeavyGLCallsSinceLastFlush()
 /*static*/ bool
 GLContext::ShouldDumpExts()
 {
-    return true; //gfxEnv::GlDumpExtensions();
+    return gfxEnv::GlDumpExtensions();
 }
 
 bool

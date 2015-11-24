@@ -307,7 +307,7 @@ TexUnpackImage::TexOrSubImage(bool isSubImage, bool needsRespec, const char* fun
             break;
         }
 
-        return;
+        return; // Blitting was successful, so we're done!
     } while (false);
 
     TexUnpackSurface surfBlob(mImage->GetAsSourceSurface(), mIsAlphaPremult);

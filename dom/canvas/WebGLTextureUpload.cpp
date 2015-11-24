@@ -957,6 +957,7 @@ WebGLTexture::TexStorage(const char* funcName, TexTarget target, GLsizei levels,
     const uint32_t lastLevelHeight = uint32_t(height) >> lastLevel;
     const uint32_t lastLevelDepth = uint32_t(depth) >> lastLevel;
 
+    // If these are all zero, then some earlier level was the final 1x1x1 level.
     if (!lastLevelWidth && !lastLevelHeight && !lastLevelDepth) {
         mContext->ErrorInvalidOperation("%s: Too many levels requested for the given"
                                         " dimensions. (levels: %u, width: %u, height: %u,"
@@ -1211,10 +1212,10 @@ WebGLTexture::TexSubImage(const char* funcName, TexImageTarget target, GLint lev
     }
 
     const bool isSubImage = true;
-    const bool needsRespect = false;
+    const bool needsRespec = false;
 
     GLenum glError;
-    blob->TexOrSubImage(isSubImage, needsRespect, funcName, this, target, level,
+    blob->TexOrSubImage(isSubImage, needsRespec, funcName, this, target, level,
                         driverUnpackInfo, xOffset, yOffset, zOffset, &glError);
 
     if (glError == LOCAL_GL_OUT_OF_MEMORY) {
