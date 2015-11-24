@@ -488,7 +488,7 @@ AddLegacyFormats_LA8(FormatUsageAuthority* fua, gl::GLContext* gl)
 
         pi = {LOCAL_GL_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
         dui = {LOCAL_GL_R8, LOCAL_GL_RED, LOCAL_GL_UNSIGNED_BYTE};
-        fnAdd(EffectiveFormat::Luminance8, FormatUsageInfo::kAlphaSwizzleRGBA);
+        fnAdd(EffectiveFormat::Alpha8, FormatUsageInfo::kAlphaSwizzleRGBA);
 
         pi = {LOCAL_GL_LUMINANCE_ALPHA, LOCAL_GL_UNSIGNED_BYTE};
         dui = {LOCAL_GL_RG8, LOCAL_GL_RG, LOCAL_GL_UNSIGNED_BYTE};
