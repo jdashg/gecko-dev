@@ -409,7 +409,9 @@ WebGLFBAttachPoint::GetParameter(const char* funcName, WebGLContext* webgl, JSCo
         if (webgl->IsWebGL2() ||
             webgl->IsExtensionEnabled(WebGLExtensionID::EXT_sRGB))
         {
-            isPNameValid = true;
+            const auto format = Format()->format;
+            return JS::Int32Value(format->isSRGB ? LOCAL_GL_SRGB
+                                                 : LOCAL_GL_LINEAR);
         }
         break;
 
