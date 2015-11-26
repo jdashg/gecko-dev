@@ -31,6 +31,14 @@ GLLibraryEGL sEGLLibrary;
 ThreadLocal<EGLContext> GLLibraryEGL::sCurrentContext;
 #endif
 
+static uint32_t sLastGLDebugFlags = 0;
+
+void
+UpdateLastGLDebugFlags(uint32_t flags)
+{
+    sLastGLDebugFlags = flags;
+}
+
 // should match the order of EGLExtensions, and be null-terminated.
 static const char *sEGLExtensionNames[] = {
     "EGL_KHR_image_base",
@@ -650,16 +658,15 @@ GLLibraryEGL::DumpEGLConfigs()
 /*static*/ void
 GLLibraryEGL::BeforeGLCall(const char* glFunction)
 {
-    if (GLContext::DebugMode()) {
-        if (GLContext::DebugMode() & GLContext::DebugTrace)
-            printf_stderr("[egl] > %s\n", glFunction);
+    if (MOZ_UNLIKELY(sLastGLDebugFlags & GLContext::DebugTrace)) {
+        printf_stderr("[egl] > %s\n", glFunction);
     }
 }
 
 /*static*/ void
 GLLibraryEGL::AfterGLCall(const char* glFunction)
 {
-    if (GLContext::DebugMode() & GLContext::DebugTrace) {
+    if (MOZ_UNLIKELY(sLastGLDebugFlags & GLContext::DebugTrace)) {
         printf_stderr("[egl] < %s\n", glFunction);
     }
 }

@@ -56,8 +56,6 @@ using namespace mozilla::layers;
 unsigned GLContext::sCurrentGLContextTLS = -1;
 #endif
 
-uint32_t GLContext::sDebugMode = 0;
-
 // If adding defines, don't forget to undefine symbols. See #undef block below.
 #define CORE_SYMBOL(x) { (PRFuncPtr*) &mSymbols.f##x, { #x, nullptr } }
 #define CORE_EXT_SYMBOL2(x,y,z) { (PRFuncPtr*) &mSymbols.f##x, { #x, #x #y, #x #z, nullptr } }
@@ -295,6 +293,26 @@ ParseGLVersion(GLContext* gl, uint32_t* out_version)
     return true;
 }
 
+static auto
+QueryDebugFlags()
+{
+    uint32_t flags = gfxPrefs::GLDebugFlags();
+
+    if (gfxEnv::GlDebug())
+        flags |= GLContext::DebugEnabled;
+
+    // enables extra verbose output, informing of the start and finish of every GL call.
+    // useful e.g. to record information to investigate graphics system crashes/lockups
+    if (gfxEnv::GlDebugVerbose())
+        flags |= GLContext::DebugTrace;
+
+    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
+    if (gfxEnv::GlDebugAbortOnError())
+        flags |= GLContext::DebugAbortOnError;
+
+    return false;
+}
+
 GLContext::GLContext(const SurfaceCaps& caps,
           GLContext* sharedContext,
           bool isOffscreen)
@@ -307,6 +325,7 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mRenderer(GLRenderer::Other),
     mHasRobustness(false),
     mTopError(LOCAL_GL_NO_ERROR),
+    mDebugFlags(QueryDebugFlags()),
     mSharedContext(sharedContext),
     mCaps(caps),
     mScreen(nullptr),
@@ -635,21 +654,6 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
     }
-
-
-#ifdef MOZ_GL_DEBUG
-    if (gfxEnv::GlDebug())
-        sDebugMode |= DebugEnabled;
-
-    // enables extra verbose output, informing of the start and finish of every GL call.
-    // useful e.g. to record information to investigate graphics system crashes/lockups
-    if (gfxEnv::GlDebugVerbose())
-        sDebugMode |= DebugTrace;
-
-    // aborts on GL error. Can be useful to debug quicker code that is known not to generate any GL error in principle.
-    if (gfxEnv::GlDebugAbortOnError())
-        sDebugMode |= DebugAbortOnError;
-#endif
 
     if (mInitialized) {
         if (ShouldSpew()) {
@@ -2991,7 +2995,7 @@ GLContext::Debug_BeforeGLCall(const char* funcName, bool skipErrorCheck)
         FlushErrors();
     }
 
-    if (DebugMode() & DebugTrace)
+    if (mDebugFlags & DebugTrace)
         printf_stderr("[gl:%p] > %s\n", this, funcName);
 }
 
@@ -3009,7 +3013,7 @@ GLContext::Debug_AfterGLCall(const char* funcName, bool skipErrorCheck)
         err = FlushErrors();
     }
 
-    if (DebugMode() & DebugTrace) {
+    if (mDebugFlags & DebugTrace) {
         printf_stderr("[gl:%p] < %s [%s (0x%04x)]\n", this, funcName,
                       GLErrorToString(err), err);
     }
@@ -3021,7 +3025,7 @@ GLContext::Debug_AfterGLCall(const char* funcName, bool skipErrorCheck)
                       " (0x%04x)\n", this, funcName,
                       GLErrorToString(err), err);
 
-        if (DebugMode() & DebugAbortOnError)
+        if (mDebugFlags & DebugAbortOnError)
             MOZ_CRASH("MOZ_GL_DEBUG_ABORT_ON_ERROR");
     }
 }

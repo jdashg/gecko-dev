@@ -4190,6 +4190,8 @@ pref("gl.require-hardware", false);
 pref("gl.multithreaded", false);
 #endif
 
+pref("gl.debug-flags", 0);
+
 pref("webgl.force-enabled", false);
 pref("webgl.disabled", false);
 pref("webgl.disable-angle", false);

@@ -539,6 +539,7 @@ GLContextEGL::CreateGLContext(const SurfaceCaps& caps,
     if (!glContext->Init())
         return nullptr;
 
+    UpdateLastGLDebugFlags(glContext->mDebugFlags);
     return glContext.forget();
 }
 
@@ -741,21 +742,20 @@ GLContextProviderEGL::CreateWrappingExisting(void* aContext, void* aSurface)
         return nullptr;
     }
 
-    if (aContext && aSurface) {
-        SurfaceCaps caps = SurfaceCaps::Any();
-        EGLConfig config = EGL_NO_CONFIG;
-        RefPtr<GLContextEGL> glContext =
-            new GLContextEGL(caps,
-                             nullptr, false,
-                             config, (EGLSurface)aSurface, (EGLContext)aContext);
+    if (!aContext || !aSurface)
+        return nullptr;
 
-        glContext->SetIsDoubleBuffered(true);
-        glContext->mOwnsContext = false;
+    SurfaceCaps caps = SurfaceCaps::Any();
+    EGLConfig config = EGL_NO_CONFIG;
+    RefPtr<GLContextEGL> glContext =
+        new GLContextEGL(caps,
+                         nullptr, false,
+                         config, (EGLSurface)aSurface, (EGLContext)aContext);
 
-        return glContext.forget();
-    }
+    glContext->SetIsDoubleBuffered(true);
+    glContext->mOwnsContext = false;
 
-    return nullptr;
+    return glContext.forget();
 }
 
 already_AddRefed<GLContext>

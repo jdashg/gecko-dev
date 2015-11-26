@@ -3292,15 +3292,9 @@ public:
         DebugAbortOnError = 1 << 2
     };
 
-    static uint32_t sDebugMode;
+    const uint32_t mDebugFlags;
 
-    static uint32_t DebugMode() {
-#ifdef MOZ_GL_DEBUG
-        return sDebugMode;
-#else
-        return 0;
-#endif
-    }
+    inline bool DebugMode() const { return bool(mDebugFlags); }
 
 protected:
     RefPtr<GLContext> mSharedContext;

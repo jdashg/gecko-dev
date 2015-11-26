@@ -624,6 +624,8 @@ private:
 extern GLLibraryEGL sEGLLibrary;
 #define EGL_DISPLAY()        sEGLLibrary.Display()
 
+void UpdateLastGLDebugFlags(uint32_t flags);
+
 } /* namespace gl */
 } /* namespace mozilla */
 
