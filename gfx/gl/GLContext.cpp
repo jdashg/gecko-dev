@@ -1662,11 +1662,18 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();
         NS_WARNING("InitWithPrefix failed!");
+        return false;
     }
 
     mVersionString = nsPrintfCString("%u.%u.%u", mVersion / 100, (mVersion / 10) % 10, mVersion % 10);
 
-    return mInitialized;
+    mOriginalSymbols = mSymbols;
+
+    if (DebugMode()) {
+        ShimDebugSymbols();
+    }
+
+    return true;
 }
 
 #undef CORE_SYMBOL
@@ -2249,8 +2256,7 @@ GLContext::MarkDestroyed()
     mSymbols.Zero();
 }
 
-#ifdef MOZ_GL_DEBUG
-/* static */ void
+/*static*/ void
 GLContext::AssertNotPassingStackBufferToTheGL(const void* ptr)
 {
   int somethingOnTheStack;
@@ -2454,8 +2460,6 @@ GLContext::ReportOutstandingNames()
     ReportArrayContents("Outstanding Framebuffers", mTrackedFramebuffers);
     ReportArrayContents("Outstanding Renderbuffers", mTrackedRenderbuffers);
 }
-
-#endif /* DEBUG */
 
 void
 GLContext::GuaranteeResolve()
@@ -2967,6 +2971,63 @@ GLContext::IsDrawingToDefaultFramebuffer()
     return Screen()->IsDrawFramebufferDefault();
 }
 
+/*static*/ GLContext*
+GLContext::ThreadCurrentContext(const char* funcName)
+{
+    const auto ret = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
+    if (MOZ_UNLIKELY(!ret || !ret->IsCurrent())) {
+        printf_stderr("FATAL: %s called on non-current context %p.\n", funcName, ret);
+        MOZ_CRASH("GLContext is not current.");
+    }
+    return ret;
+}
+
+void
+GLContext::Debug_BeforeGLCall(const char* funcName, bool skipErrorCheck)
+{
+    MOZ_ASSERT(DebugMode());
+
+    if (MOZ_LIKELY(!skipErrorCheck)) {
+        FlushErrors();
+    }
+
+    if (DebugMode() & DebugTrace)
+        printf_stderr("[gl:%p] > %s\n", this, funcName);
+}
+
+void
+GLContext::Debug_AfterGLCall(const char* funcName, bool skipErrorCheck)
+{
+    MOZ_ASSERT(DebugMode());
+
+    // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
+    // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
+    // tend to be meaningless
+    GLenum err = 0;
+    if (MOZ_LIKELY(!skipErrorCheck)) {
+        mSymbols.fFinish();
+        err = FlushErrors();
+    }
+
+    if (DebugMode() & DebugTrace) {
+        printf_stderr("[gl:%p] < %s [%s (0x%04x)]\n", this, funcName,
+                      GLErrorToString(err), err);
+    }
+
+    if (err != LOCAL_GL_NO_ERROR &&
+        !mLocalErrorScopeStack.size())
+    {
+        printf_stderr("[gl:%p] %s: Generated unexpected %s error."
+                      " (0x%04x)\n", this, funcName,
+                      GLErrorToString(err), err);
+
+        if (DebugMode() & DebugAbortOnError)
+            MOZ_CRASH("MOZ_GL_DEBUG_ABORT_ON_ERROR");
+    }
+}
+
+////////////////////////////////////////
+
 GLuint
 CreateTexture(GLContext* aGL, GLenum aInternalFormat, GLenum aFormat,
               GLenum aType, const gfx::IntSize& aSize, bool linear)
@@ -3019,7 +3080,6 @@ CreateTextureForOffscreen(GLContext* aGL, const GLFormats& aFormats,
 
     return CreateTexture(aGL, internalFormat, unpackFormat, unpackType, aSize);
 }
-
 
 } /* namespace gl */
 } /* namespace mozilla */

@@ -132,6 +132,7 @@ UNIFIED_SOURCES += [
     'AndroidSurfaceTexture.cpp',
     'DecomposeIntoNoRepeatTriangles.cpp',
     'EGLUtils.cpp',
+    'GeneratedGLContextDebugShims.cpp',
     'GfxTexturesReporter.cpp',
     'GLBlitHelper.cpp',
     'GLContext.cpp',

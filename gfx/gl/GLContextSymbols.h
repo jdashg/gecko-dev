@@ -31,6 +31,10 @@ struct GLContextSymbols
         Zero();
     }
 
+    GLContextSymbols(const GLContextSymbols& x) {
+        memcpy(this, &x, sizeof(*this));
+    }
+
     void Zero() {
         memset(this, 0, sizeof(GLContextSymbols));
     }
@@ -157,7 +161,7 @@ struct GLContextSymbols
     PFNGLTEXPARAMETERIVPROC fTexParameteriv;
     typedef void (GLAPIENTRY * PFNGLTEXPARAMETERFPROC) (GLenum target, GLenum pname, GLfloat param);
     PFNGLTEXPARAMETERFPROC fTexParameterf;
-    typedef GLubyte* (GLAPIENTRY * PFNGLGETSTRINGPROC) (GLenum);
+    typedef const GLubyte* (GLAPIENTRY * PFNGLGETSTRINGPROC) (GLenum);
     PFNGLGETSTRINGPROC fGetString;
     typedef void (GLAPIENTRY * PFNGLGETTEXIMAGEPROC) (GLenum target, GLint level, GLenum format, GLenum type, GLvoid* image);
     PFNGLGETTEXIMAGEPROC fGetTexImage;

@@ -16,21 +16,21 @@
 #include <stack>
 
 #ifdef DEBUG
-#include <string.h>
+    #include <string.h>
 #endif
 
 #ifdef WIN32
-#include <windows.h>
+    #include <windows.h>
 #endif
 
 #ifdef GetClassName
-#undef GetClassName
+    #undef GetClassName
 #endif
 
 // Define MOZ_GL_DEBUG unconditionally to enable GL debugging in opt
 // builds.
 #ifdef DEBUG
-#define MOZ_GL_DEBUG 1
+    #define MOZ_GL_DEBUG 1
 #endif
 
 #include "../../mfbt/Maybe.h"
@@ -70,6 +70,7 @@ namespace mozilla {
         class GLScreenBuffer;
         class SharedSurface;
         class TextureGarbageBin;
+        struct GLContextDebugShims;
         struct SurfaceCaps;
     } // namespace gl
 
@@ -186,6 +187,7 @@ class GLContext
     : public GLLibraryLoader
     , public GenericAtomicRefCounted
 {
+    friend struct GLContextDebugShims;
 // -----------------------------------------------------------------------------
 // basic enums
 public:
@@ -691,128 +693,75 @@ private:
                        GLsizei length,
                        const GLchar* message);
 
-
 // -----------------------------------------------------------------------------
 // MOZ_GL_DEBUG implementation
 private:
-
-#undef BEFORE_GL_CALL
-#undef AFTER_GL_CALL
-
-#ifdef MOZ_GL_DEBUG
-
-#ifndef MOZ_FUNCTION_NAME
-# ifdef __GNUC__
-#  define MOZ_FUNCTION_NAME __PRETTY_FUNCTION__
-# elif defined(_MSC_VER)
-#  define MOZ_FUNCTION_NAME __FUNCTION__
-# else
-#  define MOZ_FUNCTION_NAME __func__  // defined in C99, supported in various C++ compilers. Just raw function name.
-# endif
+#ifdef MOZ_WIDGET_ANDROID
+    // Record the name of the GL call for better hang stacks on Android.
+    #define BEFORE_GL_CALL                                             \
+        do {                                                           \
+            PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS); \
+            MOZ_ASSERT(IsCurrent());                                   \
+        } while (0);
+#else
+    #define BEFORE_GL_CALL           \
+        do {                         \
+            MOZ_ASSERT(IsCurrent()); \
+        } while (0);
 #endif
 
-    void BeforeGLCall(const char* funcName) {
-        MOZ_ASSERT(IsCurrent());
+// Nothing needed for AFTER_GL_CALL for now.
+#define AFTER_GL_CALL
 
-        if (DebugMode()) {
-            FlushErrors();
+#ifndef MOZ_FUNCTION_NAME
+    #ifdef __GNUC__
+        #define MOZ_FUNCTION_NAME __PRETTY_FUNCTION__
+    #elif defined(_MSC_VER)
+        #define MOZ_FUNCTION_NAME __FUNCTION__
+    #else
+        // __func__ is defined in C99, supported in various C++ compilers. Just the raw
+        // function name.
+        #define MOZ_FUNCTION_NAME __func__
+    #endif
+#endif
 
-            if (DebugMode() & DebugTrace)
-                printf_stderr("[gl:%p] > %s\n", this, funcName);
-
-            GLContext* tlsContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
-            if (this != tlsContext) {
-                printf_stderr("Fatal: %s called on non-current context %p. The"
-                              " current context for this thread is %p.\n",
-                              funcName, this, tlsContext);
-                MOZ_CRASH("GLContext is not current.");
-            }
-        }
-    }
-
-    void AfterGLCall(const char* funcName) {
-        if (DebugMode()) {
-            // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
-            // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
-            // tend to be meaningless
-            mSymbols.fFinish();
-            GLenum err = FlushErrors();
-
-            if (DebugMode() & DebugTrace) {
-                printf_stderr("[gl:%p] < %s [%s (0x%04x)]\n", this, funcName,
-                              GLErrorToString(err), err);
-            }
-
-            if (err != LOCAL_GL_NO_ERROR &&
-                !mLocalErrorScopeStack.size())
-            {
-                printf_stderr("[gl:%p] %s: Generated unexpected %s error."
-                              " (0x%04x)\n", this, funcName,
-                              GLErrorToString(err), err);
-
-                if (DebugMode() & DebugAbortOnError)
-                    MOZ_CRASH("MOZ_GL_DEBUG_ABORT_ON_ERROR");
-            }
-        }
-    }
-
-    GLContext *TrackingContext()
-    {
-        GLContext *tip = this;
-        while (tip->mSharedContext)
-            tip = tip->mSharedContext;
-        return tip;
-    }
+#define ASSERT_SYMBOL_PRESENT(func)                                                  \
+    do {                                                                             \
+        MOZ_ASSERT(strstr(MOZ_FUNCTION_NAME, #func) != nullptr,                      \
+                   "Mismatched symbol check.");                                      \
+        if (MOZ_UNLIKELY(!mSymbols.func)) {                                          \
+            printf_stderr("RUNTIME ASSERT: Uninitialized GL function: %s\n", #func); \
+            MOZ_CRASH();                                                             \
+        }                                                                            \
+    } while (0)
 
     static void AssertNotPassingStackBufferToTheGL(const void* ptr);
 
-#ifdef MOZ_WIDGET_ANDROID
-// Record the name of the GL call for better hang stacks on Android.
-#define BEFORE_GL_CALL                              \
-            PROFILER_LABEL_FUNC(                    \
-              js::ProfileEntry::Category::GRAPHICS);\
-            BeforeGLCall(MOZ_FUNCTION_NAME)
-#else
-#define BEFORE_GL_CALL                              \
-            do {                                    \
-                BeforeGLCall(MOZ_FUNCTION_NAME);    \
-            } while (0)
-#endif
+    GLContext* TrackingContext() {
+        GLContext* ret = this;
+        while (ret->mSharedContext)
+            ret = ret->mSharedContext;
+        return ret;
+    }
 
-#define AFTER_GL_CALL                               \
-            do {                                    \
-                AfterGLCall(MOZ_FUNCTION_NAME);     \
-            } while (0)
+#ifdef MOZ_GL_DEBUG
 
-#define TRACKING_CONTEXT(a)                         \
-            do {                                    \
-                TrackingContext()->a;               \
-            } while (0)
+    #define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) \
+        do {                                           \
+            AssertNotPassingStackBufferToTheGL(ptr);   \
+        } while (0)
 
-#define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) AssertNotPassingStackBufferToTheGL(ptr)
+    #define TRACKING_CONTEXT(a)   \
+        do {                      \
+            TrackingContext()->a; \
+        } while (0)
 
 #else // ifdef MOZ_GL_DEBUG
 
-#ifdef MOZ_WIDGET_ANDROID
-// Record the name of the GL call for better hang stacks on Android.
-#define BEFORE_GL_CALL PROFILER_LABEL_FUNC(js::ProfileEntry::Category::GRAPHICS)
-#else
-#define BEFORE_GL_CALL do { } while (0)
-#endif
-#define AFTER_GL_CALL do { } while (0)
-#define TRACKING_CONTEXT(a) do {} while (0)
-#define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) do {} while (0)
+    #define ASSERT_NOT_PASSING_STACK_BUFFER_TO_GL(ptr) do {} while (0)
+    #define TRACKING_CONTEXT(a) do {} while (0)
 
 #endif // ifdef MOZ_GL_DEBUG
-
-#define ASSERT_SYMBOL_PRESENT(func) \
-            do {\
-                MOZ_ASSERT(strstr(MOZ_FUNCTION_NAME, #func) != nullptr, "Mismatched symbol check.");\
-                if (MOZ_UNLIKELY(!mSymbols.func)) {\
-                    printf_stderr("RUNTIME ASSERT: Uninitialized GL function: %s\n", #func);\
-                    MOZ_CRASH();\
-                }\
-            } while (0)
 
     // Do whatever setup is necessary to draw to our offscreen FBO, if it's
     // bound.
@@ -830,6 +779,8 @@ private:
     // if it's bound.
     void AfterGLReadCall() { }
 
+    void Debug_BeforeGLCall(const char* funcName, bool skipErrorCheck);
+    void Debug_AfterGLCall(const char* funcName, bool skipErrorCheck);
 
 // -----------------------------------------------------------------------------
 // GL official entry points
@@ -3181,18 +3132,14 @@ protected:
     virtual bool MakeCurrentImpl(bool aForce) = 0;
 
 public:
-#ifdef MOZ_GL_DEBUG
     static void StaticInit() {
         PR_NewThreadPrivateIndex(&sCurrentGLContextTLS, nullptr);
     }
-#endif
 
     bool MakeCurrent(bool aForce = false) {
-        if (IsDestroyed()) {
+        if (MOZ_UNLIKELY(IsDestroyed())) {
             return false;
         }
-#ifdef MOZ_GL_DEBUG
-    PR_SetThreadPrivate(sCurrentGLContextTLS, this);
 
     // XXX this assertion is disabled because it's triggering on Mac;
     // we need to figure out why and reenable it.
@@ -3204,8 +3151,12 @@ public:
         NS_ASSERTION(IsOwningThreadCurrent(),
                      "MakeCurrent() called on different thread than this context was created on!");
 #endif
-#endif
-        return MakeCurrentImpl(aForce);
+        const bool success = MakeCurrentImpl(aForce);
+
+        if (MOZ_LIKELY(success)) {
+            PR_SetThreadPrivate(sCurrentGLContextTLS, this);
+        }
+        return success;
     }
 
     virtual bool Init() = 0;
@@ -3358,6 +3309,7 @@ protected:
     PlatformThreadId mOwningThreadId;
 
     GLContextSymbols mSymbols;
+    GLContextSymbols mOriginalSymbols;
 
 #ifdef MOZ_GL_DEBUG
     // GLDebugMode will check that we don't send call
@@ -3367,6 +3319,9 @@ protected:
     // storage to support DebugMode on an arbitrary thread.
     static unsigned sCurrentGLContextTLS;
 #endif
+
+    static GLContext* ThreadCurrentContext(const char* funcName);
+    void ShimDebugSymbols();
 
     UniquePtr<GLBlitHelper> mBlitHelper;
     UniquePtr<GLReadTexImageHelper> mReadTexImageHelper;
@@ -3557,9 +3512,10 @@ public:
         AFTER_GL_CALL;
     }
 
+#undef BEFORE_GL_CALL
 #undef ASSERT_SYMBOL_PRESENT
+#undef AFTER_GL_CALL
 
-#ifdef MOZ_GL_DEBUG
     void CreatedProgram(GLContext *aOrigin, GLuint aName);
     void CreatedShader(GLContext *aOrigin, GLuint aName);
     void CreatedBuffers(GLContext *aOrigin, GLsizei aCount, GLuint *aNames);
@@ -3613,8 +3569,6 @@ public:
     nsTArray<NamedResource> mTrackedRenderbuffers;
     nsTArray<NamedResource> mTrackedBuffers;
     nsTArray<NamedResource> mTrackedQueries;
-#endif
-
 
 protected:
     bool mHeavyGLCallsSinceLastFlush;
