@@ -96,7 +96,7 @@ config = {
                 "--log-raw=%(raw_log_file)s",
                 "--log-errorsummary=%(error_summary_file)s",
                 "--screenshot-on-fail",
-                "--total-chunks=4",
+                "--total-chunks=30",
                 "--subsuite=webgl",
             ],
         },
@@ -303,6 +303,7 @@ config = {
             "category": "mochitest",
             "extra_args": ["--chrome"],
         },
+
         "mochitest-gl-1": {
             "category": "mochitest-gl",
             "extra_args": ["--this-chunk=1"],
@@ -319,6 +320,115 @@ config = {
             "category": "mochitest-gl",
             "extra_args": ["--this-chunk=4"],
         },
+        "mochitest-gl-5": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=5"],
+        },
+        "mochitest-gl-6": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=6"],
+        },
+        "mochitest-gl-7": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=7"],
+        },
+        "mochitest-gl-8": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=8"],
+        },
+        "mochitest-gl-9": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=9"],
+        },
+        "mochitest-gl-10": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=10"],
+        },
+
+
+        "mochitest-gl-11": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=11"],
+        },
+        "mochitest-gl-12": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=12"],
+        },
+        "mochitest-gl-13": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=13"],
+        },
+        "mochitest-gl-14": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=14"],
+        },
+        "mochitest-gl-15": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=15"],
+        },
+        "mochitest-gl-16": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=16"],
+        },
+        "mochitest-gl-17": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=17"],
+        },
+        "mochitest-gl-18": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=18"],
+        },
+        "mochitest-gl-19": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=19"],
+        },
+        "mochitest-gl-20": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=20"],
+        },
+
+
+        "mochitest-gl-21": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=21"],
+        },
+        "mochitest-gl-22": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=22"],
+        },
+        "mochitest-gl-23": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=23"],
+        },
+        "mochitest-gl-24": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=24"],
+        },
+        "mochitest-gl-25": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=25"],
+        },
+        "mochitest-gl-26": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=26"],
+        },
+        "mochitest-gl-27": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=27"],
+        },
+        "mochitest-gl-28": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=28"],
+        },
+        "mochitest-gl-29": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=29"],
+        },
+        "mochitest-gl-30": {
+            "category": "mochitest-gl",
+            "extra_args": ["--this-chunk=30"],
+        },
+
         "reftest-1": {
             "category": "reftest",
             "extra_args": ["--total-chunks=16", "--this-chunk=1"],
