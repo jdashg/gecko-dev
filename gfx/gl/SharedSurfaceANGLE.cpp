@@ -192,41 +192,6 @@ SharedSurface_ANGLEShareHandle::ProducerReadReleaseImpl()
     }
 }
 
-void
-SharedSurface_ANGLEShareHandle::ConsumerAcquireImpl()
-{
-    if (!mConsumerTexture) {
-        RefPtr<ID3D11Texture2D> tex;
-        HRESULT hr = gfxWindowsPlatform::GetPlatform()->GetD3D11Device()->OpenSharedResource(mShareHandle,
-                                                                                             __uuidof(ID3D11Texture2D),
-                                                                                             (void**)(ID3D11Texture2D**)getter_AddRefs(tex));
-        if (SUCCEEDED(hr)) {
-            mConsumerTexture = tex;
-            RefPtr<IDXGIKeyedMutex> mutex;
-            hr = tex->QueryInterface((IDXGIKeyedMutex**)getter_AddRefs(mutex));
-
-            if (SUCCEEDED(hr)) {
-                mConsumerKeyedMutex = mutex;
-            }
-        }
-    }
-
-    if (mConsumerKeyedMutex) {
-      HRESULT hr = mConsumerKeyedMutex->AcquireSync(0, 10000);
-      if (hr == WAIT_TIMEOUT) {
-        MOZ_CRASH("GFX: ANGLE consumer mutex timeout");
-      }
-    }
-}
-
-void
-SharedSurface_ANGLEShareHandle::ConsumerReleaseImpl()
-{
-    if (mConsumerKeyedMutex) {
-        mConsumerKeyedMutex->ReleaseSync(0);
-    }
-}
-
 bool
 SharedSurface_ANGLEShareHandle::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
 {

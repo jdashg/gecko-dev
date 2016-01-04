@@ -67,8 +67,6 @@ public:
     virtual void ProducerReleaseImpl() override;
     virtual void ProducerReadAcquireImpl() override;
     virtual void ProducerReadReleaseImpl() override;
-    virtual void ConsumerAcquireImpl() override;
-    virtual void ConsumerReleaseImpl() override;
     virtual bool WaitSync() override;
     virtual bool PollSync() override;
 

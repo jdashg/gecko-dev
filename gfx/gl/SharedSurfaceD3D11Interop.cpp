@@ -385,44 +385,6 @@ SharedSurface_D3D11Interop::ProducerReleaseImpl()
     Fence();
 }
 
-void
-SharedSurface_D3D11Interop::ConsumerAcquireImpl()
-{
-    if (!mConsumerTexture) {
-        RefPtr<ID3D11Texture2D> tex;
-        RefPtr<ID3D11Device> device = gfxWindowsPlatform::GetPlatform()->GetD3D11Device();
-        HRESULT hr = device->OpenSharedResource(mSharedHandle,
-                                                __uuidof(ID3D11Texture2D),
-                                                (void**)(ID3D11Texture2D**) getter_AddRefs(tex));
-        if (SUCCEEDED(hr)) {
-            mConsumerTexture = tex;
-            RefPtr<IDXGIKeyedMutex> mutex;
-            hr = tex->QueryInterface((IDXGIKeyedMutex**) getter_AddRefs(mutex));
-
-            if (SUCCEEDED(hr)) {
-                mConsumerKeyedMutex = mutex;
-            }
-        }
-    }
-
-    if (mConsumerKeyedMutex) {
-        const uint64_t keyValue = 0;
-        const DWORD timeoutMs = 10000;
-        HRESULT hr = mConsumerKeyedMutex->AcquireSync(keyValue, timeoutMs);
-        if (hr == WAIT_TIMEOUT) {
-            MOZ_CRASH();
-        }
-    }
-}
-
-void
-SharedSurface_D3D11Interop::ConsumerReleaseImpl()
-{
-    if (mConsumerKeyedMutex) {
-        mConsumerKeyedMutex->ReleaseSync(0);
-    }
-}
-
 bool
 SharedSurface_D3D11Interop::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
 {

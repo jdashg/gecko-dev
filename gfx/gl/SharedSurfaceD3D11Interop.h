@@ -68,8 +68,6 @@ public:
     virtual void Fence() override;
     virtual void ProducerAcquireImpl() override;
     virtual void ProducerReleaseImpl() override;
-    virtual void ConsumerAcquireImpl() override;
-    virtual void ConsumerReleaseImpl() override;
     virtual bool WaitSync() override;
     virtual bool PollSync() override;
 
