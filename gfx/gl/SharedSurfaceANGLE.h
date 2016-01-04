@@ -72,10 +72,6 @@ public:
     virtual bool WaitSync() override;
     virtual bool PollSync() override;
 
-    virtual void Fence_ContentThread_Impl() override;
-    virtual bool WaitSync_ContentThread_Impl() override;
-    virtual bool PollSync_ContentThread_Impl() override;
-
     const RefPtr<ID3D11Texture2D>& GetConsumerTexture() const {
         return mConsumerTexture;
     }

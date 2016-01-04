@@ -227,42 +227,6 @@ SharedSurface_ANGLEShareHandle::ConsumerReleaseImpl()
     }
 }
 
-void
-SharedSurface_ANGLEShareHandle::Fence_ContentThread_Impl()
-{
-    if (mFence) {
-        MOZ_ASSERT(mGL->IsExtensionSupported(GLContext::NV_fence));
-        mGL->fSetFence(mFence, LOCAL_GL_ALL_COMPLETED_NV);
-        mGL->fFlush();
-        return;
-    }
-
-    Fence();
-}
-
-bool
-SharedSurface_ANGLEShareHandle::WaitSync_ContentThread_Impl()
-{
-    if (mFence) {
-        mGL->MakeCurrent();
-        mGL->fFinishFence(mFence);
-        return true;
-    }
-
-    return WaitSync();
-}
-
-bool
-SharedSurface_ANGLEShareHandle::PollSync_ContentThread_Impl()
-{
-    if (mFence) {
-        mGL->MakeCurrent();
-        return mGL->fTestFence(mFence);
-    }
-
-    return PollSync();
-}
-
 bool
 SharedSurface_ANGLEShareHandle::ToSurfaceDescriptor(layers::SurfaceDescriptor* const out_descriptor)
 {
