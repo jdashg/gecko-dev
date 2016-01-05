@@ -62,13 +62,10 @@ public:
     virtual void LockProdImpl() override;
     virtual void UnlockProdImpl() override;
 
-    virtual void Fence() override;
     virtual void ProducerAcquireImpl() override;
     virtual void ProducerReleaseImpl() override;
     virtual void ProducerReadAcquireImpl() override;
     virtual void ProducerReadReleaseImpl() override;
-    virtual bool WaitSync() override;
-    virtual bool PollSync() override;
 
     const RefPtr<ID3D11Texture2D>& GetConsumerTexture() const {
         return mConsumerTexture;

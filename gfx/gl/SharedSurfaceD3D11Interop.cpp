@@ -329,25 +329,6 @@ SharedSurface_D3D11Interop::UnlockProdImpl()
 { }
 
 void
-SharedSurface_D3D11Interop::Fence()
-{
-    // TODO fence properly. This kills performance.
-    mGL->fFinish();
-}
-
-bool
-SharedSurface_D3D11Interop::WaitSync()
-{
-    return true;
-}
-
-bool
-SharedSurface_D3D11Interop::PollSync()
-{
-    return true;
-}
-
-void
 SharedSurface_D3D11Interop::ProducerAcquireImpl()
 {
     MOZ_ASSERT(!mLockedForGL);
@@ -382,7 +363,9 @@ SharedSurface_D3D11Interop::ProducerReleaseImpl()
     if (mKeyedMutex) {
         mKeyedMutex->ReleaseSync(0);
     }
-    Fence();
+
+    // TODO fence properly. This kills performance.
+    mGL->fFinish();
 }
 
 bool

@@ -65,11 +65,8 @@ public:
     virtual void LockProdImpl() override;
     virtual void UnlockProdImpl() override;
 
-    virtual void Fence() override;
     virtual void ProducerAcquireImpl() override;
     virtual void ProducerReleaseImpl() override;
-    virtual bool WaitSync() override;
-    virtual bool PollSync() override;
 
     virtual GLuint ProdRenderbuffer() override {
         return mProdRB;

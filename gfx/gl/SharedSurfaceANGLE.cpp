@@ -135,24 +135,6 @@ SharedSurface_ANGLEShareHandle::UnlockProdImpl()
 }
 
 void
-SharedSurface_ANGLEShareHandle::Fence()
-{
-    mGL->fFinish();
-}
-
-bool
-SharedSurface_ANGLEShareHandle::WaitSync()
-{
-    return true;
-}
-
-bool
-SharedSurface_ANGLEShareHandle::PollSync()
-{
-    return true;
-}
-
-void
 SharedSurface_ANGLEShareHandle::ProducerAcquireImpl()
 {
     if (mKeyedMutex) {
@@ -174,7 +156,7 @@ SharedSurface_ANGLEShareHandle::ProducerReleaseImpl()
         mKeyedMutex->ReleaseSync(0);
         return;
     }
-    Fence();
+    mGL->fFinish();
 }
 
 void

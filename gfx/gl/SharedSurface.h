@@ -100,12 +100,10 @@ protected:
     virtual void LockProdImpl() = 0;
     virtual void UnlockProdImpl() = 0;
 
-    virtual void ProducerAcquireImpl() {}
-    virtual void ProducerReleaseImpl() {
-        Fence();
-    }
-    virtual void ProducerReadAcquireImpl() {}
-    virtual void ProducerReadReleaseImpl() {}
+    virtual void ProducerAcquireImpl() = 0;
+    virtual void ProducerReleaseImpl() = 0;
+    virtual void ProducerReadAcquireImpl() { ProducerAcquireImpl(); }
+    virtual void ProducerReadReleaseImpl() { ProducerReleaseImpl(); }
 
 public:
     void ProducerAcquire() {
@@ -128,10 +126,6 @@ public:
         ProducerReadReleaseImpl();
         mIsProducerAcquired = false;
     }
-
-    virtual void Fence() = 0;
-    virtual bool WaitSync() = 0;
-    virtual bool PollSync() = 0;
 
     // This function waits until the buffer is no longer being used.
     // To optimize the performance, some implementaions recycle SharedSurfaces
