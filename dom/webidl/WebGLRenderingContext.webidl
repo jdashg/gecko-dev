@@ -1032,3 +1032,10 @@ interface EXT_disjoint_timer_query {
     any getQueryEXT(GLenum target, GLenum pname);
     any getQueryObjectEXT(WebGLTimerQueryEXT? query, GLenum pname);
 };
+
+[NoInterfaceObject]
+interface MOZ_texture_from_element {
+    void texImage2D(GLenum target, GLint level, HTMLElement elem);
+    void texSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
+                       HTMLElement elem);
+};

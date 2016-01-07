@@ -77,7 +77,8 @@ bool WebGLContext::IsExtensionSupported(JSContext* cx,
     // webgl.disable-extensions is set. This is used in the graphics
     // section of about:support
     if (NS_IsMainThread() &&
-        xpc::AccessCheck::isChrome(js::GetContextCompartment(cx))) {
+        xpc::AccessCheck::isChrome(js::GetContextCompartment(cx)))
+    {
         allowPrivilegedExts = true;
     }
 
@@ -87,6 +88,8 @@ bool WebGLContext::IsExtensionSupported(JSContext* cx,
 
     if (allowPrivilegedExts) {
         switch (ext) {
+        case WebGLExtensionID::MOZ_texture_from_element:
+            return true;
         case WebGLExtensionID::WEBGL_debug_renderer_info:
             return true;
         case WebGLExtensionID::WEBGL_debug_shaders:
@@ -345,6 +348,11 @@ WebGLContext::EnableExtension(WebGLExtensionID ext)
         break;
     case WebGLExtensionID::EXT_texture_filter_anisotropic:
         obj = new WebGLExtensionTextureFilterAnisotropic(this);
+        break;
+
+    // MOZ_
+    case WebGLExtensionID::MOZ_texture_from_element:
+        obj = new WebGLExtensionTextureFromElement(this);
         break;
 
     // OES_

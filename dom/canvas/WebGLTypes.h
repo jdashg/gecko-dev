@@ -140,6 +140,7 @@ enum class WebGLExtensionID : uint8_t {
     EXT_shader_texture_lod,
     EXT_texture_filter_anisotropic,
     EXT_disjoint_timer_query,
+    MOZ_texture_from_element,
     OES_element_index_uint,
     OES_standard_derivatives,
     OES_texture_float,

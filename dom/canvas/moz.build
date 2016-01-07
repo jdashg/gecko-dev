@@ -119,6 +119,7 @@ UNIFIED_SOURCES += [
     'WebGLExtensionTextureFilterAnisotropic.cpp',
     'WebGLExtensionTextureFloat.cpp',
     'WebGLExtensionTextureFloatLinear.cpp',
+    'WebGLExtensionTextureFromElement.cpp',
     'WebGLExtensionTextureHalfFloat.cpp',
     'WebGLExtensionTextureHalfFloatLinear.cpp',
     'WebGLExtensionVertexArray.cpp',

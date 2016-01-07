@@ -371,6 +371,20 @@ private:
     WebGLRefPtr<WebGLTimerQuery> mActiveQuery;
 };
 
+class WebGLExtensionTextureFromElement
+    : public WebGLExtensionBase
+{
+public:
+    explicit WebGLExtensionTextureFromElement(WebGLContext* webgl);
+    virtual ~WebGLExtensionTextureFromElement();
+
+    TexImage2D(GLenum texImageTarget, GLint level, dom::Element& elem);
+    TexSubImage2D(GLenum texImageTarget, GLint level, GLint xOffset, GLint yOffset,
+                  dom::Element& elem);
+
+    DECL_WEBGL_EXTENSION_GOOP
+};
+
 } // namespace mozilla
 
 #endif // WEBGL_EXTENSIONS_H_
