@@ -55,6 +55,8 @@ public:
                           const dom::Nullable<dom::ArrayBuffer>& maybeData);
     void GetBufferSubData(GLenum target, GLintptr offset,
                           const dom::SharedArrayBuffer& data);
+    void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
+                    GLenum type, GLintptr offset);
 
 
     // -------------------------------------------------------------------------
