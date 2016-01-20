@@ -1336,26 +1336,11 @@ IsFormatAndTypeUnpackable(GLenum format, GLenum type, bool isWebGL2)
         case LOCAL_GL_RGB:
         case LOCAL_GL_RGBA:
             return true;
+
         default:
             return false;
         }
 
-    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-        return format == LOCAL_GL_RGBA;
-
-    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-        return format == LOCAL_GL_RGB;
-
-    default:
-        return false;
-    }
-}
-
-static bool
-IsIntegerFormatAndTypeUnpackable(GLenum format, GLenum type)
-{
-    switch (type) {
     case LOCAL_GL_UNSIGNED_SHORT:
     case LOCAL_GL_SHORT:
     case LOCAL_GL_UNSIGNED_INT:
@@ -1366,6 +1351,7 @@ IsIntegerFormatAndTypeUnpackable(GLenum format, GLenum type)
         case LOCAL_GL_RGB_INTEGER:
         case LOCAL_GL_RGBA_INTEGER:
             return true;
+
         default:
             return false;
         }
@@ -1374,6 +1360,11 @@ IsIntegerFormatAndTypeUnpackable(GLenum format, GLenum type)
         return format == LOCAL_GL_RGBA ||
                format == LOCAL_GL_RGBA_INTEGER;
 
+    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+        return format == LOCAL_GL_RGBA;
+
+    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
     case LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV:
     case LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV:
         return format == LOCAL_GL_RGB;
@@ -1415,14 +1406,11 @@ WebGLContext::GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel
     return bytesNeeded;
 }
 
-void
-WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
-                         GLenum type,
-                         const dom::Nullable<dom::ArrayBufferView>& pixels,
-                         ErrorResult& out_error)
+static bool
+WebGLContext::ValidateReadPixels(...)
 {
     if (IsContextLost())
-        return;
+        return false;
 
     if (mCanvasElement &&
         mCanvasElement->IsWriteOnly() &&
@@ -1430,19 +1418,28 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     {
         GenerateWarning("readPixels: Not allowed");
         out_error.Throw(NS_ERROR_DOM_SECURITY_ERR);
-        return;
+        return false;
     }
 
-    if (width < 0 || height < 0)
-        return ErrorInvalidValue("readPixels: negative size passed");
+    if (width < 0 || height < 0) {
+        ErrorInvalidValue("readPixels: negative size passed");
+        return false;
+    }
 
-    if (pixels.IsNull())
-        return ErrorInvalidValue("readPixels: null destination buffer");
+    switch (type) {
+    case LOCAL_GL_FLOAT:
+    case LOCAL_GL_HALF_FLOAT:
+    case LOCAL_GL_HALF_FLOAT_OES:
+    case LOCAL_GL_UNSIGNED_INT:
+    case LOCAL_GL_INT:
 
-    if (!(IsWebGL2() && IsIntegerFormatAndTypeUnpackable(format, type)) &&
-        !IsFormatAndTypeUnpackable(format, type, IsWebGL2())) {
+    default:
+        break;
+    }
+
+
+    if (!IsFormatAndTypeUnpackable(format, type))
         return ErrorInvalidEnum("readPixels: Bad format or type.");
-    }
 
     int channels = 0;
 
@@ -1470,7 +1467,6 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     default:
         MOZ_CRASH("bad `format`");
     }
-
 
     // Check the type param
     int bytesPerPixel;
@@ -1554,6 +1550,21 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
                               " size.");
         return;
     }
+
+
+
+
+}
+
+void
+WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
+                         GLenum type,
+                         const dom::Nullable<dom::ArrayBufferView>& pixels,
+                         ErrorResult& out_error)
+{
+    if (pixels.IsNull())
+        return ErrorInvalidValue("readPixels: null destination buffer");
+
 
     if (bytesNeeded.value() > bytesAvailable) {
         ErrorInvalidOperation("readPixels: buffer too small");
