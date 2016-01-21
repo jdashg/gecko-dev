@@ -30,7 +30,7 @@ WebGLExtensionTextureHalfFloat::WebGLExtensionTextureHalfFloat(WebGLContext* web
         fua->AllowUnsizedTexFormat(pi, usage);
     };
 
-    const bool needSizedInternal = !gl->IsGLES();
+    const bool needSizedInternal = gl->IsCoreProfile();
     MOZ_ASSERT_IF(needSizedInternal, gl->IsSupported(gl::GLFeature::texture_swizzle));
 
     GLenum driverUnpackType = LOCAL_GL_HALF_FLOAT;
@@ -108,7 +108,7 @@ WebGLExtensionTextureHalfFloat::IsSupported(const WebGLContext* webgl)
         return false;
     }
 
-    const bool needSizedInternal = !gl->IsGLES();
+    const bool needSizedInternal = gl->IsCoreProfile();
     const bool hasSwizzle = gl->IsSupported(gl::GLFeature::texture_swizzle);
 
     if (needSizedInternal && !hasSwizzle)

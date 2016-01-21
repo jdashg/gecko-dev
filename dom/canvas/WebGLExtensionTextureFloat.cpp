@@ -32,7 +32,7 @@ WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* webgl)
         fua->AllowUnsizedTexFormat(pi, usage);
     };
 
-    const bool needSizedInternal = !gl->IsGLES();
+    const bool needSizedInternal = gl->IsCoreProfile();
     MOZ_ASSERT_IF(needSizedInternal, gl->IsSupported(gl::GLFeature::texture_swizzle));
 
     ////////////////
@@ -101,7 +101,7 @@ WebGLExtensionTextureFloat::IsSupported(const WebGLContext* webgl)
     if (!gl->IsSupported(gl::GLFeature::texture_float))
         return false;
 
-    const bool needSizedInternal = !gl->IsGLES();
+    const bool needSizedInternal = gl->IsCoreProfile();
     const bool hasSwizzle = gl->IsSupported(gl::GLFeature::texture_swizzle);
 
     if (needSizedInternal && !hasSwizzle)
