@@ -539,11 +539,6 @@ public:
     void LinkProgram(WebGLProgram* prog);
     void PixelStorei(GLenum pname, GLint param);
     void PolygonOffset(GLfloat factor, GLfloat units);
-protected:
-    bool DoReadPixelsAndConvert(GLint x, GLint y, GLsizei width, GLsizei height,
-                                GLenum destFormat, GLenum destType, void* destBytes,
-                                GLenum auxReadFormat, GLenum auxReadType);
-public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
                     GLenum format, GLenum type,
                     const dom::Nullable<dom::ArrayBufferView>& pixels,
@@ -1069,6 +1064,23 @@ protected:
         mMaxFetchedVertices = 0;
         mMaxFetchedInstances = 0;
     }
+
+    bool ReadPixels_SharedPrecheck(ErrorResult* const out_error);
+
+    bool ValidateReadPixels(GLint x, GLint y, GLsizei rawWidth, GLsizei rawHeight,
+                            GLenum packFormat, GLenum packType, size_t bytesAvailable,
+                            uint8_t* const out_bytesPerPixel,
+                            uint32_t* const out_startOffset,
+                            uint32_t* const out_rowStride,
+                            uint32_t* const out_readX, uint32_t* const out_readY,
+                            uint32_t* const out_writeX, uint32_t* const out_writeY,
+                            uint32_t* const out_rwWidth,
+                            uint32_t* const out_rwHeight,
+                            const webgl::FormatInfo** const out_srcFormat);
+
+    bool DoReadPixelsAndConvert(const webgl::FormatInfo* srcFormat, GLint x, GLint y,
+                                GLsizei width, GLsizei height, GLenum format,
+                                GLenum destType, void* destBytesOrOffset);
 
     CheckedUint32 mGeneration;
 

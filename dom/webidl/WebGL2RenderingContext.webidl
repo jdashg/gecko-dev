@@ -320,6 +320,8 @@ interface WebGL2RenderingContext : WebGLRenderingContext
                            GLintptr writeOffset, GLsizeiptr size);
     void getBufferSubData(GLenum target, GLintptr offset, ArrayBuffer? returnedData);
     void getBufferSubData(GLenum target, GLintptr offset, SharedArrayBuffer returnedData);
+
+    [Throws] /* Throws on readback in a write-only context. */
     void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
                     GLenum type, GLintptr offset);
 

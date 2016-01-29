@@ -56,7 +56,7 @@ public:
     void GetBufferSubData(GLenum target, GLintptr offset,
                           const dom::SharedArrayBuffer& data);
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
-                    GLenum type, GLintptr offset);
+                    GLenum type, GLintptr offset, ErrorResult& out_error);
 
 
     // -------------------------------------------------------------------------
