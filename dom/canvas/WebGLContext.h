@@ -1112,7 +1112,7 @@ protected:
     int32_t mGLMaxVaryingVectors;
     int32_t mGLMaxFragmentUniformVectors;
     int32_t mGLMaxVertexUniformVectors;
-    uint32_t  mGLMaxTransformFeedbackSeparateAttribs;
+    uint32_t mGLMaxTransformFeedbackSeparateAttribs;
     GLuint  mGLMaxUniformBufferBindings;
     GLsizei mGLMaxSamples;
 
@@ -1507,37 +1507,33 @@ protected:
     bool mNeedsFakeNoDepth;
     bool mNeedsFakeNoStencil;
 
+    bool mNeedsDrawMasking;
+
     struct ScopedMaskWorkaround {
-        WebGLContext& mWebGL;
-        const bool mFakeNoAlpha;
-        const bool mFakeNoDepth;
-        const bool mFakeNoStencil;
+        WebGLContext* mWebGL;
+        bool mFakeNoAlpha;
+        bool mFakeNoDepth;
+        bool mFakeNoStencil;
 
-        static bool ShouldFakeNoAlpha(WebGLContext& webgl) {
-            // We should only be doing this if we're about to draw to the backbuffer, but
-            // the backbuffer needs to have this fake-no-alpha workaround.
-            return !webgl.mBoundDrawFramebuffer &&
-                   webgl.mNeedsFakeNoAlpha &&
-                   webgl.mColorWriteMask[3] != false;
+        explicit ScopedMaskWorkaround(WebGLContext* webgl)
+            , mWebGL(nullptr)
+        {
+            if (webgl->mNeedsDrawMasking) {
+                mWebGL = webgl;
+                Begin();
+            }
         }
 
-        static bool ShouldFakeNoDepth(WebGLContext& webgl) {
-            // We should only be doing this if we're about to draw to the backbuffer.
-            return !webgl.mBoundDrawFramebuffer &&
-                   webgl.mNeedsFakeNoDepth &&
-                   webgl.mDepthTestEnabled;
+        ~ScopedMaskWorkaround()
+        {
+            if (mWebGL) {
+                End();
+            }
         }
 
-        static bool ShouldFakeNoStencil(WebGLContext& webgl) {
-            // We should only be doing this if we're about to draw to the backbuffer.
-            return !webgl.mBoundDrawFramebuffer &&
-                   webgl.mNeedsFakeNoStencil &&
-                   webgl.mStencilTestEnabled;
-        }
-
-        explicit ScopedMaskWorkaround(WebGLContext& webgl);
-
-        ~ScopedMaskWorkaround();
+    private:
+        void Begin();
+        void End();
     };
 
     void LoseOldestWebGLContextIfLimitExceeded();

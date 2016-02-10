@@ -1816,6 +1816,46 @@ WebGLContext::ValidateCurFBForRead(const char* funcName,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+void
+WebGLContext::ScopedMaskWorkaround::Begin()
+{
+    if (mWebGL->mBoundDrawFramebuffer) {
+    } else {
+    }
+}
+
+void
+WebGLContext::ScopedMaskWorkaround::End()
+{
+}
+
+/*
+        static bool ShouldFakeNoAlpha(WebGLContext& webgl) {
+            // We should only be doing this if we're about to draw to the backbuffer, but
+            // the backbuffer needs to have this fake-no-alpha workaround.
+            return !webgl.mBoundDrawFramebuffer &&
+                   webgl.mNeedsFakeNoAlpha &&
+                   webgl.mColorWriteMask[3] != false;
+        }
+
+        static bool ShouldFakeNoDepth(WebGLContext& webgl) {
+            // We should only be doing this if we're about to draw to the backbuffer.
+            return !webgl.mBoundDrawFramebuffer &&
+                   webgl.mNeedsFakeNoDepth &&
+                   webgl.mDepthTestEnabled;
+        }
+
+        static bool ShouldFakeNoStencil(WebGLContext& webgl) {
+            // On Mac+Intel, we need to FakeNoStencil whenever we have a depth
+            // buffer but not a stencil buffer. (for at least StencilFunc(NEVER)
+            // We should only be doing this if we're about to draw to the backbuffer.
+            return !webgl.mBoundDrawFramebuffer &&
+                   webgl.mNeedsFakeNoStencil &&
+                   webgl.mStencilTestEnabled;
+        }
+*/
+
 WebGLContext::ScopedMaskWorkaround::ScopedMaskWorkaround(WebGLContext& webgl)
     : mWebGL(webgl)
     , mFakeNoAlpha(ShouldFakeNoAlpha(webgl))
