@@ -42,7 +42,7 @@ function DrawColors(gl) {
 
 function ClearBufferPair(gl, byteCount) {
   // Using `null` here clears to zero according to WebGL.
-  gl.bufferData(gl.PIXEL_PACK_BUFFER, byteCount, null, gl.STREAM_READ);
+  gl.bufferData(gl.PIXEL_PACK_BUFFER, byteCount, gl.STREAM_READ);
 
   var arr = new Uint8Array(byteCount);
   return arr;
@@ -78,12 +78,19 @@ function section(text) {
   ok(true, 'Section: ' + text);
 }
 
-function TestError(gl, refErrVal) {
+function TestError(gl, refErrVal, str='') {
+  if (str != '') {
+    str += ': ';
+  }
+
   var err = gl.getError();
   while (gl.getError()) {}
   ok(err == refErrVal,
-     'Expected error 0x' + refErrVal.toString(16) + ', was 0x' + err.toString(16) + '.');
+     str + 'Expected error 0x' + refErrVal.toString(16) + ', was 0x' + err.toString(16) +
+     '.');
 }
+
+var gl;
 
 (function() {
   var canvas = document.createElement('canvas');
@@ -93,7 +100,7 @@ function TestError(gl, refErrVal) {
   var attribs = {
     antialias: false,
   };
-  var gl = canvas.getContext('webgl2', attribs);
+  gl = canvas.getContext('webgl2', attribs);
   if (!gl) {
     todo(false, 'WebGL 2 not present, skipping.');
     return;
@@ -105,7 +112,7 @@ function TestError(gl, refErrVal) {
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, a);
   var data;
 
-  TestError(gl, 0);
+  TestError(gl, 0, 'after setup');
 
   // Basic
   section('Basic readback');
