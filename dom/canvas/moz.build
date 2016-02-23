@@ -6,8 +6,8 @@
 
 TEST_DIRS += ['compiledtest']
 
-# Number changes to this file to avoid bug 1081323 (clobber after changing a manifest):
-# 11
+# Update the last-update-desc here to avoid bug 1081323 (clobber after changing a manifest):
+# "Implement ReadPixel with PBOs." 2
 
 MOCHITEST_MANIFESTS += [
     'test/crossorigin/mochitest.ini',
