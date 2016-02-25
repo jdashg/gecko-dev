@@ -176,6 +176,7 @@ public:
 
 private:
     mutable bool mIsKnownFBComplete;
+    mutable std::set<const WebGLTexture*> mCached_AttachedTextures;
 
     GLenum mReadBufferMode;
 

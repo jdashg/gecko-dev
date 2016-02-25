@@ -866,7 +866,7 @@ WebGLFramebuffer::AllImageSamplesMatch() const
                                       &samples](const WebGLFBAttachPoint& attach)
     {
         if (!attach.HasImage())
-          return true;
+            return true;
 
         const uint32_t curSamples = attach.Samples();
 
@@ -944,6 +944,28 @@ WebGLFramebuffer::CheckFramebufferStatus(nsCString* const out_info) const
 
     if (ret == LOCAL_GL_FRAMEBUFFER_COMPLETE) {
         mIsKnownFBComplete = true;
+
+        // Cache anything that only invalidates on FB completeness changes.
+        auto& attachedTextures = mCached_AttachedTextures;
+        attachedTextures.clear();
+        const auto fnAddIfTexture = [&attachedTextures](const WebGLFBAttachPoint& attach)
+        {
+            if (!attach.HasImage())
+                return;
+
+            if (!attach.Texture())
+                return;
+
+            attachedTextures.insert(attach.Texture());
+        };
+
+        fnAddIfTexture(mColorAttachment0);
+        fnAddIfTexture(mDepthAttachment);
+        fnAddIfTexture(mStencilAttachment);
+        fnAddIfTexture(mDepthStencilAttachment);
+        for (const auto& cur : mMoreColorAttachments) {
+            fnAddIfTexture(cur);
+        }
     } else {
         out_info->AssignLiteral("Bad status according to the driver");
     }

@@ -1863,6 +1863,8 @@ WebGLContext::Uniform1i(WebGLUniformLocation* loc, GLint a1)
 
     MakeContextCurrent();
     gl->fUniform1i(rawLoc, a1);
+
+    loc->mActiveInfo->mUniformSamplerValue[0] = a1;
 }
 
 void
@@ -1966,6 +1968,8 @@ WebGLContext::Uniform1iv_base(WebGLUniformLocation* loc, size_t arrayLength,
 
     MakeContextCurrent();
     gl->fUniform1iv(rawLoc, numElementsToUpload, data);
+
+    loc->mActiveInfo->mUniformSamplerValue[0] = data[0];
 }
 
 void
@@ -1989,6 +1993,9 @@ WebGLContext::Uniform2iv_base(WebGLUniformLocation* loc, size_t arrayLength,
 
     MakeContextCurrent();
     gl->fUniform2iv(rawLoc, numElementsToUpload, data);
+
+    loc->mActiveInfo->mUniformSamplerValue[0] = data[0];
+    loc->mActiveInfo->mUniformSamplerValue[1] = data[1];
 }
 
 void
@@ -2013,6 +2020,10 @@ WebGLContext::Uniform3iv_base(WebGLUniformLocation* loc, size_t arrayLength,
 
     MakeContextCurrent();
     gl->fUniform3iv(rawLoc, numElementsToUpload, data);
+
+    loc->mActiveInfo->mUniformSamplerValue[0] = data[0];
+    loc->mActiveInfo->mUniformSamplerValue[1] = data[1];
+    loc->mActiveInfo->mUniformSamplerValue[2] = data[2];
 }
 
 void
@@ -2038,6 +2049,11 @@ WebGLContext::Uniform4iv_base(WebGLUniformLocation* loc, size_t arrayLength,
 
     MakeContextCurrent();
     gl->fUniform4iv(rawLoc, numElementsToUpload, data);
+
+    loc->mActiveInfo->mUniformSamplerValue[0] = data[0];
+    loc->mActiveInfo->mUniformSamplerValue[1] = data[1];
+    loc->mActiveInfo->mUniformSamplerValue[2] = data[2];
+    loc->mActiveInfo->mUniformSamplerValue[3] = data[3];
 }
 
 void

@@ -2158,6 +2158,40 @@ WebGLContext::GetUnpackSize(bool isFunc3D, uint32_t width, uint32_t height,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const nsTArray<WebGLRefPtr<WebGLTexture> >*
+WebGLContext::GetTexArrayForUniformSamplerType(GLenum elemType) const
+{
+    switch (elemType) {
+    case LOCAL_GL_SAMPLER_2D:
+    case LOCAL_GL_SAMPLER_2D_SHADOW:
+    case LOCAL_GL_INT_SAMPLER_2D:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_2D:
+        return &mBound2DTextures;
+
+    case LOCAL_GL_SAMPLER_CUBE:
+    case LOCAL_GL_SAMPLER_CUBE_SHADOW:
+    case LOCAL_GL_INT_SAMPLER_CUBE:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_CUBE:
+        return &mBoundCubeMapTextures;
+
+    case LOCAL_GL_SAMPLER_3D:
+    case LOCAL_GL_INT_SAMPLER_3D:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_3D:
+        return &mBound3DTextures;
+
+    case LOCAL_GL_SAMPLER_2D_ARRAY:
+    case LOCAL_GL_SAMPLER_2D_ARRAY_SHADOW:
+    case LOCAL_GL_INT_SAMPLER_2D_ARRAY:
+    case LOCAL_GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+        return &mBound2DArrayTextures;
+
+    default:
+        return nullptr;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // XPCOM goop
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)

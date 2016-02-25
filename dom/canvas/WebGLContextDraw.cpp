@@ -173,6 +173,57 @@ WebGLContext::DrawInstanced_check(const char* info)
 }
 
 bool
+WebGLContext::Draw_check(const char* funcName)
+{
+    if (!ValidateStencilParamsForDrawCall())
+        return false;
+
+    // Any checks below this depend on a program being available.
+    if (!mCurrentProgram) {
+        ErrorInvalidOperation("%s: null CURRENT_PROGRAM", funcName);
+        return false;
+    }
+    MOZ_ASSERT(mActiveProgramLinkInfo);
+
+    if (!ValidateBufferFetching(funcName))
+        return false;
+
+    MakeContextCurrent();
+
+    if (mBoundDrawFramebuffer) {
+        if (!mBoundDrawFramebuffer->ValidateAndInitAttachments(funcName))
+            return false;
+    } else {
+        ClearBackbufferIfNeeded();
+    }
+
+    // Check for sampling+render-to-texture (rtt) feedback loops.
+    if (mBoundDrawFramebuffer) {
+        MOZ_ASSERT(mBoundDrawFramebuffer->mIsKnownFBComplete);
+        const auto& rttSet = mBoundDrawFramebuffer->mCached_AttachedTextures;
+
+        const auto rttSetEnd = rttSet.cend();
+
+        for (const auto& sampler : mActiveProgramLinkInfo->activeSamplerUniforms) {
+            MOZ_ASSERT(sampler->mTexArrayForUniformSampler);
+            const auto& texArrayForCurSampler = *(sampler->mTexArrayForUniformSampler);
+
+            for (const auto& texIndex : sampler->mUniformSamplerValue) {
+                const auto& tex = texArrayForCurSampler[texIndex];
+                if (rttSet.find(tex.get()) != rttSetEnd) {
+                    ErrorInvalidOperation("%s: Feedback loop detected: A sampled texture"
+                                          " is also attached to draw framebuffer.",
+                                          funcName);
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool
 WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
                                const char* info)
 {
@@ -186,24 +237,13 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    if (!ValidateStencilParamsForDrawCall()) {
-        return false;
-    }
-
     // If count is 0, there's nothing to do.
     if (count == 0 || primcount == 0) {
         return false;
     }
 
-    // Any checks below this depend on a program being available.
-    if (!mCurrentProgram) {
-        ErrorInvalidOperation("%s: null CURRENT_PROGRAM", info);
-        return false;
-    }
-
-    if (!ValidateBufferFetching(info)) {
-        return false;
-    }
+    if (!Draw_check(info))
+      return false;
 
     CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
 
@@ -222,18 +262,8 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    MOZ_ASSERT(gl->IsCurrent());
-
-    if (mBoundDrawFramebuffer) {
-        if (!mBoundDrawFramebuffer->ValidateAndInitAttachments(info))
-            return false;
-    } else {
-        ClearBackbufferIfNeeded();
-    }
-
-    if (!DoFakeVertexAttrib0(checked_firstPlusCount.value())) {
+    if (!DoFakeVertexAttrib0(checked_firstPlusCount.value()))
         return false;
-    }
 
     return true;
 }
@@ -316,10 +346,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    if (!ValidateStencilParamsForDrawCall()) {
-        return false;
-    }
-
     // If count is 0, there's nothing to do.
     if (count == 0 || primcount == 0)
         return false;
@@ -360,12 +386,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    // Any checks below this depend on a program being available.
-    if (!mCurrentProgram) {
-        ErrorInvalidOperation("%s: null CURRENT_PROGRAM", info);
-        return false;
-    }
-
     if (!mBoundVertexArray->mElementArrayBuffer) {
         ErrorInvalidOperation("%s: must have element array buffer binding", info);
         return false;
@@ -390,9 +410,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    if (!ValidateBufferFetching(info))
-        return false;
-
     if (!mMaxFetchedVertices ||
         !elemArrayBuffer.Validate(type, mMaxFetchedVertices - 1, first, count, out_upperBound))
     {
@@ -415,18 +432,11 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
                         WebGLContext::EnumName(type));
     }
 
-    MOZ_ASSERT(gl->IsCurrent());
-
-    if (mBoundDrawFramebuffer) {
-        if (!mBoundDrawFramebuffer->ValidateAndInitAttachments(info))
-            return false;
-    } else {
-        ClearBackbufferIfNeeded();
-    }
-
-    if (!DoFakeVertexAttrib0(mMaxFetchedVertices)) {
+    if (!Draw_check(info))
         return false;
-    }
+
+    if (!DoFakeVertexAttrib0(mMaxFetchedVertices))
+        return false;
 
     return true;
 }

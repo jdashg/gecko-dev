@@ -86,6 +86,8 @@ WebGLActiveInfo::WebGLActiveInfo(WebGLContext* webgl, GLint elemCount, GLenum el
     , mIsArray(isArray)
     , mElemSize(ElemSizeFromType(elemType))
     , mBaseMappedName(baseMappedName)
+    , mTexArrayForUniformSampler(webgl->GetTexArrayForUniformSamplerType(elemType))
+    , mUniformSamplerValue{0}
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

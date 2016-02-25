@@ -30,7 +30,6 @@ public:
         return mWebGL;
     }
 
-
     WebGLContext* const mWebGL;
 
     // ActiveInfo state:
@@ -42,6 +41,9 @@ public:
     const bool mIsArray;
     const uint8_t mElemSize;
     const nsCString mBaseMappedName; // Without any final "[0]".
+
+    const nsTArray<WebGLRefPtr<WebGLTexture>>* const mTexArrayForUniformSampler;
+    mutable GLint mUniformSamplerValue[4];
 
     WebGLActiveInfo(WebGLContext* webgl, GLint elemCount, GLenum elemType, bool isArray,
                     const nsACString& baseUserName, const nsACString& baseMappedName);
@@ -82,6 +84,8 @@ private:
         , mIsArray(false)
         , mElemSize(0)
         , mBaseMappedName("")
+        , mTexArrayForUniformSampler(nullptr)
+        , mUniformSamplerValue{0}
     { }
 
     // Private destructor, to discourage deletion outside of Release():

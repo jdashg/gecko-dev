@@ -188,6 +188,7 @@ class WebGLContext
     , public SupportsWeakPtr<WebGLContext>
 {
     friend class WebGL2Context;
+    friend class WebGLActiveInfo;
     friend class WebGLContextUserData;
     friend class WebGLExtensionCompressedTextureATC;
     friend class WebGLExtensionCompressedTextureES3;
@@ -1035,6 +1036,7 @@ private:
     uint32_t mMaxFetchedVertices;
     uint32_t mMaxFetchedInstances;
 
+    bool Draw_check(const char* funcName);
     bool DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
                           const char* info);
     bool DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOffset,
@@ -1376,6 +1378,9 @@ protected:
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound3DTextures;
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DArrayTextures;
     nsTArray<WebGLRefPtr<WebGLSampler> > mBoundSamplers;
+
+    const nsTArray<WebGLRefPtr<WebGLTexture> >*
+    GetTexArrayForUniformSamplerType(GLenum elemType) const;
 
     void ResolveTexturesForDraw() const;
 

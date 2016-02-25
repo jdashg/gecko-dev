@@ -68,7 +68,7 @@ ParseName(const nsCString& name, nsCString* const out_baseName,
     return true;
 }
 
-static void
+static WebGLActiveInfo*
 AddActiveInfo(WebGLContext* webgl, GLint elemCount, GLenum elemType, bool isArray,
               const nsACString& baseUserName, const nsACString& baseMappedName,
               std::vector<RefPtr<WebGLActiveInfo>>* activeInfoList,
@@ -80,6 +80,8 @@ AddActiveInfo(WebGLContext* webgl, GLint elemCount, GLenum elemType, bool isArra
     activeInfoList->push_back(info);
 
     infoLocMap->insert(std::make_pair(info->mBaseUserName, info.get()));
+
+    return info.get();
 }
 
 static void
@@ -234,8 +236,13 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
         printf_stderr("    isArray: %d\n", (int)isArray);
 #endif
 
-        AddActiveInfo(prog->mContext, elemCount, elemType, isArray, baseUserName,
-                      baseMappedName, &info->activeUniforms, &info->uniformMap);
+        auto activeInfo = AddActiveInfo(prog->mContext, elemCount, elemType, isArray,
+                                        baseUserName, baseMappedName,
+                                        &info->activeUniforms, &info->uniformMap);
+
+        if (activeInfo->mTexArrayForUniformSampler) {
+            info->activeSamplerUniforms.push_back(activeInfo);
+        }
     }
 
     // Uniform Blocks
@@ -286,6 +293,7 @@ QueryProgramInfo(WebGLProgram* prog, gl::GLContext* gl)
 #endif
 
             AddActiveBlockInfo(baseUserName, baseMappedName, &info->uniformBlocks);
+            // Thankfully, uniform blocks cannot contain samplers.
         }
     }
 

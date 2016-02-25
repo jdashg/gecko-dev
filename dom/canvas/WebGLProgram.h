@@ -62,6 +62,8 @@ struct LinkedProgramInfo final
     std::vector<RefPtr<WebGLActiveInfo>> activeUniforms;
     std::vector<RefPtr<WebGLActiveInfo>> transformFeedbackVaryings;
 
+    std::vector<const WebGLActiveInfo*> activeSamplerUniforms;
+
     // Needed for Get{Attrib,Uniform}Location. The keys for these are non-mapped
     // user-facing `GLActiveInfo::name`s, without any final "[0]".
     std::map<nsCString, const WebGLActiveInfo*> attribMap;
