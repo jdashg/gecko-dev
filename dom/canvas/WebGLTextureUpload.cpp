@@ -1692,6 +1692,46 @@ ScopedCopyTexImageSource::~ScopedCopyTexImageSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static bool
+CheckForCopyTexImageFeedback(const char* funcName, WebGLContext* webgl,
+                             const WebGLTexture* dstTex, TexImageTarget dstTarget,
+                             GLint dstLevel, const webgl::FormatInfo* dstFormat,
+                             GLint dstZOffset)
+{
+    const auto& srcFB = webgl->mBoundReadFramebuffer;
+    if (!srcFB)
+        return true;
+
+    const WebGLFBAttachPoint* srcAttachPoint;
+    if (dstFormat->isColorFormat) {
+        srcAttachPoint = &(srcFB->mColorAttachment0);
+
+    } else if (dstFormat->hasDepth) {
+        MOZ_ASSERT(!srcFB->mDepthStencilAttachment.IsDefined());
+        srcAttachPoint = &(srcFB->mDepthAttachment);
+
+    } else if (dstFormat->hasStencil) {
+        MOZ_ASSERT(!srcFB->mDepthStencilAttachment.IsDefined());
+        srcAttachPoint = &(srcFB->mStencilAttachment);
+
+    } else {
+        MOZ_CRASH("Bad dstUsage.");
+    }
+
+    if (dstTex != srcAttachPoint->Texture() ||
+        dstTarget != srcAttachPoint->ImageTarget() ||
+        dstLevel != srcAttachPoint->MipLevel() ||
+        dstZOffset != srcAttachPoint->Layer())
+    {
+        return true;
+    }
+
+    webgl->ErrorInvalidOperation("%s: Destination texImage is attached to the read"
+                                 " framebuffer, creating a feedback loop.",
+                                 funcName);
+    return false;
+}
+
 // There is no CopyTexImage3D.
 void
 WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internalFormat,
@@ -1778,6 +1818,13 @@ WebGLTexture::CopyTexImage2D(TexImageTarget target, GLint level, GLenum internal
 
     if (!ValidateCopyTexImageFormats(mContext, funcName, srcFormat, dstFormat))
         return;
+
+    const GLint zOffset = 0;
+    if (!CheckForCopyTexImageFeedback(funcName, mContext, this, target, level, dstFormat,
+                                      zOffset))
+    {
+        return;
+    }
 
     ////////////////////////////////////
     // Do the thing!
@@ -1900,6 +1947,12 @@ WebGLTexture::CopyTexSubImage(const char* funcName, TexImageTarget target, GLint
 
     if (!ValidateCopyTexImageFormats(mContext, funcName, srcFormat, dstFormat))
         return;
+
+    if (!CheckForCopyTexImageFeedback(funcName, mContext, this, target, level, dstFormat,
+                                      zOffset))
+    {
+        return;
+    }
 
     ////////////////////////////////////
     // Do the thing!

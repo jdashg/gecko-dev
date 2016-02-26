@@ -199,18 +199,13 @@ WebGLContext::Draw_check(const char* funcName)
 
     // Check for sampling+render-to-texture (rtt) feedback loops.
     if (mBoundDrawFramebuffer) {
-        MOZ_ASSERT(mBoundDrawFramebuffer->mIsKnownFBComplete);
-        const auto& rttSet = mBoundDrawFramebuffer->mCached_AttachedTextures;
-
-        const auto rttSetEnd = rttSet.cend();
-
         for (const auto& sampler : mActiveProgramLinkInfo->activeSamplerUniforms) {
             MOZ_ASSERT(sampler->mTexArrayForUniformSampler);
             const auto& texArrayForCurSampler = *(sampler->mTexArrayForUniformSampler);
 
             for (const auto& texIndex : sampler->mUniformSamplerValue) {
                 const auto& tex = texArrayForCurSampler[texIndex];
-                if (rttSet.find(tex.get()) != rttSetEnd) {
+                if (mBoundDrawFramebuffer->IsTextureAttached(tex.get())) {
                     ErrorInvalidOperation("%s: Feedback loop detected: A sampled texture"
                                           " is also attached to draw framebuffer.",
                                           funcName);

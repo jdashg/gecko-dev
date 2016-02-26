@@ -202,6 +202,12 @@ class WebGLContext
     friend class WebGLExtensionVertexArray;
     friend class WebGLMemoryTracker;
 
+    friend bool CheckForCopyTexImageFeedback(const char* funcName, WebGLContext* webgl,
+                                             const WebGLTexture* dstTex,
+                                             TexImageTarget dstTarget, GLint dstLevel,
+                                             const webgl::FormatInfo* dstFormat,
+                                             GLint dstZOffset);
+
     enum {
         UNPACK_FLIP_Y_WEBGL = 0x9240,
         UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241,

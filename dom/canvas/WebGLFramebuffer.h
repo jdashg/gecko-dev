@@ -169,6 +169,12 @@ class WebGLFramebuffer final
 {
     friend class WebGLContext;
 
+    friend bool CheckForCopyTexImageFeedback(const char* funcName, WebGLContext* webgl,
+                                             const WebGLTexture* dstTex,
+                                             TexImageTarget dstTarget, GLint dstLevel,
+                                             const webgl::FormatInfo* dstFormat,
+                                             GLint dstZOffset);
+
 public:
     MOZ_DECLARE_WEAKREFERENCE_TYPENAME(WebGLFramebuffer)
 
@@ -176,7 +182,7 @@ public:
 
 private:
     mutable bool mIsKnownFBComplete;
-    mutable std::set<const WebGLTexture*> mCached_AttachedTextures;
+    mutable std::vector<const WebGLFBAttachPoint*> mCached_TextureAttachments;
 
     GLenum mReadBufferMode;
 
@@ -257,6 +263,8 @@ public:
     void SetReadBufferMode(GLenum readBufferMode) {
         mReadBufferMode = readBufferMode;
     }
+
+    bool IsTextureAttached(const WebGLTexture* tex) const;
 
 protected:
     WebGLFBAttachPoint* GetAttachPoint(GLenum attachment); // Fallible

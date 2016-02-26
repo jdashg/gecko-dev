@@ -946,9 +946,8 @@ WebGLFramebuffer::CheckFramebufferStatus(nsCString* const out_info) const
         mIsKnownFBComplete = true;
 
         // Cache anything that only invalidates on FB completeness changes.
-        auto& attachedTextures = mCached_AttachedTextures;
-        attachedTextures.clear();
-        const auto fnAddIfTexture = [&attachedTextures](const WebGLFBAttachPoint& attach)
+        mCached_TextureAttachments.clear();
+        const auto fnAddIfTexture = [this](const WebGLFBAttachPoint& attach)
         {
             if (!attach.HasImage())
                 return;
@@ -956,7 +955,7 @@ WebGLFramebuffer::CheckFramebufferStatus(nsCString* const out_info) const
             if (!attach.Texture())
                 return;
 
-            attachedTextures.insert(attach.Texture());
+            this->mCached_TextureAttachments.push_back(&attach);
         };
 
         fnAddIfTexture(mColorAttachment0);
@@ -971,6 +970,17 @@ WebGLFramebuffer::CheckFramebufferStatus(nsCString* const out_info) const
     }
 
     return ret;
+}
+
+bool
+WebGLFramebuffer::IsTextureAttached(const WebGLTexture* tex) const
+{
+    MOZ_ASSERT(mIsKnownFBComplete);
+    for (const auto& cur : mCached_TextureAttachments) {
+        if (cur->Texture() == tex)
+            return true;
+    }
+    return false;
 }
 
 bool
