@@ -231,7 +231,13 @@ WebGL2Context::GetBufferSubDataT(GLenum target, GLintptr offset, const BufferT& 
                                     LOCAL_GL_MAP_READ_BIT);
     // Warning: Possibly shared memory.  See bug 1225033.
     memcpy(data.DataAllowShared(), ptr, data.LengthAllowShared());
+    if (data.LengthAllowShared() > 8) {
+        uint8_t arr[8];
+        memcpy(arr, ptr, 8);
+        memcpy(arr, data.DataAllowShared(), 8);
+    }
     gl->fUnmapBuffer(target);
+
 
     if (target == LOCAL_GL_TRANSFORM_FEEDBACK_BUFFER && currentTF) {
         BindTransformFeedback(LOCAL_GL_TRANSFORM_FEEDBACK, currentTF);

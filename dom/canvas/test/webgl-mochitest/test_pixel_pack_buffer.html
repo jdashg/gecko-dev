@@ -24,19 +24,19 @@ function DrawColors(gl) {
   // +---+
 
   gl.scissor(0, 0, 1, 1);
-  fnClearColor(gl, RED);
+  fnClearColor(RED);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   gl.scissor(1, 0, 1, 1);
-  fnClearColor(gl, BLUE);
+  fnClearColor(BLUE);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   gl.scissor(0, 1, 1, 1);
-  fnClearColor(gl, GREEN);
+  fnClearColor(GREEN);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   gl.scissor(1, 1, 1, 1);
-  fnClearColor(gl, WHITE);
+  fnClearColor(WHITE);
   gl.clear(gl.COLOR_BUFFER_BIT);
 }
 
@@ -94,11 +94,14 @@ var gl;
 
 (function() {
   var canvas = document.createElement('canvas');
+  document.body.appendChild(canvas);
   canvas.width = 2;
   canvas.height = 2;
+  canvas.style = 'width: 256px; height: 256px; border: 1px solid black;';
 
   var attribs = {
     antialias: false,
+    alpha: false,
   };
   gl = canvas.getContext('webgl2', attribs);
   if (!gl) {
@@ -106,13 +109,46 @@ var gl;
     return;
   }
 
+  ////////
+
+  TestIsUNormColor(RED, new Uint8Array([255, 0, 0, 255]), 0);
+
+  ////////
+
+  gl.clearColor(RED[0], RED[1], RED[2], RED[3]);
+  gl.clearColor(1.0, 0.0, 0.0, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  var data = new Uint8Array(16);
+  gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  console.log(JSON.stringify(data));
+  TestIsUNormColor(RED, data, 0);
+
+  return;
+
+  ////////
+
   DrawColors(gl);
+
+  ////////
+
+  var data = new Uint8Array(16);
+  gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  TestIsUNormColor(RED, data, 0);
+  TestIsUNormColor(BLUE, data, 4);
+  TestIsUNormColor(GREEN, data, 8);
+  TestIsUNormColor(WHITE, data, 12);
+
+  return;
+
+  ////////
 
   var a = gl.createBuffer();
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, a);
-  var data;
 
   TestError(gl, 0, 'after setup');
+
+  ////////
 
   // Basic
   section('Basic readback');
@@ -120,7 +156,7 @@ var gl;
   TestError(gl, 0);
   gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, 0);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
   TestError(gl, 0);
   TestIsUNormColor(RED, data, 0);
   TestIsUNormColor(BLUE, data, 4);
@@ -131,7 +167,7 @@ var gl;
   data = ClearBufferPair(gl, 4);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
   TestError(gl, 0);
   TestIsUNormColor(WHITE, data, 0);
   TestIsUNormColor(ZERO, data, 4);
@@ -140,7 +176,7 @@ var gl;
   data = ClearBufferPair(gl, 16);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 4);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(WHITE, data, 4);
   TestIsUNormColor(ZERO, data, 8);
@@ -149,7 +185,7 @@ var gl;
   section('ReadPixels offset:5');
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 5);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
   TestError(gl, 0);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(WHITE, data, 4); // Should remain from previous read.
@@ -160,7 +196,7 @@ var gl;
   section('GetBufferSubData src too small');
   data = ClearBufferPair(gl, 16);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data.buffer);
   TestError(gl, gl.INVALID_OPERATION);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(ZERO, data, 4);
@@ -171,7 +207,7 @@ var gl;
   data = new Uint8Array(15);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 8);
   TestError(gl, 0);
-  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data);
+  gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data.buffer);
   TestError(gl, 0);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(ZERO, data, 3);
