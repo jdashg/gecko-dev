@@ -18,6 +18,8 @@ function DrawColors(gl) {
     gl.clearColor(color[0], color[1], color[2], color[3]);
   };
 
+  gl.enable(gl.SCISSOR_TEST);
+
   // +---+
   // |G W|
   // |R B|
@@ -124,8 +126,6 @@ var gl;
   console.log(JSON.stringify(data));
   TestIsUNormColor(RED, data, 0);
 
-  return;
-
   ////////
 
   DrawColors(gl);
@@ -138,8 +138,6 @@ var gl;
   TestIsUNormColor(BLUE, data, 4);
   TestIsUNormColor(GREEN, data, 8);
   TestIsUNormColor(WHITE, data, 12);
-
-  return;
 
   ////////
 
@@ -162,6 +160,8 @@ var gl;
   TestIsUNormColor(BLUE, data, 4);
   TestIsUNormColor(GREEN, data, 8);
   TestIsUNormColor(WHITE, data, 12);
+
+  return;
 
   section('Subrect readback');
   data = ClearBufferPair(gl, 4);
