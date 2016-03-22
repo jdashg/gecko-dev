@@ -58,6 +58,13 @@ public:
     void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
                     GLenum type, GLintptr offset, ErrorResult& out_error);
 
+    void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height,
+                    GLenum format, GLenum type,
+                    const dom::Nullable<dom::ArrayBufferView>& pixels,
+                    ErrorResult& out_error)
+    {
+        WebGLContext::ReadPixels(x, y, width, height, format, type, pixels, out_error);
+    }
 
     // -------------------------------------------------------------------------
     // Framebuffer objects - WebGL2ContextFramebuffers.cpp
