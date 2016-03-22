@@ -1,11 +1,11 @@
 <!DOCTYPE HTML>
 <html>
-<head>
-<script src='/tests/SimpleTest/SimpleTest.js'></script>
-<link rel='stylesheet' href='/tests/SimpleTest/test.css'>
-</head>
-<body>
-<script>
+  <head>
+    <script src='/tests/SimpleTest/SimpleTest.js'></script>
+    <link rel='stylesheet' href='/tests/SimpleTest/test.css'>
+  </head>
+  <body>
+    <script>
 
 var RED   = [1, 0, 0, 1];
 var GREEN = [0, 1, 0, 1];
@@ -96,10 +96,10 @@ var gl;
 
 (function() {
   var canvas = document.createElement('canvas');
-  document.body.appendChild(canvas);
   canvas.width = 2;
   canvas.height = 2;
   canvas.style = 'width: 256px; height: 256px; border: 1px solid black;';
+  document.body.appendChild(canvas);
 
   var attribs = {
     antialias: false,
@@ -161,10 +161,8 @@ var gl;
   TestIsUNormColor(GREEN, data, 8);
   TestIsUNormColor(WHITE, data, 12);
 
-  return;
-
   section('Subrect readback');
-  data = ClearBufferPair(gl, 4);
+  data = ClearBufferPair(gl, 8);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
   TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
@@ -197,7 +195,7 @@ var gl;
   data = ClearBufferPair(gl, 16);
   TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data.buffer);
-  TestError(gl, gl.INVALID_OPERATION);
+  TestError(gl, gl.INVALID_VALUE);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(ZERO, data, 4);
   TestIsUNormColor(ZERO, data, 8);
@@ -215,6 +213,6 @@ var gl;
   TestIsUNormColor(ZERO, data, 11);
 })();
 
-</script>
-</body>
+    </script>
+  </body>
 </html>
