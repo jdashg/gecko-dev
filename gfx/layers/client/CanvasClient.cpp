@@ -286,7 +286,7 @@ TexClientFromReadback(SharedSurface* src, ISurfaceAllocator* allocator,
 
     MOZ_ASSERT(texClient);
     if (!texClient)
-        return nullptr;
+      return nullptr;
 
     // With a texClient, we can lock for writing.
     TextureClientAutoLock autoLock(texClient, OpenMode::OPEN_WRITE);
@@ -301,7 +301,7 @@ TexClientFromReadback(SharedSurface* src, ISurfaceAllocator* allocator,
     auto height = src->mSize.height;
 
     {
-      ScopedPackAlignment autoAlign(gl, 4);
+      ScopedPackState scopedPackState(gl);
 
       MOZ_ASSERT(mapped.stride/4 == mapped.size.width);
       gl->raw_fReadPixels(0, 0, width, height, readFormat, readType, mapped.data);
