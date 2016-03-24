@@ -1632,6 +1632,11 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
     if (!ReadPixels_SharedPrecheck(&out_error))
         return;
 
+    if (mBoundPixelPackBuffer) {
+        ErrorInvalidOperation("readPixels: PIXEL_PACK_BUFFER must be null.");
+        return;
+    }
+
     if (pixels.IsNull()) {
         ErrorInvalidValue("readPixels: null destination buffer");
         return;
@@ -1756,13 +1761,13 @@ WebGL2Context::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenu
     if (!ReadPixels_SharedPrecheck(&out_error))
         return;
 
-    if (offset < 0) {
-        ErrorInvalidValue("readPixels: offset must not be negative.");
+    if (!mBoundPixelPackBuffer) {
+        ErrorInvalidOperation("readPixels: PIXEL_PACK_BUFFER must not be null.");
         return;
     }
 
-    if (!mBoundPixelPackBuffer) {
-        ErrorInvalidOperation("readPixels: PIXEL_PACK_BUFFER must not be null.");
+    if (offset < 0) {
+        ErrorInvalidValue("readPixels: offset must not be negative.");
         return;
     }
 

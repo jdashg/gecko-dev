@@ -1,6 +1,7 @@
 <!DOCTYPE HTML>
 <html>
   <head>
+    <meta charset='utf-8'>
     <script src='/tests/SimpleTest/SimpleTest.js'></script>
     <link rel='stylesheet' href='/tests/SimpleTest/test.css'>
   </head>
@@ -14,8 +15,9 @@ var WHITE = [1, 1, 1, 1];
 var ZERO  = [0, 0, 0, 0];
 
 function DrawColors(gl) {
-  var fnClearColor = function(color) {
+  var fnClearToColor = function(color) {
     gl.clearColor(color[0], color[1], color[2], color[3]);
+    gl.clear(gl.COLOR_BUFFER_BIT);
   };
 
   gl.enable(gl.SCISSOR_TEST);
@@ -26,20 +28,16 @@ function DrawColors(gl) {
   // +---+
 
   gl.scissor(0, 0, 1, 1);
-  fnClearColor(RED);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  fnClearToColor(RED);
 
   gl.scissor(1, 0, 1, 1);
-  fnClearColor(BLUE);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  fnClearToColor(BLUE);
 
   gl.scissor(0, 1, 1, 1);
-  fnClearColor(GREEN);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  fnClearToColor(GREEN);
 
   gl.scissor(1, 1, 1, 1);
-  fnClearColor(WHITE);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+  fnClearToColor(WHITE);
 }
 
 function ClearBufferPair(gl, byteCount) {
@@ -80,21 +78,50 @@ function section(text) {
   ok(true, 'Section: ' + text);
 }
 
+function EnsureNoError(gl) {
+  var glErr = gl.getError();
+  while (gl.getError()) {}
+
+  if (!glErr)
+    return;
+
+  var extraInfo = '';
+
+  var err = new Error();
+  var stackStr = err.stack;
+  if (stackStr !== undefined) {
+    var stackArr = stackStr.split('\n');
+    stackStr = stackArr[1]; // First one after present scope.
+    extraInfo = ': ' + stackStr;
+  }
+
+  ok(false, 'Unexpected GL error: 0x' + glErr.toString(16) + extraInfo);
+}
+
 function TestError(gl, refErrVal, str='') {
-  if (str != '') {
-    str += ': ';
+  if (str == '') {
+    str = 'gl.getError()';
+  } else {
+    str = str + ': gl.getError()';
   }
 
   var err = gl.getError();
   while (gl.getError()) {}
-  ok(err == refErrVal,
-     str + 'Expected error 0x' + refErrVal.toString(16) + ', was 0x' + err.toString(16) +
-     '.');
+
+  ShouldBe(err.toString(16), refErrVal.toString(16), str);
+}
+
+function ShouldBe(val, ref, str='') {
+  if (str != '') {
+    str += ': ';
+  }
+
+  ok(val == ref, str + 'Should be `' + ref + '`, was `' + val + '`.');
 }
 
 var gl;
 
-(function() {
+function Test() {
   var canvas = document.createElement('canvas');
   canvas.width = 2;
   canvas.height = 2;
@@ -132,8 +159,13 @@ var gl;
 
   ////////
 
+  EnsureNoError(gl);
+  gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+  TestError(gl, gl.INVALID_OPERATION);
+
   var data = new Uint8Array(16);
   gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  EnsureNoError(gl);
   TestIsUNormColor(RED, data, 0);
   TestIsUNormColor(BLUE, data, 4);
   TestIsUNormColor(GREEN, data, 8);
@@ -143,19 +175,21 @@ var gl;
 
   var a = gl.createBuffer();
   gl.bindBuffer(gl.PIXEL_PACK_BUFFER, a);
+  EnsureNoError(gl);
 
-  TestError(gl, 0, 'after setup');
+  gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  TestError(gl, gl.INVALID_OPERATION);
 
   ////////
 
   // Basic
   section('Basic readback');
   data = ClearBufferPair(gl, 16);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   gl.readPixels(0, 0, 2, 2, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   TestIsUNormColor(RED, data, 0);
   TestIsUNormColor(BLUE, data, 4);
   TestIsUNormColor(GREEN, data, 8);
@@ -164,17 +198,16 @@ var gl;
   section('Subrect readback');
   data = ClearBufferPair(gl, 8);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
-  TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   TestIsUNormColor(WHITE, data, 0);
   TestIsUNormColor(ZERO, data, 4);
 
   section('ReadPixels offset:4');
   data = ClearBufferPair(gl, 16);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 4);
-  TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
+  EnsureNoError(gl);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(WHITE, data, 4);
   TestIsUNormColor(ZERO, data, 8);
@@ -182,9 +215,8 @@ var gl;
 
   section('ReadPixels offset:5');
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 5);
-  TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, data.buffer);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(WHITE, data, 4); // Should remain from previous read.
   TestIsUNormColor(WHITE, data, 5);
@@ -193,7 +225,7 @@ var gl;
 
   section('GetBufferSubData src too small');
   data = ClearBufferPair(gl, 16);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data.buffer);
   TestError(gl, gl.INVALID_VALUE);
   TestIsUNormColor(ZERO, data, 0);
@@ -204,14 +236,46 @@ var gl;
   section('GetBufferSubData offset:1');
   data = new Uint8Array(15);
   gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 8);
-  TestError(gl, 0);
   gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 1, data.buffer);
-  TestError(gl, 0);
+  EnsureNoError(gl);
   TestIsUNormColor(ZERO, data, 0);
   TestIsUNormColor(ZERO, data, 3);
   TestIsUNormColor(WHITE, data, 7);
   TestIsUNormColor(ZERO, data, 11);
-})();
+
+  //////////////////////////////////////
+
+  section('Test packing state');
+  EnsureNoError(gl);
+
+  function TestPackState(enumStr, initialVal, changedVal) {
+    var enumVal = gl[enumStr];
+
+    ShouldBe(gl.getParameter(enumVal), initialVal, 'Initial ' + enumStr);
+    gl.pixelStorei(enumVal, changedVal);
+    ShouldBe(gl.getParameter(enumVal), changedVal, 'Changed ' + enumStr);
+    gl.pixelStorei(enumVal, initialVal);
+    ShouldBe(gl.getParameter(enumVal), initialVal, 'Reverted ' + enumStr);
+    EnsureNoError(gl);
+  }
+
+  TestPackState('PACK_ALIGNMENT', 4, 1);
+  TestPackState('PACK_ROW_LENGTH', 0, 16);
+  TestPackState('PACK_SKIP_PIXELS', 0, 3);
+  TestPackState('PACK_SKIP_ROWS', 0, 3);
+}
+
+try {
+  var prefArrArr = [
+    ['webgl.force-enabled', true],
+    ['webgl.disable-angle', true],
+  ];
+  var prefEnv = {'set': prefArrArr};
+  SpecialPowers.pushPrefEnv(prefEnv, Test);
+} catch (e) {
+  todo(false, 'No SpecialPowers, but trying anyway...');
+  Test();
+}
 
     </script>
   </body>
