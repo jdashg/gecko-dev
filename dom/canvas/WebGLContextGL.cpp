@@ -1302,92 +1302,6 @@ WebGLContext::DoReadPixelsAndConvert(const webgl::FormatInfo* srcFormat, GLint x
     gl->fReadPixels(x, y, width, height, format, destType, destBytesOrOffset);
     return true;
 }
-/*
-static bool
-IsFormatAndTypeUnpackable(GLenum format, GLenum type, bool isWebGL2)
-{
-    switch (type) {
-    case LOCAL_GL_UNSIGNED_BYTE:
-        switch (format) {
-        case LOCAL_GL_LUMINANCE:
-        case LOCAL_GL_LUMINANCE_ALPHA:
-            return isWebGL2;
-        case LOCAL_GL_ALPHA:
-        case LOCAL_GL_RED:
-        case LOCAL_GL_RED_INTEGER:
-        case LOCAL_GL_RG:
-        case LOCAL_GL_RG_INTEGER:
-        case LOCAL_GL_RGB:
-        case LOCAL_GL_RGB_INTEGER:
-        case LOCAL_GL_RGBA:
-        case LOCAL_GL_RGBA_INTEGER:
-            return true;
-        default:
-            return false;
-        }
-
-    case LOCAL_GL_BYTE:
-        switch (format) {
-        case LOCAL_GL_RED:
-        case LOCAL_GL_RED_INTEGER:
-        case LOCAL_GL_RG:
-        case LOCAL_GL_RG_INTEGER:
-        case LOCAL_GL_RGB:
-        case LOCAL_GL_RGB_INTEGER:
-        case LOCAL_GL_RGBA:
-        case LOCAL_GL_RGBA_INTEGER:
-            return true;
-        default:
-            return false;
-        }
-
-    case LOCAL_GL_FLOAT:
-    case LOCAL_GL_HALF_FLOAT:
-    case LOCAL_GL_HALF_FLOAT_OES:
-        switch (format) {
-        case LOCAL_GL_RED:
-        case LOCAL_GL_RG:
-        case LOCAL_GL_RGB:
-        case LOCAL_GL_RGBA:
-            return true;
-
-        default:
-            return false;
-        }
-
-    case LOCAL_GL_UNSIGNED_SHORT:
-    case LOCAL_GL_SHORT:
-    case LOCAL_GL_UNSIGNED_INT:
-    case LOCAL_GL_INT:
-        switch (format) {
-        case LOCAL_GL_RED_INTEGER:
-        case LOCAL_GL_RG_INTEGER:
-        case LOCAL_GL_RGB_INTEGER:
-        case LOCAL_GL_RGBA_INTEGER:
-            return true;
-
-        default:
-            return false;
-        }
-
-    case LOCAL_GL_UNSIGNED_INT_2_10_10_10_REV:
-        return format == LOCAL_GL_RGBA ||
-               format == LOCAL_GL_RGBA_INTEGER;
-
-    case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-    case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-        return format == LOCAL_GL_RGBA;
-
-    case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-    case LOCAL_GL_UNSIGNED_INT_10F_11F_11F_REV:
-    case LOCAL_GL_UNSIGNED_INT_5_9_9_9_REV:
-        return format == LOCAL_GL_RGB;
-
-    default:
-        return false;
-    }
-}
-*/
 
 CheckedUint32
 WebGLContext::GetPackSize(uint32_t width, uint32_t height, uint8_t bytesPerPixel,
@@ -1575,12 +1489,14 @@ WebGLContext::ValidateReadPixels(GLint x, GLint y, GLsizei rawWidth, GLsizei raw
 
     const uint32_t width = uint32_t(rawWidth);
     const uint32_t height = uint32_t(rawHeight);
-/*
-    if (!IsFormatAndTypeUnpackable(format, type)) {
+
+    // So yeah, we are actually checking that these are valid as /unpack/ formats, instead
+    // of /pack/ formats here, but it should cover the INVALID_ENUM cases.
+    if (!mFormatUsage->AreUnpackEnumsValid(packFormat, packType)) {
         ErrorInvalidEnum("readPixels: Bad format or type.");
         return false;
     }
-*/
+
     const webgl::PackingInfo pi = {packFormat, packType};
     uint8_t bytesPerPixel;
     if (!webgl::GetBytesPerPixel(pi, &bytesPerPixel)) {

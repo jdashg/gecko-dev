@@ -1,7 +1,7 @@
 <!DOCTYPE HTML>
 <html>
   <head>
-    <meta charset='utf-8'>
+    <meta charset='UTF-8'>
     <script src='/tests/SimpleTest/SimpleTest.js'></script>
     <link rel='stylesheet' href='/tests/SimpleTest/test.css'>
   </head>
@@ -263,7 +263,11 @@ function Test() {
   TestPackState('PACK_ROW_LENGTH', 0, 16);
   TestPackState('PACK_SKIP_PIXELS', 0, 3);
   TestPackState('PACK_SKIP_ROWS', 0, 3);
+
+  SimpleTest.finish();
 }
+
+SimpleTest.waitForExplicitFinish();
 
 try {
   var prefArrArr = [
