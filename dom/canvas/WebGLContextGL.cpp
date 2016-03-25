@@ -1682,7 +1682,7 @@ WebGLContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum
         return;
     }
 
-    if (rwWidth == width && rwHeight == height) {
+    if (rwWidth == uint32_t(width) && rwHeight == uint32_t(height)) {
         // Warning: Possibly shared memory.  See bug 1225033.
         DoReadPixelsAndConvert(srcFormat, x, y, width, height, format, type, data);
         return;
