@@ -169,11 +169,13 @@ class WebGLFramebuffer final
 {
     friend class WebGLContext;
 
-    friend bool CheckForCopyTexImageFeedback(const char* funcName, WebGLContext* webgl,
-                                             const WebGLTexture* dstTex,
-                                             TexImageTarget dstTarget, GLint dstLevel,
-                                             const webgl::FormatInfo* dstFormat,
-                                             GLint dstZOffset);
+    friend static bool CheckForCopyTexImageFeedback(const char* funcName,
+                                                    WebGLContext* webgl,
+                                                    const WebGLTexture* dstTex,
+                                                    TexImageTarget dstTarget,
+                                                    GLint dstLevel,
+                                                    const webgl::FormatInfo* dstFormat,
+                                                    GLint dstZOffset);
 
 public:
     MOZ_DECLARE_WEAKREFERENCE_TYPENAME(WebGLFramebuffer)

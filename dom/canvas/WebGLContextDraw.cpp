@@ -233,12 +233,8 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
     }
 
     // If count is 0, there's nothing to do.
-    if (count == 0 || primcount == 0) {
+    if (count == 0 || primcount == 0)
         return false;
-    }
-
-    if (!Draw_check(info))
-      return false;
 
     CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
 
@@ -246,6 +242,12 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         ErrorInvalidOperation("%s: overflow in first+count", info);
         return false;
     }
+
+    ////////////////
+    // We need mMaxFetchedVertices now. (via Draw_check)
+
+    if (!Draw_check(info))
+        return false;
 
     if (uint32_t(checked_firstPlusCount.value()) > mMaxFetchedVertices) {
         ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient size for given first and count", info);
@@ -405,11 +407,16 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
+    ////////////////
+    // We need mMaxFetchedVertices now. (via Draw_check)
+
+    if (!Draw_check(info))
+        return false;
+
     if (!mMaxFetchedVertices ||
         !elemArrayBuffer.Validate(type, mMaxFetchedVertices - 1, first, count, out_upperBound))
     {
-        ErrorInvalidOperation(
-                              "%s: bound vertex attribute buffers do not have sufficient "
+        ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient "
                               "size for given indices from the bound element array", info);
         return false;
     }
@@ -419,19 +426,15 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    // Bug 1008310 - Check if buffer has been used with a different previous type
-    if (elemArrayBuffer.IsElementArrayUsedWithMultipleTypes()) {
-        GenerateWarning("%s: bound element array buffer previously used with a type other than "
-                        "%s, this will affect performance.",
-                        info,
-                        WebGLContext::EnumName(type));
-    }
-
-    if (!Draw_check(info))
-        return false;
-
     if (!DoFakeVertexAttrib0(mMaxFetchedVertices))
         return false;
+
+    // Bug 1008310 - Check if buffer has been used with a different previous type
+    if (elemArrayBuffer.IsElementArrayUsedWithMultipleTypes()) {
+        GenerateWarning("%s: Bound element array buffer previously used with a type other"
+                        " than %s, which will affect performance.",
+                        info, WebGLContext::EnumName(type));
+    }
 
     return true;
 }
