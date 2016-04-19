@@ -227,22 +227,24 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
-
-    if (!checked_firstPlusCount.isValid()) {
-        ErrorInvalidOperation("%s: overflow in first+count", info);
-        return false;
-    }
-
     ////////////////
     // We need mMaxFetchedVertices now. (via Draw_check)
 
     if (!Draw_check(info))
         return false;
 
-    if (uint32_t(checked_firstPlusCount.value()) > mMaxFetchedVertices) {
-        ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient size for given first and count", info);
-        return false;
+    if (count) {
+        CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
+
+        if (!checked_firstPlusCount.isValid()) {
+            ErrorInvalidOperation("%s: overflow in first+count", info);
+            return false;
+        }
+
+        if (uint32_t(checked_firstPlusCount.value()) > mMaxFetchedVertices) {
+            ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient size for given first and count", info);
+            return false;
+        }
     }
 
     if (primcount) {
@@ -259,7 +261,7 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         }
     }
 
-    if (!DoFakeVertexAttrib0(checked_firstPlusCount.value()))
+    if (!DoFakeVertexAttrib0(mMaxFetchedVertices))
         return false;
 
     return true;
@@ -288,7 +290,7 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
 
     RunContextLossTimer();
 
-    {
+    if (count) {
         ScopedMaskWorkaround autoMask(*this);
         gl->fDrawArrays(mode, first, count);
     }
@@ -321,7 +323,7 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
 
     RunContextLossTimer();
 
-    {
+    if (count) {
         ScopedMaskWorkaround autoMask(*this);
         gl->fDrawArraysInstanced(mode, first, count, primcount);
     }
@@ -367,6 +369,12 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
+    ////////////////
+    // We need mMaxFetchedVertices now. (via Draw_check)
+
+    if (!Draw_check(info))
+        return false;
+
     const GLsizei first = byteOffset / bytesPerElem;
     const CheckedUint32 checked_byteCount = bytesPerElem * CheckedUint32(count);
 
@@ -382,35 +390,36 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
 
     WebGLBuffer& elemArrayBuffer = *mBoundVertexArray->mElementArrayBuffer;
 
-    if (!elemArrayBuffer.ByteLength()) {
-        ErrorInvalidOperation("%s: bound element array buffer doesn't have any data", info);
-        return false;
-    }
+    if (count) {
+        if (!elemArrayBuffer.ByteLength()) {
+            ErrorInvalidOperation("%s: bound element array buffer doesn't have any data",
+                                  info);
+            return false;
+        }
 
-    CheckedInt<GLsizei> checked_neededByteCount = checked_byteCount.toChecked<GLsizei>() + byteOffset;
+        CheckedInt<GLsizei> checked_neededByteCount = checked_byteCount.toChecked<GLsizei>() + byteOffset;
 
-    if (!checked_neededByteCount.isValid()) {
-        ErrorInvalidOperation("%s: overflow in byteOffset+byteCount", info);
-        return false;
-    }
+        if (!checked_neededByteCount.isValid()) {
+            ErrorInvalidOperation("%s: overflow in byteOffset+byteCount", info);
+            return false;
+        }
 
-    if (uint32_t(checked_neededByteCount.value()) > elemArrayBuffer.ByteLength()) {
-        ErrorInvalidOperation("%s: bound element array buffer is too small for given count and offset", info);
-        return false;
-    }
+        if (uint32_t(checked_neededByteCount.value()) > elemArrayBuffer.ByteLength()) {
+            ErrorInvalidOperation("%s: bound element array buffer is too small for given"
+                                  " count and offset", info);
+            return false;
+        }
 
-    ////////////////
-    // We need mMaxFetchedVertices now. (via Draw_check)
-
-    if (!Draw_check(info))
-        return false;
-
-    if (!mMaxFetchedVertices ||
-        !elemArrayBuffer.Validate(type, mMaxFetchedVertices - 1, first, count, out_upperBound))
-    {
-        ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient "
-                              "size for given indices from the bound element array", info);
-        return false;
+        if (!mMaxFetchedVertices ||
+            !elemArrayBuffer.Validate(type, mMaxFetchedVertices - 1, first, count,
+                                      out_upperBound))
+        {
+            ErrorInvalidOperation("%s: bound vertex attribute buffers do not have"
+                                  " sufficient size for given indices from the bound"
+                                  " element array",
+                                  info);
+            return false;
+        }
     }
 
     if (primcount) {
@@ -468,7 +477,7 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
 
     RunContextLossTimer();
 
-    {
+    if (count) {
         ScopedMaskWorkaround autoMask(*this);
 
         if (gl->IsSupported(gl::GLFeature::draw_range_elements)) {
@@ -510,7 +519,7 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
 
     RunContextLossTimer();
 
-    {
+    if (count) {
         ScopedMaskWorkaround autoMask(*this);
         gl->fDrawElementsInstanced(mode, count, type,
                                    reinterpret_cast<GLvoid*>(byteOffset),
