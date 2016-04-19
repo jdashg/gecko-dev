@@ -1,1 +1,1 @@
-. mozconfig.vs2015
+. $topsrcdir/build/win64/mozconfig.vs2015
