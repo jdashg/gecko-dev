@@ -227,15 +227,6 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    if (primcount < 0) {
-        ErrorInvalidValue("%s: negative primcount", info);
-        return false;
-    }
-
-    // If count is 0, there's nothing to do.
-    if (count == 0 || primcount == 0)
-        return false;
-
     CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
 
     if (!checked_firstPlusCount.isValid()) {
@@ -254,9 +245,18 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         return false;
     }
 
-    if (uint32_t(primcount) > mMaxFetchedInstances) {
-        ErrorInvalidOperation("%s: bound instance attribute buffers do not have sufficient size for given primcount", info);
-        return false;
+    if (primcount) {
+        if (primcount < 0) {
+            ErrorInvalidValue("%s: Negative primcount.", info);
+            return false;
+        }
+
+        if (uint32_t(primcount) > mMaxFetchedInstances) {
+            ErrorInvalidOperation("%s: Bound instance attribute buffers do not have"
+                                  " sufficient size for given primcount.",
+                                  info);
+            return false;
+        }
     }
 
     if (!DoFakeVertexAttrib0(checked_firstPlusCount.value()))
@@ -282,7 +282,8 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
     if (error)
         return;
 
-    if (!DrawArrays_check(first, count, 1, funcName))
+    const GLsizei dummyPrimCount = 0;
+    if (!DrawArrays_check(first, count, dummyPrimCount, funcName))
         return;
 
     RunContextLossTimer();
@@ -337,15 +338,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         ErrorInvalidValue("%s: negative count or offset", info);
         return false;
     }
-
-    if (primcount < 0) {
-        ErrorInvalidValue("%s: negative primcount", info);
-        return false;
-    }
-
-    // If count is 0, there's nothing to do.
-    if (count == 0 || primcount == 0)
-        return false;
 
     uint8_t bytesPerElem = 0;
     switch (type) {
@@ -421,9 +413,18 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
         return false;
     }
 
-    if (uint32_t(primcount) > mMaxFetchedInstances) {
-        ErrorInvalidOperation("%s: bound instance attribute buffers do not have sufficient size for given primcount", info);
-        return false;
+    if (primcount) {
+        if (primcount < 0) {
+            ErrorInvalidValue("%s: Negative primcount.", info);
+            return false;
+        }
+
+        if (uint32_t(primcount) > mMaxFetchedInstances) {
+            ErrorInvalidOperation("%s: Bound instance attribute buffers do not have"
+                                  " sufficient size for given primcount.",
+                                  info);
+            return false;
+        }
     }
 
     if (!DoFakeVertexAttrib0(mMaxFetchedVertices))
@@ -457,9 +458,13 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
     if (error)
         return;
 
+    const GLsizei dummyPrimCount = 0;
     GLuint upperBound = 0;
-    if (!DrawElements_check(count, type, byteOffset, 1, funcName, &upperBound))
+    if (!DrawElements_check(count, type, byteOffset, dummyPrimCount, funcName,
+                            &upperBound))
+    {
         return;
+    }
 
     RunContextLossTimer();
 
@@ -712,6 +717,10 @@ WebGLContext::DoFakeVertexAttrib0(GLuint vertexCount)
     }
 
     GLuint dataSize = checked_dataSize.value();
+    if (!dataSize) {
+        // Don't create a zero-length buffer.
+        dataSize = 1;
+    }
 
     if (!mFakeVertexAttrib0BufferObject) {
         gl->fGenBuffers(1, &mFakeVertexAttrib0BufferObject);
