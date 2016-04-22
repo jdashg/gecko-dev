@@ -1692,7 +1692,7 @@ ScopedCopyTexImageSource::~ScopedCopyTexImageSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool
+bool
 CheckForCopyTexImageFeedback(const char* funcName, WebGLContext* webgl,
                              const WebGLTexture* dstTex, TexImageTarget dstTarget,
                              GLint dstLevel, const webgl::FormatInfo* dstFormat,
