@@ -57,6 +57,55 @@ enum class CreateContextFlags : int8_t {
 };
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(CreateContextFlags)
 
+////////////////////////////////////////
+
+void SplitByChar(const nsACString& str, const char delim,
+                 std::vector<nsCString>* const out);
+
+template<typename EnumT>
+class SupportedSet
+{
+    std::bitset<EnumT::Max> mBits;
+    const char* const* const mNames;
+
+public:
+    template<size_t N>
+    SupportedSet(const char* (&names)[N])
+        : mNames(names)
+    {
+        MOZ_STATIC_ASSERT(N == EnumT::Max);
+    }
+
+    ////////////////
+
+    void MarkSupported(EnumT id) {
+        mBits[id] = true;
+    }
+
+    void MarkUnsupported(EnumT id) {
+        mBits[id] = false;
+    }
+
+    bool IsSupported(EnumT id) const {
+        return mBits[id];
+    }
+
+    ////////////////
+
+    const char* Name(EnumT id) const {
+        return mNames[id];
+    }
+
+    void MarkByName(const nsACString& str) {
+        for (size_t i = 0; i < EnumT::Max; i++) {
+            if (str.Equals(mNames[i])) {
+                mBits[i] = true;
+                return;
+            }
+        }
+    }
+};
+
 } /* namespace gl */
 } /* namespace mozilla */
 

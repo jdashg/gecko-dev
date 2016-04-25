@@ -3639,9 +3639,6 @@ public:
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);
 
-void SplitByChar(const nsACString& str, const char delim,
-                 std::vector<nsCString>* const out);
-
 template<size_t N>
 bool
 MarkBitfieldByString(const nsACString& str, const char* const (&markStrList)[N],

@@ -218,6 +218,124 @@ GLLibraryEGL::ReadbackEGLImage(EGLImage image, gfx::DataSourceSurface* out_surfa
     return true;
 }
 
+/*static*/ UniquePtr<GLLibraryEGL>
+GLLibraryEGL::Create(PRLibrary* lib)
+{
+    UniquePtr<GLLibraryEGL> egl = new GLLibraryEGL;
+
+    if (!egl->Init())
+        return nullptr;
+
+
+    //////
+
+    egl->LoadExtensions(lib);
+
+    //////
+
+    return Move(egl);
+}
+
+template<typename FuncT>
+void
+SetSymbol(PRFuncPtr pfn, FuncT* const out)
+{
+    *out = (FuncT)pfn;
+}
+
+bool
+GLLibraryEGL::Init()
+{
+    //////
+
+    SetSymbol(GLLibraryLoader::LookupSymbol(lib, "eglGetProcAddress", nullptr),
+                &mSymbols.fGetProcAddress);
+
+    typedef GLLibraryLoader::PlatformLookupFunction plfT;
+    const plfT pfnGetProcAddress = (plfT)symbols.fGetProcAddress;
+
+    //////
+
+#define SYMBOL(name) { (PRFuncPtr*) &mSymbols.f##name, { "egl" #name, nullptr } }
+
+    const GLLibraryLoader::SymLoadStruct requiredSymbols[] = {
+        SYMBOL(GetDisplay),
+        SYMBOL(Terminate),
+        SYMBOL(GetCurrentSurface),
+        SYMBOL(GetCurrentContext),
+        SYMBOL(MakeCurrent),
+        SYMBOL(DestroyContext),
+        SYMBOL(CreateContext),
+        SYMBOL(DestroySurface),
+        SYMBOL(CreateWindowSurface),
+        SYMBOL(CreatePbufferSurface),
+        SYMBOL(CreatePixmapSurface),
+        SYMBOL(BindAPI),
+        SYMBOL(Initialize),
+        SYMBOL(ChooseConfig),
+        SYMBOL(GetError),
+        SYMBOL(GetConfigs),
+        SYMBOL(GetConfigAttrib),
+        SYMBOL(WaitNative),
+        SYMBOL(SwapBuffers),
+        SYMBOL(CopyBuffers),
+        SYMBOL(QueryString),
+        SYMBOL(QueryContext),
+        SYMBOL(BindTexImage),
+        SYMBOL(ReleaseTexImage),
+        SYMBOL(QuerySurface),
+        { nullptr, { nullptr } }
+    };
+
+#undef SYMBOL
+
+    if (!GLLibraryLoader::LoadSymbols(lib, requiredSymbols, pfnGetProcAddress)) {
+        NS_WARNING("Couldn't find required entry points in EGL library (early init)");
+        return false;
+    }
+
+    ////////////////
+
+    {
+        const char mangledName[] = "_Z35eglQueryStringImplementationANDROIDPvi";
+        SetSymbol(GLLibraryLoader::LookupSymbol(lib, mangledName, nullptr),
+                  &mSymbols.fQueryStringImplementationANDROID);
+    }
+
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 18
+    MOZ_RELEASE_ASSERT(mSymbols.fQueryStringImplementationANDROID,
+                       "Couldn't find eglQueryStringImplementationANDROID");
+#endif
+
+    ////////////////
+
+    InitClientExtensions();
+
+    mIsANGLE = mExts.IsSupported(ANGLE_platform_angle);
+
+    // Client exts are ready. (But not display exts!)
+    if (mExts.IsSupported(ANGLE_platform_angle_d3d)) {
+        const GLLibraryLoader::SymLoadStruct d3dSymbols[] = {
+            { (PRFuncPtr*)&symbols.GetPlatformDisplayEXT, { "eglGetPlatformDisplayEXT", nullptr } },
+            { nullptr, { nullptr } }
+        };
+
+        if (!GLLibraryLoader::LoadSymbols(lib, d3dSymbols, pfnGetProcAddress)) {
+            NS_ERROR("EGL supports ANGLE_platform_angle_d3d without exposing its functions!");
+
+            mExts.MarkUnupported(ANGLE_platform_angle_d3d);
+
+            mSymbols.fGetPlatformDisplayEXT = nullptr;
+        }
+    }
+
+    // Check the ANGLE support the system has
+    nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+
+
+}
+
+
 bool
 GLLibraryEGL::EnsureInitialized(bool forceAccel)
 {
@@ -360,7 +478,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         (GLLibraryLoader::PlatformLookupFunction)mSymbols.fGetProcAddress;
 
     // Client exts are ready. (But not display exts!)
-    if (IsExtensionSupported(ANGLE_platform_angle_d3d)) {
+    if (mExts.IsSupported(ANGLE_platform_angle_d3d)) {
         GLLibraryLoader::SymLoadStruct d3dSymbols[] = {
             { (PRFuncPtr*)&mSymbols.fGetPlatformDisplayEXT, { "eglGetPlatformDisplayEXT", nullptr } },
             { nullptr, { nullptr } }
@@ -372,7 +490,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports ANGLE_platform_angle_d3d without exposing its functions!");
 
-            MarkExtensionUnsupported(ANGLE_platform_angle_d3d);
+            mExts.MarkUnupported(ANGLE_platform_angle_d3d);
 
             mSymbols.fGetPlatformDisplayEXT = nullptr;
         }
@@ -380,11 +498,11 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
 
     // Check the ANGLE support the system has
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-    mIsANGLE = IsExtensionSupported(ANGLE_platform_angle);
+    mIsANGLE = mExts.IsSupported(ANGLE_platform_angle);
 
     EGLDisplay chosenDisplay = nullptr;
 
-    if (IsExtensionSupported(ANGLE_platform_angle_d3d)) {
+    if (mExts.IsSupported(ANGLE_platform_angle_d3d)) {
         bool accelAngleSupport = IsAccelAngleSupported(gfxInfo);
 
         bool shouldTryAccel = forceAccel || accelAngleSupport;
@@ -428,7 +546,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
     ////////////////////////////////////
     // Alright, load display exts.
 
-    if (IsExtensionSupported(KHR_lock_surface)) {
+    if (mExts.IsSupported(KHR_lock_surface)) {
         GLLibraryLoader::SymLoadStruct lockSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fLockSurface,   { "eglLockSurfaceKHR",   nullptr } },
             { (PRFuncPtr*) &mSymbols.fUnlockSurface, { "eglUnlockSurfaceKHR", nullptr } },
@@ -441,14 +559,14 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports KHR_lock_surface without exposing its functions!");
 
-            MarkExtensionUnsupported(KHR_lock_surface);
+            mExts.MarkUnupported(KHR_lock_surface);
 
             mSymbols.fLockSurface = nullptr;
             mSymbols.fUnlockSurface = nullptr;
         }
     }
 
-    if (IsExtensionSupported(ANGLE_surface_d3d_texture_2d_share_handle)) {
+    if (mExts.IsSupported(ANGLE_surface_d3d_texture_2d_share_handle)) {
         GLLibraryLoader::SymLoadStruct d3dSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fQuerySurfacePointerANGLE, { "eglQuerySurfacePointerANGLE", nullptr } },
             { nullptr, { nullptr } }
@@ -460,13 +578,13 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports ANGLE_surface_d3d_texture_2d_share_handle without exposing its functions!");
 
-            MarkExtensionUnsupported(ANGLE_surface_d3d_texture_2d_share_handle);
+            mExts.MarkUnupported(ANGLE_surface_d3d_texture_2d_share_handle);
 
             mSymbols.fQuerySurfacePointerANGLE = nullptr;
         }
     }
 
-    if (IsExtensionSupported(KHR_fence_sync)) {
+    if (mExts.IsSupported(KHR_fence_sync)) {
         GLLibraryLoader::SymLoadStruct syncSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fCreateSync,     { "eglCreateSyncKHR",     nullptr } },
             { (PRFuncPtr*) &mSymbols.fDestroySync,    { "eglDestroySyncKHR",    nullptr } },
@@ -481,7 +599,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports KHR_fence_sync without exposing its functions!");
 
-            MarkExtensionUnsupported(KHR_fence_sync);
+            mExts.MarkUnupported(KHR_fence_sync);
 
             mSymbols.fCreateSync = nullptr;
             mSymbols.fDestroySync = nullptr;
@@ -490,7 +608,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         }
     }
 
-    if (IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_base)) {
+    if (mExts.IsSupported(KHR_image) || mExts.IsSupported(KHR_image_base)) {
         GLLibraryLoader::SymLoadStruct imageSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fCreateImage,  { "eglCreateImageKHR",  nullptr } },
             { (PRFuncPtr*) &mSymbols.fDestroyImage, { "eglDestroyImageKHR", nullptr } },
@@ -503,18 +621,18 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports KHR_image(_base) without exposing its functions!");
 
-            MarkExtensionUnsupported(KHR_image);
-            MarkExtensionUnsupported(KHR_image_base);
-            MarkExtensionUnsupported(KHR_image_pixmap);
+            mExts.MarkUnupported(KHR_image);
+            mExts.MarkUnupported(KHR_image_base);
+            mExts.MarkUnupported(KHR_image_pixmap);
 
             mSymbols.fCreateImage = nullptr;
             mSymbols.fDestroyImage = nullptr;
         }
     } else {
-        MarkExtensionUnsupported(KHR_image_pixmap);
+        mExts.MarkUnupported(KHR_image_pixmap);
     }
 
-    if (IsExtensionSupported(ANDROID_native_fence_sync)) {
+    if (mExts.IsSupported(ANDROID_native_fence_sync)) {
         GLLibraryLoader::SymLoadStruct nativeFenceSymbols[] = {
             { (PRFuncPtr*) &mSymbols.fDupNativeFenceFDANDROID, { "eglDupNativeFenceFDANDROID", nullptr } },
             { nullptr, { nullptr } }
@@ -526,7 +644,7 @@ GLLibraryEGL::EnsureInitialized(bool forceAccel)
         if (!success) {
             NS_ERROR("EGL supports ANDROID_native_fence_sync without exposing its functions!");
 
-            MarkExtensionUnsupported(ANDROID_native_fence_sync);
+            mExts.MarkUnupported(ANDROID_native_fence_sync);
 
             mSymbols.fDupNativeFenceFDANDROID = nullptr;
         }

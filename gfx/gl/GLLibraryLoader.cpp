@@ -43,14 +43,14 @@ GLLibraryLoader::LookupSymbol(PRLibrary *lib,
 {
     PRFuncPtr res = 0;
 
-    // try finding it in the library directly, if we have one
-    if (lib) {
-        res = PR_FindFunctionSymbol(lib, sym);
+    // then try looking it up via the lookup symbol
+    if (lookupFunction) {
+        res = lookupFunction(sym);
     }
 
-    // then try looking it up via the lookup symbol
-    if (!res && lookupFunction) {
-        res = lookupFunction(sym);
+    // try finding it in the library directly, if we have one
+    if (!res && lib) {
+        res = PR_FindFunctionSymbol(lib, sym);
     }
 
     // finally just try finding it in the process

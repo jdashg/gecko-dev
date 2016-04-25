@@ -9,6 +9,7 @@
 #include "mozilla/X11Util.h"
 #endif
 
+#include "GLContextTypes.h"
 #include "GLLibraryLoader.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/ThreadLocal.h"
@@ -159,14 +160,16 @@ public:
     void InitClientExtensions();
     void InitDisplayExtensions();
 
+    ////////////////////////////////////////////////////////////////////////////
+
     /**
      * Known GL extensions that can be queried by
-     * IsExtensionSupported.  The results of this are cached, and as
+     * mExts.IsSupported().  The results of this are cached, and as
      * such it's safe to use this even in performance critical code.
      * If you add to this array, remember to add to the string names
      * in GLContext.cpp.
      */
-    enum EGLExtensions {
+    enum class EGLExtensions {
         KHR_image_base,
         KHR_image_pixmap,
         KHR_gl_texture_2D_image,
@@ -179,21 +182,13 @@ public:
         EGL_ANDROID_image_crop,
         ANGLE_platform_angle,
         ANGLE_platform_angle_d3d,
-        Extensions_Max
+
+        Max
     };
 
-    bool IsExtensionSupported(EGLExtensions aKnownExtension) const {
-        return mAvailableExtensions[aKnownExtension];
-    }
+    SupportedSet<EGLExtensions> mExts;
 
-    void MarkExtensionUnsupported(EGLExtensions aKnownExtension) {
-        mAvailableExtensions[aKnownExtension] = false;
-    }
-
-protected:
-    std::bitset<Extensions_Max> mAvailableExtensions;
-
-public:
+    ////////////////////////////////////////////////////////////////////////////
 
     EGLDisplay fGetDisplay(void* display_id)
     {
@@ -514,23 +509,23 @@ public:
     }
 
     bool HasKHRImageBase() {
-        return IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_base);
+        return mExts.IsSupported(KHR_image) || mExts.IsSupported(KHR_image_base);
     }
 
     bool HasKHRImagePixmap() {
-        return IsExtensionSupported(KHR_image) || IsExtensionSupported(KHR_image_pixmap);
+        return mExts.IsSupported(KHR_image) || mExts.IsSupported(KHR_image_pixmap);
     }
 
     bool HasKHRImageTexture2D() {
-        return IsExtensionSupported(KHR_gl_texture_2D_image);
+        return mExts.IsSupported(KHR_gl_texture_2D_image);
     }
 
     bool HasANGLESurfaceD3DTexture2DShareHandle() {
-        return IsExtensionSupported(ANGLE_surface_d3d_texture_2d_share_handle);
+        return mExts.IsSupported(ANGLE_surface_d3d_texture_2d_share_handle);
     }
 
     bool HasRobustness() const {
-        return IsExtensionSupported(EXT_create_context_robustness);
+        return mExts.IsSupported(EXT_create_context_robustness);
     }
 
     bool ReadbackEGLImage(EGLImage image, gfx::DataSourceSurface* out_surface);
@@ -665,6 +660,11 @@ private:
     bool mIsANGLE;
     bool mIsWARP;
     static StaticMutex sMutex;
+};
+
+class EGLDisplayContext
+{
+    UniquePtr
 };
 
 extern GLLibraryEGL sEGLLibrary;
