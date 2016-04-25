@@ -233,15 +233,18 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
     if (!Draw_check(info))
         return false;
 
+    uint32_t fetchedVerticesEnd = 0;
+
     if (count) {
-        CheckedInt<GLsizei> checked_firstPlusCount = CheckedInt<GLsizei>(first) + count;
+        const auto checked_firstPlusCount = CheckedUint32(first) + count;
 
         if (!checked_firstPlusCount.isValid()) {
             ErrorInvalidOperation("%s: overflow in first+count", info);
             return false;
         }
+        fetchedVerticesEnd = checked_firstPlusCount.value();
 
-        if (uint32_t(checked_firstPlusCount.value()) > mMaxFetchedVertices) {
+        if (fetchedVerticesEnd > mMaxFetchedVertices) {
             ErrorInvalidOperation("%s: bound vertex attribute buffers do not have sufficient size for given first and count", info);
             return false;
         }
@@ -261,7 +264,7 @@ WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount,
         }
     }
 
-    if (!DoFakeVertexAttrib0(mMaxFetchedVertices))
+    if (!DoFakeVertexAttrib0(fetchedVerticesEnd))
         return false;
 
     return true;
@@ -721,7 +724,7 @@ WebGLContext::DoFakeVertexAttrib0(GLuint vertexCount)
 
     if (!checked_dataSize.isValid()) {
         ErrorOutOfMemory("Integer overflow trying to construct a fake vertex attrib 0 array for a draw-operation "
-                         "with %d vertices. Try reducing the number of vertices.", vertexCount);
+                         "with %u vertices. Try reducing the number of vertices.", vertexCount);
         return false;
     }
 
