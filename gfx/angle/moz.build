@@ -153,7 +153,7 @@ DEFINES['EGLAPI'] = ""
 
 # Only build libEGL/libGLESv2 on Windows
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    DIRS += [ 'src/libANGLE', 'src/libGLESv2', 'src/libEGL' ]
+    DIRS += [ 'src/libANGLE', 'src/libGLESv2', 'src/libEGL', 'src/sandbox' ]
 
 DEFINES['ANGLE_ENABLE_HLSL'] = "1"
 DEFINES['ANGLE_ENABLE_GLSL'] = "1"

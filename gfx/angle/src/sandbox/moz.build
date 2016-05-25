@@ -1,0 +1,10 @@
+
+DEFINES['_HAS_EXCEPTIONS'] = 0
+
+SOURCES += [
+    'angle-sandbox.cpp',
+]
+LOCAL_INCLUDES += [ '../../include', '../../src' ]
+
+USE_LIBS += [ 'libEGL', 'libGLESv2' ]
+GeckoProgram('angle-sandbox', linkage=None)
