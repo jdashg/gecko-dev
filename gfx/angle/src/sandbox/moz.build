@@ -6,5 +6,6 @@ SOURCES += [
 ]
 LOCAL_INCLUDES += [ '../../include', '../../src' ]
 
+OS_LIBS += [ 'd3d9', 'dxguid', 'd3d11' ]
 USE_LIBS += [ 'libEGL', 'libGLESv2' ]
 GeckoProgram('angle-sandbox', linkage=None)
