@@ -1,6 +1,7 @@
 #include <new> // Must be included before <cstdio>
 #include <cstdio>
 #include <vector>
+#include <memory>
 
 #include <d3d11.h>
 
@@ -78,7 +79,7 @@ DumpEGLConfig(const EGLDisplay display, const EGLConfig cfg)
 }
 
 template<typename T>
-class sp
+class sp final
 {
     T* ptr;
 
@@ -118,7 +119,7 @@ public:
             ptr->Release();
             ptr = nullptr;
         }
-        
+
         return ptr;
     }
 
@@ -130,7 +131,7 @@ public:
     T* operator ->() const { return ptr; }
 };
 
-struct D3D11Map
+struct D3D11Map final
 {
     const sp<ID3D11DeviceContext> context;
     const sp<ID3D11Resource> res;
@@ -155,7 +156,7 @@ struct D3D11Map
     }
 };
 
-struct ScopedLockMutex
+struct ScopedLockMutex final
 {
     const sp<IDXGIKeyedMutex> mutex;
 
@@ -180,23 +181,166 @@ struct ScopedLockMutex
     }
 };
 
-int
-main(int argc, const char* argv[])
+////////////////////////////////////////
+
+class ScopedEGLSession final
 {
-    const char* const clientExts = (const char*)egl::QueryString(nullptr, EGL_EXTENSIONS);
-    printf("Client exts: %s\n", clientExts);
+public:
+    ScopedEGLSession() {
+        ALWAYS_TRUE( egl::BindAPI(EGL_OPENGL_ES_API) );
 
-    const EGLDisplay display = egl::GetDisplay(EGL_D3D11_ONLY_DISPLAY_ANGLE);
-    ALWAYS_TRUE(egl::Initialize(display, nullptr, nullptr));
+        const char* const clientExts = (const char*)egl::QueryString(nullptr,
+                                                                     EGL_EXTENSIONS);
+        //printf("Client exts: %s\n", clientExts);
+    }
 
-    const char* const displayExts = (const char*)egl::QueryString(display, EGL_EXTENSIONS);
-    printf("Display exts: %s\n", displayExts);
+    ~ScopedEGLSession() {
+        ALWAYS_TRUE( egl::ReleaseThread() );
+    }
+};
 
-    //////
+////////////////////
 
-    ALWAYS_TRUE(egl::BindAPI(EGL_OPENGL_ES_API));
+class ScopedEGLDisplay final
+{
+    EGLDisplay mDisplay;
 
-    const EGLint kConfigAttribs[] = {
+public:
+    ScopedEGLDisplay(const ScopedEGLSession&, EGLNativeDisplayType displayType)
+        : mDisplay(nullptr)
+    {
+        mDisplay = egl::GetDisplay(displayType);
+        ALWAYS_TRUE( egl::Initialize(mDisplay, nullptr, nullptr) );
+
+        const char* const displayExts = (const char*)egl::QueryString(mDisplay,
+                                                                      EGL_EXTENSIONS);
+        //printf("Display exts (%p): %s\n", mDisplay, displayExts);
+    }
+
+    ~ScopedEGLDisplay() {
+        ALWAYS_TRUE( egl::Terminate(mDisplay) );
+    }
+
+    operator EGLDisplay() const { return mDisplay; }
+};
+
+////////////////////
+
+class ScopedEGLContext final
+{
+public:
+    const EGLDisplay mDisplay;
+private:
+    EGLConfig mConfig;
+    EGLContext mContext;
+
+public:
+    ScopedEGLContext(EGLDisplay display, const EGLint* configAttribs,
+                     EGLContext shareContext, const EGLint* contextAttribs)
+        : mDisplay(display)
+        , mConfig(nullptr)
+        , mContext(nullptr)
+    {
+        EGLConfig configs[1];
+        EGLint chosenConfigs;
+        ALWAYS_TRUE( egl::ChooseConfig(mDisplay, configAttribs, configs, 1,
+                                       &chosenConfigs) );
+        ASSERT(chosenConfigs);
+
+        mConfig = configs[0];
+        //DumpEGLConfig(mDisplay, mConfig);
+
+        ////////////
+
+        mContext = egl::CreateContext(mDisplay, mConfig, shareContext, contextAttribs);
+        ASSERT(mContext);
+    }
+
+    ~ScopedEGLContext() {
+        ALWAYS_TRUE( egl::DestroyContext(mDisplay, mContext) );
+    }
+
+    operator EGLContext() const { return mContext; }
+
+    EGLConfig Config() const { return mConfig; }
+};
+
+////////////////////
+
+class ScopedPBuffer final
+{
+public:
+    const EGLDisplay mDisplay;
+    const EGLConfig mConfig;
+private:
+    EGLSurface mSurface;
+
+public:
+    ScopedPBuffer(EGLDisplay display, const ScopedEGLContext& context,
+                  const EGLint* attribs)
+        : mDisplay(display)
+        , mConfig(context.Config()) // Better to do this here, since EGLContext is a
+        , mSurface(nullptr)         // footgun that implicitly coerces to EGLConfig.
+    {
+        mSurface = egl::CreatePbufferSurface(mDisplay, mConfig, attribs);
+        ASSERT(mSurface);
+    }
+
+    ~ScopedPBuffer() {
+        egl::DestroySurface(mDisplay, mSurface);
+    }
+
+    operator EGLSurface() const { return mSurface; }
+};
+
+class ScopedMakeCurrent final
+{
+public:
+    const EGLDisplay mDisplay;
+    const EGLSurface mSurf;
+    const EGLContext mContext;
+private:
+    std::unique_ptr<ScopedLockMutex> mSurfaceLock;
+
+public:
+    ScopedMakeCurrent(EGLDisplay display, EGLSurface surf, EGLContext context)
+        : mDisplay(display)
+        , mSurf(surf)
+        , mContext(context)
+    {
+        sp<IDXGIKeyedMutex> surfMutex;
+        ALWAYS_TRUE( egl::QuerySurfacePointerANGLE(mDisplay, mSurf,
+                                                   EGL_DXGI_KEYED_MUTEX_ANGLE,
+                                                   (void**)&surfMutex.getterAddRefs()) );
+        //ASSERT(surfMutex);
+        mSurfaceLock.reset(new ScopedLockMutex(surfMutex));
+
+        ////////////
+
+        ALWAYS_TRUE( egl::MakeCurrent(mDisplay, mSurf, mSurf, mContext) );
+
+        EGLint errEGL = egl::GetError();
+        ASSERT(errEGL == EGL_SUCCESS);
+
+        GLenum err = gl::GetError();
+        ASSERT(!err);
+    }
+
+    ~ScopedMakeCurrent() {
+        ALWAYS_TRUE( egl::MakeCurrent(mDisplay, nullptr, nullptr, nullptr) );
+    }
+};
+
+
+////////////////////////////////////////
+
+void
+ClearTest()
+{
+    ScopedEGLSession session;
+    ScopedEGLDisplay display(session, EGL_D3D11_ONLY_DISPLAY_ANGLE);
+
+    const EGLint configAttribs[] = {
         EGL_SURFACE_TYPE,    EGL_PBUFFER_BIT,
         EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
         EGL_RED_SIZE,        8,
@@ -205,87 +349,33 @@ main(int argc, const char* argv[])
         EGL_ALPHA_SIZE,      8,
         EGL_NONE
     };
+    const EGLContext shareContext = nullptr;
+    const EGLint contextAttribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+    ScopedEGLContext context(display, configAttribs, shareContext, contextAttribs);
 
-    EGLConfig configs[1];
-    EGLint chosenConfigs;
-    ALWAYS_TRUE(egl::ChooseConfig(display, kConfigAttribs, configs, 1, &chosenConfigs));
-    ASSERT(chosenConfigs);
-
-    const EGLConfig& config = configs[0];
-    DumpEGLConfig(display, config);
-
-    ////////////////////////////////////
-
-    HRESULT hr;
-
-    EGLDeviceEXT eglDevice;
-    ALWAYS_TRUE(egl::QueryDisplayAttribEXT(display, EGL_DEVICE_EXT,
-                                            (EGLAttrib*)&eglDevice));
-
-    sp<ID3D11Device> d3d;
-    ALWAYS_TRUE(egl::QueryDeviceAttribEXT(eglDevice, EGL_D3D11_DEVICE_ANGLE,
-                                          (EGLAttrib*)&d3d.getterAddRefs()));
-    ASSERT(d3d);
-
-    sp<ID3D11DeviceContext> immContext;
-    d3d->GetImmediateContext(&immContext.getterAddRefs());
-    ASSERT(immContext);
-
-    /////
-
-    const EGLint kSurfaceAttribs[] = {
+    const EGLint surfaceAttribs[] = {
         EGL_WIDTH, 16,
         EGL_HEIGHT, 16,
         EGL_NONE
     };
-    const EGLSurface surf = egl::CreatePbufferSurface(display, config, kSurfaceAttribs);
-    ASSERT(surf);
-    
-    /////
-    
-    HANDLE shareHandle;
-    ALWAYS_TRUE( egl::QuerySurfacePointerANGLE(display, surf, EGL_D3D_TEXTURE_2D_SHARE_HANDLE_ANGLE,
-                                               &shareHandle) );
-    ASSERT(shareHandle);
-
-    sp<IDXGIKeyedMutex> angleMutex;
-    ALWAYS_TRUE(egl::QuerySurfacePointerANGLE(display, surf, EGL_DXGI_KEYED_MUTEX_ANGLE,
-                                              (void**)&angleMutex.getterAddRefs()));
-    ASSERT(angleMutex);
-
-    /////
-
-    sp<ID3D11Texture2D> backbufferTex;
-    hr = d3d->OpenSharedResource(shareHandle, __uuidof(ID3D11Texture2D),
-                                  (void**)&backbufferTex.getterAddRefs());
-    ASSERT(SUCCEEDED(hr));
-    ASSERT(backbufferTex);
-
-    ////////////////
-
-    const EGLint kContextAttribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, 2,
-        EGL_NONE
-    };
-    const EGLContext context = egl::CreateContext(display, config, nullptr, kContextAttribs);
-    ASSERT(context);
+    ScopedPBuffer pbuffer(display, context, surfaceAttribs);
 
     ////////////////////////////////////
 
-    ALWAYS_TRUE(egl::MakeCurrent(display, surf, surf, context));
+    uint32_t pixel;
+    GLenum err;
+    HRESULT hr;
 
-    EGLint errEGL = egl::GetError();
-    ASSERT(errEGL == EGL_SUCCESS);
-
-    GLenum err = gl::GetError();
-    ASSERT(!err);
-
-    ////////////////////////////////////
-    ////////////////////////////////////
-    // Check readback from user FB
-
-    uint32_t pixel = 0xdeadbeef;
     {
+        ScopedMakeCurrent current(display, pbuffer, context);
+
+        ////////////////////////////////////
+        ////////////////////////////////////
+        // Check readback from user FB
+
         GLuint rb;
         gl::GenRenderbuffers(1, &rb);
         gl::BindRenderbuffer(GL_RENDERBUFFER, rb);
@@ -311,16 +401,12 @@ main(int argc, const char* argv[])
 
         err = gl::GetError();
         ASSERT(!err);
-    }
 
-    ////////////////////////////////////
-    ////////////////////////////////////
-    // Check readback from GL default framebuffer (backbuffer)
+        ////////////////////////////////////
+        ////////////////////////////////////
+        // Check readback from GL default framebuffer (backbuffer)
 
-    gl::BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    {
-        ScopedLockMutex lock(angleMutex);
+        gl::BindFramebuffer(GL_FRAMEBUFFER, 0);
 
         gl::ClearColor(0x55 / 255.0f, 0x66 / 255.0f, 0x77 / 255.0f, 0x88 / 255.0f);
         gl::Clear(GL_COLOR_BUFFER_BIT);
@@ -339,6 +425,31 @@ main(int argc, const char* argv[])
     ////////////////////////////////////
     // Check readback via DXGI sharing
 
+    EGLDeviceEXT eglDevice;
+    ALWAYS_TRUE( egl::QueryDisplayAttribEXT(display, EGL_DEVICE_EXT,
+                                            (EGLAttrib*)&eglDevice) );
+
+    sp<ID3D11Device> d3d;
+    ALWAYS_TRUE( egl::QueryDeviceAttribEXT(eglDevice, EGL_D3D11_DEVICE_ANGLE,
+                                           (EGLAttrib*)&d3d.getterAddRefs()) );
+    ASSERT(d3d);
+
+    /////
+
+    HANDLE shareHandle;
+    ALWAYS_TRUE( egl::QuerySurfacePointerANGLE(display, pbuffer,
+                                               EGL_D3D_TEXTURE_2D_SHARE_HANDLE_ANGLE,
+                                               &shareHandle) );
+    ASSERT(shareHandle);
+
+    sp<ID3D11Texture2D> backbufferTex;
+    hr = d3d->OpenSharedResource(shareHandle, __uuidof(ID3D11Texture2D),
+                                  (void**)&backbufferTex.getterAddRefs());
+    ASSERT(SUCCEEDED(hr));
+    ASSERT(backbufferTex);
+
+    ////////////////
+
     D3D11_TEXTURE2D_DESC stagingDesc;
     backbufferTex->GetDesc(&stagingDesc); // Copy source texture desc
     stagingDesc.BindFlags = 0;
@@ -351,11 +462,15 @@ main(int argc, const char* argv[])
     ASSERT(SUCCEEDED(hr));
     ASSERT(stagingTex);
 
-    ////////////
+    //////
 
     sp<IDXGIKeyedMutex> backbufferMutex;
     backbufferTex->QueryInterface(&backbufferMutex.getterAddRefs());
     ASSERT(backbufferMutex);
+
+    sp<ID3D11DeviceContext> immContext;
+    d3d->GetImmediateContext(&immContext.getterAddRefs());
+    ASSERT(immContext);
 
     {
         ScopedLockMutex lock(backbufferMutex);
@@ -371,7 +486,75 @@ main(int argc, const char* argv[])
         printf("workaround DFB: %08x\n", pixel);
     }
     ASSERT(pixel == 0x88556677); // [BB,GG,RR,AA] is 0xAARRGGBB
+}
 
-    ASSERT2(false, "Breaking before exit...");
-    return 0;
+void
+ScissorTest()
+{
+    ScopedEGLSession session;
+    ScopedEGLDisplay display(session, EGL_D3D11_ONLY_DISPLAY_ANGLE);
+
+    const EGLint configAttribs[] = {
+        EGL_SURFACE_TYPE,    EGL_PBUFFER_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RED_SIZE,        8,
+        EGL_GREEN_SIZE,      8,
+        EGL_BLUE_SIZE,       8,
+        EGL_ALPHA_SIZE,      8,
+        EGL_NONE
+    };
+    const EGLContext shareContext = nullptr;
+    const EGLint contextAttribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+    const EGLint surfaceAttribs[] = {
+        EGL_WIDTH, 16,
+        EGL_HEIGHT, 16,
+        EGL_NONE
+    };
+    ScopedEGLContext contextA(display, configAttribs, shareContext, contextAttribs);
+    ScopedPBuffer pbufferA(display, contextA, surfaceAttribs);
+
+    ScopedEGLContext contextB(display, configAttribs, shareContext, contextAttribs);
+    ScopedPBuffer pbufferB(display, contextB, surfaceAttribs);
+
+    EGLint errEGL = egl::GetError();
+    ASSERT(errEGL == EGL_SUCCESS);
+
+    ////////////////
+
+    {
+        ScopedMakeCurrent current(display, pbufferA, contextA);
+        gl::Enable(GL_SCISSOR_TEST);
+        gl::Scissor(0, 0, 0, 0);
+
+        GLenum err = gl::GetError();
+        ASSERT(!err);
+    }
+
+    ////////////////
+
+    {
+        ScopedMakeCurrent current(display, pbufferB, contextB);
+
+        gl::ClearColor(0x11 / 255.0f, 0x22 / 255.0f, 0x33 / 255.0f, 0x44 / 255.0f);
+        gl::Clear(GL_COLOR_BUFFER_BIT);
+
+        uint32_t pixel = 0xdeadbeef;
+        gl::ReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
+
+        GLenum err = gl::GetError();
+        ASSERT(!err);
+
+        printf("non-scissored pixel: %08x\n", pixel);
+        ASSERT(pixel == 0x44332211);
+    }
+}
+
+int
+main(int argc, const char* argv[])
+{
+    ClearTest();
+    ScissorTest();
 }
