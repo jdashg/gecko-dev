@@ -269,6 +269,18 @@ pub unsafe extern "C" fn mp4parse_get_track_video_info(context: *mut MediaContex
     MP4PARSE_OK
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn mp4parse_get_next_track_id(context: *mut MediaContext, next_track_id: *mut u32) -> i32 {
+    if context.is_null() || next_track_id.is_null() {
+        return MP4PARSE_ERROR_BADARG;
+    }
+
+    let context: &mut MediaContext = &mut *context;
+
+    *next_track_id = context.next_track_id;
+    MP4PARSE_OK
+}
+
 #[test]
 fn new_context() {
     let context = mp4parse_new();

@@ -109,6 +109,7 @@ struct MovieHeaderBox {
     header: BoxHeader,
     timescale: u32,
     duration: u64,
+    next_track_id: u32,
 }
 
 /// Track header box 'tkhd'
@@ -281,6 +282,7 @@ struct OpusSpecificBox {
 #[derive(Debug)]
 pub struct MediaContext {
     timescale: Option<MediaTimeScale>,
+    next_track_id: u32,
     /// Tracks found in the file.
     tracks: Vec<Track>,
     /// Print boxes and other info as parsing proceeds. For debugging.
@@ -291,6 +293,7 @@ impl MediaContext {
     pub fn new() -> Self {
         MediaContext {
             timescale: None,
+            next_track_id: 0,
             tracks: Vec::new(),
             trace: false,
         }
@@ -519,6 +522,7 @@ fn read_moov<T: BufRead>(f: &mut T, _: &BoxHeader, context: &mut MediaContext) -
             b"mvhd" => {
                 let (mvhd, timescale) = try!(parse_mvhd(content, &h));
                 context.timescale = timescale;
+                context.next_track_id = mvhd.next_track_id;
                 log!(context, "  {:?}", mvhd);
             }
             b"trak" => {
@@ -712,21 +716,23 @@ fn read_ftyp<T: ReadBytesExt>(src: &mut T, head: &BoxHeader) -> Result<FileTypeB
 /// Parse an mvhd box.
 fn read_mvhd<T: ReadBytesExt + BufRead>(src: &mut T, head: &BoxHeader) -> Result<MovieHeaderBox> {
     let (version, _) = try!(read_fullbox_extra(src));
-    match version {
-        // 64 bit creation and modification times.
+
+    let bytes_per_time = match version {
         1 => {
-            try!(skip(src, 16));
+            8, // 64-bit timestamps.
         }
-        // 32 bit creation and modification times.
         0 => {
-            try!(skip(src, 8));
+            4, // 32-bit timestamps.
         }
         _ => return Err(Error::InvalidData),
-    }
+    };
+
+    try!(skip(src, bytes_per_time*2)); // creation and modification times
     let timescale = try!(be_u32(src));
-    let duration = match version {
-        1 => try!(be_u64(src)),
-        0 => {
+
+    let duration = match bytes_per_time {
+        8 => try!(be_u64(src)),
+        4 => {
             let d = try!(be_u32(src));
             if d == std::u32::MAX {
                 std::u64::MAX
@@ -734,14 +740,21 @@ fn read_mvhd<T: ReadBytesExt + BufRead>(src: &mut T, head: &BoxHeader) -> Result
                 d as u64
             }
         }
-        _ => return Err(Error::InvalidData),
     };
-    // Skip remaining fields.
-    try!(skip(src, 80));
+
+    try!(skip(src, 4+2+10)); // user playback speed, user volume, reserved
+    try!(skip(src, 4*9)); // window geometry matrix
+
+    try!(skip(src, 8+4)); // preview, still poster
+    try!(skip(src, 8+4)); // selection time, current time
+
+    let next_track_id = try!(be_u32(src));
+
     Ok(MovieHeaderBox {
         header: *head,
         timescale: timescale,
         duration: duration,
+        next_track_id: next_track_id,
     })
 }
 
